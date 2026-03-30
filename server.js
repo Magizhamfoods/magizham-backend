@@ -23,16 +23,46 @@ const io = new Server(server, {
 // ── MIDDLEWARE ──────────────────────────────────────────────
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname))); // serve HTML + static files
+app.use(express.static(path.join(__dirname)));
 
-// ✅ SERVE i18n.js EXPLICITLY (IMPORTANT)
 app.get("/i18n.js", (req, res) => {
   res.sendFile(path.join(__dirname, "i18n.js"));
 });
 
-// ── DB CONNECTION ───────────────────────────────────────────
+// ── DB CONNECTION + AUTO TABLE CREATION ─────────────────────
 pool.connect()
-  .then(() => console.log("Database connected successfully ✅"))
+  .then(async () => {
+    console.log("Database connected successfully ✅");
+
+    // ✅ Auto-create tables — runs every startup, safe to repeat
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id            SERIAL PRIMARY KEY,
+        user_id       INTEGER,
+        total         NUMERIC,
+        status        VARCHAR(50)  DEFAULT 'placed',
+        created_at    TIMESTAMP    DEFAULT NOW(),
+        rider_name    VARCHAR(100),
+        rider_phone   VARCHAR(20),
+        lat           NUMERIC,
+        lng           NUMERIC,
+        delivery_lat  NUMERIC,
+        delivery_lng  NUMERIC
+      )
+    `);
+
+    // ✅ Insert test order so /track/1 works immediately
+    await pool.query(`
+      INSERT INTO orders
+        (id, user_id, total, status, rider_name, rider_phone, lat, lng, delivery_lat, delivery_lng)
+      VALUES
+        (1, 1, 45.50, 'on_the_way', 'Ravi Kumar', '971501234567',
+         25.2426266, 55.3026453, 25.2320, 55.3120)
+      ON CONFLICT (id) DO NOTHING
+    `);
+
+    console.log("Tables ready ✅");
+  })
   .catch(err => console.error("DB error:", err));
 
 // ── ROUTES ──────────────────────────────────────────────────
@@ -57,24 +87,21 @@ app.get("/rider", (req, res) => {
 // TRACKING API
 // ─────────────────────────────────────────────────────────────
 
-// GET order tracking
+// GET order tracking — also returns delivery_lat/lng
 app.get("/api/orders/:id/track", async (req, res) => {
   const { id } = req.params;
-
   try {
     const result = await pool.query(
       `SELECT id, user_id, total, status, created_at,
-              rider_name, rider_phone, lat, lng
+              rider_name, rider_phone, lat, lng,
+              delivery_lat, delivery_lng
        FROM orders WHERE id = $1`,
       [id]
     );
-
     if (!result.rows.length) {
       return res.status(404).json({ error: "Order not found" });
     }
-
     res.json(result.rows[0]);
-
   } catch (err) {
     console.error("Track fetch error:", err);
     res.status(500).json({ error: "Server error" });
@@ -85,25 +112,17 @@ app.get("/api/orders/:id/track", async (req, res) => {
 app.post("/api/orders/:id/status", async (req, res) => {
   const { id }     = req.params;
   const { status } = req.body;
-
-  const allowed = ["placed", "confirmed", "on_the_way", "delivered"];
+  const allowed    = ["placed", "confirmed", "on_the_way", "delivered"];
 
   if (!allowed.includes(status)) {
-    return res.status(400).json({ error: `Invalid status` });
+    return res.status(400).json({ error: "Invalid status" });
   }
 
   try {
-    await pool.query(
-      "UPDATE orders SET status = $1 WHERE id = $2",
-      [status, id]
-    );
-
+    await pool.query("UPDATE orders SET status = $1 WHERE id = $2", [status, id]);
     io.to(`order_${id}`).emit("orderStatusUpdate", { orderId: id, status });
-
     console.log(`📋 Order ${id} → ${status}`);
-
     res.json({ success: true });
-
   } catch (err) {
     console.error("Status update error:", err);
     res.status(500).json({ error: "Server error" });
@@ -114,9 +133,7 @@ app.post("/api/orders/:id/status", async (req, res) => {
 app.post("/api/rider/location", async (req, res) => {
   const { orderId, lat, lng } = req.body;
 
-  if (!lat || !lng) {
-    return res.status(400).json({ error: "lat and lng required" });
-  }
+  if (!lat || !lng) return res.status(400).json({ error: "lat and lng required" });
 
   const parsedLat = parseFloat(lat);
   const parsedLng = parseFloat(lng);
@@ -131,17 +148,10 @@ app.post("/api/rider/location", async (req, res) => {
         "UPDATE orders SET lat = $1, lng = $2 WHERE id = $3",
         [parsedLat, parsedLng, orderId]
       );
-
-      io.to(`order_${orderId}`).emit("orderLocationUpdate", {
-        lat: parsedLat,
-        lng: parsedLng
-      });
-
+      io.to(`order_${orderId}`).emit("orderLocationUpdate", { lat: parsedLat, lng: parsedLng });
       console.log(`📍 Order ${orderId} → ${parsedLat}, ${parsedLng}`);
     }
-
     res.json({ success: true });
-
   } catch (err) {
     console.error("Location error:", err);
     res.status(500).json({ error: "Server error" });
@@ -150,69 +160,46 @@ app.post("/api/rider/location", async (req, res) => {
 
 // HEALTH CHECK
 app.get("/api/health", (req, res) => {
-  res.json({
-    status: "✅ Running",
-    uptime: Math.floor(process.uptime())
-  });
+  res.json({ status: "✅ Running", uptime: Math.floor(process.uptime()) });
 });
 
 // ─────────────────────────────────────────────────────────────
 // SOCKET.IO
 // ─────────────────────────────────────────────────────────────
 io.on("connection", (socket) => {
-  const type    = socket.handshake.query.type || "unknown";
+  const type    = socket.handshake.query.type    || "unknown";
   const orderId = socket.handshake.query.orderId;
 
   console.log(`✅ ${type} connected | Order: ${orderId || "none"}`);
 
-  if (orderId) {
-    socket.join(`order_${orderId}`);
-  }
+  if (orderId) socket.join(`order_${orderId}`);
 
-  // Rider GPS updates
   socket.on("riderLocationUpdate", async (data) => {
     const { lat, lng, orderId: oId } = data;
-
     if (!lat || !lng) return;
-
     try {
       await pool.query(
         "UPDATE orders SET lat = $1, lng = $2 WHERE id = $3",
         [lat, lng, oId]
       );
-
       socket.to(`order_${oId}`).emit("orderLocationUpdate", { lat, lng });
-
     } catch (err) {
       console.error("Socket location error:", err);
     }
-
     socket.emit("locationReceived", { lat, lng });
   });
 
-  // Status update
   socket.on("orderStatusUpdate", async (data) => {
     const { status, orderId: oId } = data;
-
     try {
-      await pool.query(
-        "UPDATE orders SET status = $1 WHERE id = $2",
-        [status, oId]
-      );
-
-      io.to(`order_${oId}`).emit("orderStatusUpdate", {
-        orderId: oId,
-        status
-      });
-
+      await pool.query("UPDATE orders SET status = $1 WHERE id = $2", [status, oId]);
+      io.to(`order_${oId}`).emit("orderStatusUpdate", { orderId: oId, status });
     } catch (err) {
       console.error("Socket status error:", err);
     }
   });
 
-  socket.on("disconnect", () => {
-    console.log("❌ Disconnected");
-  });
+  socket.on("disconnect", () => console.log("❌ Disconnected"));
 });
 
 app.set("io", io);
