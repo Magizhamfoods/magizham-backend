@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Track Your Order — Magizham</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚚</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --green:   #1a7a4a;
+      --green2:  #25a066;
+      --light:   #f5f7f5;
+      --white:   #ffffff;
+      --gray:    #6b7280;
+      --dgray:   #374151;
+      --red:     #e53935;
+      --shadow:  0 -2px 20px rgba(0,0,0,0.10);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: "Nunito", sans-serif; background: #f0f2f0; overflow: hidden; height: 100vh; }
+
+    /* ── MAP — CRITICAL: must be full screen behind everything ── */
+    #map {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      width: 100vw; height: 100vh;
+      z-index: 0;
+    }
+
+    #offlineBanner {
+      display: none; position: fixed;
+      top: 0; left: 0; right: 0;
+      background: var(--red); color: white;
+      text-align: center; padding: 10px 16px;
+      font-size: 13px; font-weight: 700; z-index: 9999;
+    }
+
+    #topBar {
+      position: fixed;
+      top: 12px; left: 12px; right: 12px;
+      display: flex; align-items: center; justify-content: space-between;
+      z-index: 500;
+    }
+
+    .top-badge {
+      background: white; border-radius: 20px;
+      padding: 6px 14px; font-size: 12px; font-weight: 800;
+      color: var(--dgray); box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .top-actions { display: flex; gap: 8px; }
+
+    .top-action-btn {
+      width: 36px; height: 36px; background: white; border: none;
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-size: 16px; cursor: pointer;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+    }
+
+    /* ── ETA BUBBLE ── */
+    .eta-bubble {
+      background: #111827; color: white; border-radius: 8px;
+      padding: 5px 10px; font-size: 12px; font-weight: 800;
+      white-space: nowrap; box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+      position: relative; letter-spacing: 0.3px;
+    }
+    .eta-bubble::after {
+      content: ""; position: absolute;
+      bottom: -5px; left: 50%; transform: translateX(-50%);
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 5px solid #111827;
+    }
+
+    /* ── RIDER MARKER ── */
+    .rider-marker-wrap {
+      position: relative; width: 52px; height: 52px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rider-pulse-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      background: rgba(26,122,74,0.2);
+      animation: ringPulse 1.8s ease-out infinite;
+    }
+    .rider-pulse-ring2 {
+      position: absolute; inset: 4px; border-radius: 50%;
+      background: rgba(26,122,74,0.15);
+      animation: ringPulse 1.8s ease-out infinite 0.4s;
+    }
+    .rider-icon-circle {
+      width: 42px; height: 42px; border-radius: 50%;
+      background: white; border: 3px solid var(--green);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px; position: relative; z-index: 2;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    @keyframes ringPulse {
+      0%   { transform: scale(0.8); opacity: 1; }
+      70%  { transform: scale(1.8); opacity: 0; }
+      100% { transform: scale(0.8); opacity: 0; }
+    }
+
+    /* ── HOME MARKER ── */
+    .home-marker { width: 40px; height: 44px; display: flex; flex-direction: column; align-items: center; }
+    .home-marker-body {
+      width: 36px; height: 36px; background: var(--dgray);
+      border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+    }
+    .home-marker-icon { transform: rotate(45deg); font-size: 16px; }
+
+    /* ── RESTAURANT MARKER ── */
+    .restaurant-marker {
+      background: white; border: 2.5px solid var(--green);
+      border-radius: 20px; padding: 5px 10px;
+      font-size: 11px; font-weight: 800; color: var(--green);
+      white-space: nowrap; box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    /* ── BOTTOM SHEET ── */
+    #bottomSheet {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: var(--white); border-radius: 20px 20px 0 0;
+      box-shadow: var(--shadow); z-index: 1000;
+      max-height: 85vh; overflow-y: auto;
+    }
+
+    .sheet-drag-handle {
+      width: 36px; height: 4px; background: #d1d5db;
+      border-radius: 4px; margin: 10px auto 0;
+    }
+
+    /* ── STATUS HERO ── */
+    #statusHero { padding: 14px 18px 12px; border-bottom: 1px solid #f3f4f6; }
+    #statusHeroInner { display: flex; align-items: center; gap: 14px; }
+    .status-icon-wrap {
+      width: 46px; height: 46px; border-radius: 14px;
+      background: #f0fdf4; border: 1.5px solid #bbf7d0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .status-text-wrap { flex: 1; }
+    .status-main-text { font-size: 16px; font-weight: 900; color: #111; line-height: 1.2; }
+    .status-sub-text  { font-size: 12px; color: var(--gray); margin-top: 2px; font-weight: 600; }
+
+    #countdownWrap { text-align: right; flex-shrink: 0; }
+    #countdown {
+      font-size: 30px; font-weight: 900; color: var(--green);
+      font-variant-numeric: tabular-nums; line-height: 1;
+    }
+    .countdown-label {
+      font-size: 10px; color: var(--gray); font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.5px;
+    }
+
+    #arrivalRow {
+      display: flex; align-items: center; gap: 6px;
+      margin-top: 10px; background: #f0fdf4;
+      border-radius: 10px; padding: 7px 12px;
+    }
+    .arrival-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0;
+      animation: dotPulse 1.5s ease-in-out infinite;
+    }
+    @keyframes dotPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
+    #arrivalText  { font-size: 13px; font-weight: 700; color: var(--green); flex: 1; }
+    #arrivalClock { font-size: 12px; font-weight: 700; color: var(--dgray); }
+
+    /* ── TIMELINE ── */
+    #timelineWrap { padding: 12px 18px 8px; border-bottom: 1px solid #f3f4f6; }
+    .timeline { display: flex; justify-content: space-between; align-items: flex-start; position: relative; }
+    .timeline::before {
+      content: ""; position: absolute;
+      top: 13px; left: 14px; right: 14px;
+      height: 2.5px; background: #e5e7eb; z-index: 0;
+    }
+    .tl-progress {
+      position: absolute; top: 13px; left: 14px;
+      height: 2.5px;
+      background: linear-gradient(90deg, var(--green), var(--green2));
+      z-index: 1; transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+      width: 0%; border-radius: 2px;
+    }
+    .tl-step {
+      display: flex; flex-direction: column; align-items: center;
+      z-index: 2; width: 25%; text-align: center;
+    }
+    .tl-dot {
+      width: 28px; height: 28px; border-radius: 50%; background: #e5e7eb;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; margin-bottom: 5px; transition: all 0.3s;
+      border: 2px solid transparent;
+    }
+    .tl-step.done   .tl-dot { background: var(--green); border-color: var(--green); }
+    .tl-step.active .tl-dot {
+      background: white; border-color: var(--green);
+      box-shadow: 0 0 0 4px rgba(26,122,74,0.15);
+    }
+    .tl-label { font-size: 9.5px; color: #9ca3af; font-weight: 700; }
+    .tl-step.done  .tl-label,
+    .tl-step.active .tl-label { color: #111; }
+
+    /* ── INFO STRIP ── */
+    #infoStrip { display: flex; padding: 8px 12px; gap: 6px; border-bottom: 1px solid #f3f4f6; }
+    .info-pill { flex: 1; background: #f9fafb; border-radius: 10px; padding: 8px 6px; text-align: center; }
+    .info-pill .ip-label { font-size: 9px; color: var(--gray); font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; }
+    .info-pill .ip-value { font-size: 14px; font-weight: 900; color: #111; margin-top: 1px; }
+
+    /* ── RIDER SECTION ── */
+    #riderSection { padding: 10px 18px 14px; }
+    .rider-row { display: flex; align-items: center; gap: 12px; }
+    .rider-avatar { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; border: 2.5px solid var(--green); flex-shrink: 0; }
+    .rider-details { flex: 1; }
+    .rider-name  { font-size: 15px; font-weight: 800; color: #111; }
+    .rider-badge {
+      display: inline-flex; align-items: center; gap: 3px;
+      background: #fef9c3; color: #854d0e;
+      border-radius: 6px; padding: 1px 6px;
+      font-size: 10px; font-weight: 800; margin-top: 2px;
+    }
+    .rider-phone { font-size: 11px; color: var(--gray); margin-top: 1px; font-weight: 600; }
+    .rider-btns  { display: flex; gap: 8px; }
+    .btn-call {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: var(--green); color: white; border: none;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; cursor: pointer; text-decoration: none; flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(26,122,74,0.3);
+    }
+    .btn-whatsapp {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: #25D366; color: white; border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; text-decoration: none; flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(37,211,102,0.3);
+    }
+
+    /* ── STATUS BADGE ── */
+    #statusBadge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 12px; border-radius: 20px;
+      background: #dbeafe; color: #1d4ed8;
+      font-weight: 800; font-size: 12px; transition: all 0.4s;
+    }
+    #statusBadge.pulse     { animation: pulse 1.2s infinite; }
+    #statusBadge.error     { background: #fee2e2; color: var(--red); animation: none; }
+    #statusBadge.arrived   { background: #fef9c3; color: #854d0e; animation: none; }
+    #statusBadge.delivered { background: #dcfce7; color: #166534; animation: none; }
+    #statusBadge.connected { background: #dcfce7; color: #166534; animation: none; }
+    @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+    /* ── DELIVERY POPUP ── */
+    #popupOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9998; backdrop-filter: blur(4px); }
+    #deliveryPopup {
+      display: none; position: fixed; top: 50%; left: 50%;
+      transform: translate(-50%,-50%); background: white;
+      border-radius: 24px; padding: 32px 24px 24px; text-align: center;
+      z-index: 9999; box-shadow: 0 24px 64px rgba(0,0,0,0.25);
+      animation: popIn 0.35s cubic-bezier(.34,1.56,.64,1);
+      width: min(340px, 92vw);
+    }
+    .pop-emoji { font-size: 60px; }
+    #deliveryPopup h2 { font-size: 22px; margin: 10px 0 4px; font-weight: 900; }
+    #deliveryPopup p  { color: var(--gray); font-size: 13px; margin-bottom: 16px; }
+    .star-rating { display: flex; justify-content: center; gap: 8px; margin-bottom: 8px; }
+    .star { font-size: 30px; cursor: pointer; transition: transform 0.15s; filter: grayscale(1); opacity: 0.4; }
+    .star.active { filter: grayscale(0); opacity: 1; transform: scale(1.2); }
+    .star:hover  { transform: scale(1.3); filter: grayscale(0); opacity: 1; }
+    .rating-label { font-size: 13px; color: var(--gray); min-height: 18px; font-weight: 700; margin-bottom: 16px; }
+    .pop-btn {
+      width: 100%; padding: 13px; background: var(--green); color: white;
+      border: none; border-radius: 14px; font-size: 15px; font-weight: 800;
+      cursor: pointer; font-family: "Nunito", sans-serif;
+    }
+    @keyframes popIn {
+      from { transform: translate(-50%,-50%) scale(0.7); opacity: 0; }
+      to   { transform: translate(-50%,-50%) scale(1);   opacity: 1; }
+    }
+
+    /* ── TOAST ── */
+    #toast {
+      display: none; position: fixed; bottom: 100px; left: 50%;
+      transform: translateX(-50%); background: rgba(17,24,39,0.9);
+      color: white; padding: 10px 20px; border-radius: 20px;
+      font-size: 13px; font-weight: 700; z-index: 9000; white-space: nowrap;
+      animation: fadeInUp 0.3s ease;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+      to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+    }
+
+    /* ── LOADING ── */
+    #loadingScreen {
+      position: fixed; inset: 0; background: #f5f7f5;
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; z-index: 9990; gap: 14px;
+    }
+    .loader-ring {
+      width: 48px; height: 48px; border: 4px solid #e5e7eb;
+      border-top-color: var(--green); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loadingScreen p { font-size: 14px; color: var(--gray); font-weight: 700; }
+    #retryBtn {
+      display: none; padding: 8px 20px; background: var(--green);
+      color: white; border: none; border-radius: 20px;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      font-family: "Nunito", sans-serif;
+    }
+
+    #langToggle {
+      background: var(--green); color: white; border: none;
+      border-radius: 20px; padding: 6px 14px;
+      font-size: 13px; font-weight: 800; cursor: pointer;
+      font-family: "Nunito", sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body>
+
+<div id="loadingScreen">
+  <div style="font-size:48px">🛵</div>
+  <div class="loader-ring"></div>
+  <p id="loadingText">Loading your order...</p>
+  <button id="retryBtn" onclick="retryConnection()">🔄 Retry</button>
+</div>
+
+<div id="offlineBanner">
+  ⚠️ Cannot connect — live tracking unavailable.
+  <button onclick="retryConnection()">Retry</button>
+</div>
+
+<div id="toast"></div>
+
+<!-- ✅ MAP — must be BEFORE bottomSheet in DOM so z-index works -->
+<div id="map"></div>
+
+<div id="topBar">
+  <div class="top-badge">
+    <span id="statusBadge" class="pulse">Connecting...</span>
+  </div>
+  <div class="top-actions">
+    <button class="top-action-btn" onclick="shareTracking()" title="Share">🔗</button>
+    <button class="top-action-btn" id="langToggle"
+            onclick="toggleLang()"
+            style="font-size:11px;font-weight:800;border-radius:20px;padding:0 10px;width:auto;">
+      عربي
+    </button>
+  </div>
+</div>
+
+<div id="bottomSheet">
+  <div class="sheet-drag-handle"></div>
+
+  <div id="statusHero">
+    <div id="statusHeroInner">
+      <div class="status-icon-wrap" id="statusIcon">🛵</div>
+      <div class="status-text-wrap">
+        <div class="status-main-text" id="statusMainText">Getting your order ready...</div>
+        <div class="status-sub-text"  id="statusSubText">Order #--</div>
+      </div>
+      <div id="countdownWrap">
+        <div id="countdown">--:--</div>
+        <div class="countdown-label">remaining</div>
+      </div>
+    </div>
+    <div id="arrivalRow">
+      <div class="arrival-dot"></div>
+      <div id="arrivalText">Calculating arrival time...</div>
+      <div id="arrivalClock"></div>
+    </div>
+  </div>
+
+  <div id="timelineWrap">
+    <div class="timeline">
+      <div class="tl-progress" id="tlProgress"></div>
+      <div class="tl-step done" id="tl-placed">
+        <div class="tl-dot">✅</div>
+        <div class="tl-label">Placed</div>
+      </div>
+      <div class="tl-step" id="tl-confirmed">
+        <div class="tl-dot">🏪</div>
+        <div class="tl-label">Confirmed</div>
+      </div>
+      <div class="tl-step" id="tl-on_the_way">
+        <div class="tl-dot">🛵</div>
+        <div class="tl-label">On the way</div>
+      </div>
+      <div class="tl-step" id="tl-delivered">
+        <div class="tl-dot">🎉</div>
+        <div class="tl-label">Delivered</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="infoStrip">
+    <div class="info-pill">
+      <div class="ip-label">📍 Distance</div>
+      <div class="ip-value" id="distance">--</div>
+    </div>
+    <div class="info-pill">
+      <div class="ip-label">⏱ ETA</div>
+      <div class="ip-value" id="eta">--</div>
+    </div>
+    <div class="info-pill">
+      <div class="ip-label">🏍 Speed</div>
+      <div class="ip-value" id="speed">--</div>
+    </div>
+  </div>
+
+  <div id="riderSection">
+    <div class="rider-row">
+      <img class="rider-avatar" id="riderAvatar"
+           src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Rider">
+      <div class="rider-details">
+        <div class="rider-name"  id="riderName">Loading...</div>
+        <div class="rider-badge">⭐ Your delivery partner</div>
+        <div class="rider-phone" id="riderPhone">📞 --</div>
+      </div>
+      <div class="rider-btns">
+        <a class="btn-call"     id="callBtn"     href="#">📞</a>
+        <a class="btn-whatsapp" id="whatsappBtn" href="#" target="_blank">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="popupOverlay"></div>
+<div id="deliveryPopup">
+  <div class="pop-emoji">🎉</div>
+  <h2>Order Delivered!</h2>
+  <p>Your Magizham order has arrived!<br>How was your delivery experience?</p>
+  <div class="star-rating">
+    <span class="star" onclick="rateStar(1)">⭐</span>
+    <span class="star" onclick="rateStar(2)">⭐</span>
+    <span class="star" onclick="rateStar(3)">⭐</span>
+    <span class="star" onclick="rateStar(4)">⭐</span>
+    <span class="star" onclick="rateStar(5)">⭐</span>
+  </div>
+  <div class="rating-label" id="ratingLabel">Tap to rate your rider</div>
+  <button class="pop-btn" onclick="submitRating()">Done, thanks! 🙌</button>
+</div>
+
+<!--
+  ✅ FIX 1 — BLANK MAP:
+  Removed mapId from URL params (it's set in JS instead).
+  Using callback=initMapCallback so we know exactly when Maps is ready.
+-->
+<script>
+  // Defined BEFORE the Maps script loads so the callback works
+  function initMapCallback() {
+    window._googleMapsReady = true;
+    if (window._mapReadyResolve) window._mapReadyResolve();
+  }
+</script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8&libraries=maps,marker,routes&v=weekly&callback=initMapCallback" defer></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/i18n.js"></script>
+
+<script>
+  const orderId = window.location.pathname.split("/").pop();
+
+  // ✅ Exact — Magizham Arogya Cafeteria, 31st St, Al Karama, Dubai
+  const RESTAURANT_POS       = { lat: 25.2426266, lng: 55.3026453 };
+  const DEFAULT_CUSTOMER_POS = { lat: 25.2320,    lng: 55.3120    };
+
+  let map, riderMarker, etaMarker, customerMarker, restaurantMarker, routesLib;
+  let directionsRenderer = null;
+  let socketInstance     = null;
+  let lastStatus         = "";
+  let popupShown         = false;
+  let mapFitted          = false;
+  let moveInterval       = null;
+  let lastPosition       = null;
+  let lastTime           = null;
+  let lastRoutePos       = null;
+  let lastRouteTime      = 0;
+  let countdownSecs      = 0;
+  let countdownTimer     = null;
+  let selectedRating     = 0;
+  let riderName          = "Your rider";
+  let customerPos        = { ...DEFAULT_CUSTOMER_POS };
+
+  const STATUS_MESSAGES = {
+    placed:     { icon: "🧑‍🍳", main: "Order placed!",      sub: "We received your order" },
+    confirmed:  { icon: "👨‍🍳", main: "Being prepared",     sub: "The kitchen is working on it" },
+    on_the_way: { icon: "🛵",   main: "On the way!",        sub: "Your rider has picked up your order" },
+    arriving:   { icon: "🏁",   main: "Almost there!",      sub: "Your rider is less than 1 km away" },
+    delivered:  { icon: "🎉",   main: "Delivered!",         sub: "Your order has arrived. Enjoy!" },
+  };
+
+  function setStatusHero(statusKey, customSub) {
+    const msg = STATUS_MESSAGES[statusKey] || STATUS_MESSAGES["placed"];
+    document.getElementById("statusIcon").innerText     = msg.icon;
+    document.getElementById("statusMainText").innerText = msg.main;
+    document.getElementById("statusSubText").innerText  = customSub || msg.sub;
+  }
+
+  // ── Haversine ─────────────────────────────────────────────
+  function getDistanceMeters(p1, p2) {
+    const R = 6371000, r = x => x * Math.PI / 180;
+    const dLat = r(p2.lat - p1.lat), dLng = r(p2.lng - p1.lng);
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(r(p1.lat)) * Math.cos(r(p2.lat)) * Math.sin(dLng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  }
+
+  function shouldUpdateRoute(pos) {
+    const now = Date.now();
+    if (now - lastRouteTime < 3000) return false;
+    if (!lastRoutePos) { lastRoutePos = pos; lastRouteTime = now; return true; }
+    if (getDistanceMeters(lastRoutePos, pos) > 50) {
+      lastRoutePos = pos; lastRouteTime = now; return true;
+    }
+    return false;
+  }
+
+  // ✅ FIX 1 — waitForGoogleMaps uses callback promise for reliability
+  function waitForGoogleMaps() {
+    return new Promise(resolve => {
+      if (window._googleMapsReady) { resolve(); return; }
+      window._mapReadyResolve = resolve;
+      // Safety fallback — poll every 100ms in case callback missed
+      const iv = setInterval(() => {
+        if (window._googleMapsReady) { clearInterval(iv); resolve(); }
+      }, 100);
+    });
+  }
+
+  // ── LANGUAGE TOGGLE ──────────────────────────────────────
+  function toggleLang() {
+    const next = currentLang === "en" ? "ar" : "en";
+    localStorage.setItem("magizham_lang", next);
+    window.location.reload();
+  }
+
+  window.addEventListener("DOMContentLoaded", () => {
+    const btn = document.getElementById("langToggle");
+    if (btn) btn.innerText = currentLang === "ar" ? "English" : "عربي";
+  });
+
+  // ── COUNTDOWN ────────────────────────────────────────────
+  function startCountdown(seconds) {
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownSecs = seconds;
+    renderCountdown();
+    countdownTimer = setInterval(() => {
+      if (countdownSecs > 0) { countdownSecs--; renderCountdown(); }
+      else { clearInterval(countdownTimer); document.getElementById("countdown").innerText = "🏠"; }
+    }, 1000);
+  }
+
+  function renderCountdown() {
+    const m = Math.floor(countdownSecs / 60);
+    const s = countdownSecs % 60;
+    document.getElementById("countdown").innerText =
+      `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+  }
+
+  function setArrivalInfo(durationSecs) {
+    const arrDate = new Date(Date.now() + durationSecs * 1000);
+    const h    = arrDate.getHours();
+    const min  = String(arrDate.getMinutes()).padStart(2,"0");
+    const ampm = h >= 12 ? "PM" : "AM";
+    const h12  = h % 12 || 12;
+    const mins = Math.ceil(durationSecs / 60);
+    document.getElementById("arrivalText").innerText  = `Arriving in ${mins} min${mins !== 1 ? "s" : ""}`;
+    document.getElementById("arrivalClock").innerText = `By ${h12}:${min} ${ampm}`;
+    startCountdown(durationSecs);
+    if (etaMarker?.content) etaMarker.content.innerText = `ETA: ${mins} MIN${mins !== 1 ? "S" : ""}`;
+  }
+
+  // ✅ FIX 1 — INIT MAP: try with mapId first, fallback without if it fails
+  async function initMap(riderPos, custPos) {
+    await waitForGoogleMaps();
+
+    const { Map }                   = await google.maps.importLibrary("maps");
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
+    routesLib                       = await google.maps.importLibrary("routes");
+
+    // ✅ Try with mapId first (needed for AdvancedMarkerElement)
+    // If your Map ID has no style in Google Cloud → map shows blank
+    // Solution: go to Maps Platform → Map Management → click magizham_map → Associate a Map Style
+    try {
+      map = new Map(document.getElementById("map"), {
+        zoom: 15,
+        center: riderPos,
+        mapId: "78097e3a5f61cdda88affacb",
+        mapTypeControl: false,
+        fullscreenControl: false,
+        streetViewControl: false,
+        zoomControl: false,
+        colorScheme: "DARK",
+      });
+    } catch (e) {
+      console.warn("mapId failed, using fallback:", e);
+      map = new Map(document.getElementById("map"), {
+        zoom: 15, center: riderPos,
+        mapTypeControl: false, fullscreenControl: false,
+        streetViewControl: false, zoomControl: false,
+      });
+    }
+
+    // Wait briefly to confirm map rendered — if still blank, log it
+    setTimeout(() => {
+      const mapEl = document.getElementById("map");
+      if (mapEl && mapEl.children.length === 0) {
+        console.error("❌ Map container is empty — check API key restrictions and Map ID style");
+      } else {
+        console.log("✅ Map rendered successfully");
+      }
+    }, 2000);
+
+    // ── Pulsing rider marker ──
+    const riderWrap = document.createElement("div");
+    riderWrap.className = "rider-marker-wrap";
+    const ring1 = document.createElement("div"); ring1.className = "rider-pulse-ring";
+    const ring2 = document.createElement("div"); ring2.className = "rider-pulse-ring2";
+    const circle = document.createElement("div"); circle.className = "rider-icon-circle";
+    circle.innerText = "🛵";
+    riderWrap.appendChild(ring1); riderWrap.appendChild(ring2); riderWrap.appendChild(circle);
+    riderMarker = new AdvancedMarkerElement({ position: riderPos, map, content: riderWrap, title: "Rider", zIndex: 4 });
+
+    // ── ETA bubble ──
+    const etaEl = document.createElement("div");
+    etaEl.className = "eta-bubble"; etaEl.innerText = "ETA: --";
+    etaMarker = new AdvancedMarkerElement({
+      position: { lat: riderPos.lat + 0.0004, lng: riderPos.lng },
+      map, content: etaEl, title: "ETA", zIndex: 5
+    });
+
+    // ── Home marker ──
+    const homeWrap = document.createElement("div"); homeWrap.className = "home-marker";
+    const homeBody = document.createElement("div"); homeBody.className = "home-marker-body";
+    const homeIcon = document.createElement("div"); homeIcon.className = "home-marker-icon";
+    homeIcon.innerText = "🏠";
+    homeBody.appendChild(homeIcon); homeWrap.appendChild(homeBody);
+    customerMarker = new AdvancedMarkerElement({ position: custPos, map, content: homeWrap, title: "Your delivery location", zIndex: 3 });
+
+    // ── Restaurant marker ──
+    const restEl = document.createElement("div");
+    restEl.className = "restaurant-marker";
+    restEl.innerHTML = `<span>🏪</span><span>Magizham</span>`;
+    restaurantMarker = new AdvancedMarkerElement({
+      position: RESTAURANT_POS, map, content: restEl,
+      title: "Magizham Arogya Cafeteria, Al Karama", zIndex: 2
+    });
+
+    drawRoute(riderPos, custPos);
+  }
+
+  // ── SMOOTH MOVE ───────────────────────────────────────────
+  function smoothMoveMarker(newPos) {
+    const current = riderMarker.position;
+    let lat = typeof current.lat === "function" ? current.lat() : current.lat;
+    let lng = typeof current.lng === "function" ? current.lng() : current.lng;
+    const steps = 40, dLat = (newPos.lat - lat) / steps, dLng = (newPos.lng - lng) / steps;
+    let i = 0;
+    if (moveInterval) clearInterval(moveInterval);
+    moveInterval = setInterval(() => {
+      if (i >= steps) { clearInterval(moveInterval); return; }
+      lat += dLat; lng += dLng;
+      riderMarker.position = { lat, lng };
+      if (etaMarker) etaMarker.position = { lat: lat + 0.0004, lng };
+      map.panTo({ lat, lng });
+      if (map.getZoom() < 15) map.setZoom(15);
+      i++;
+    }, 25);
+  }
+
+  function speak(key) {
+    if ("speechSynthesis" in window) {
+      const u = new SpeechSynthesisUtterance(t(key));
+      u.lang = currentLang === "ar" ? "ar-AE" : "en-US"; u.rate = 0.95;
+      window.speechSynthesis.speak(u);
+    }
+  }
+
+  function showToast(msg, duration = 2800) {
+    const el = document.getElementById("toast");
+    el.innerText = msg; el.style.display = "block";
+    setTimeout(() => { el.style.display = "none"; }, duration);
+  }
+
+  function shareTracking() {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: "Track my Magizham order 🛵", text: "Follow my delivery live!", url }).catch(()=>{});
+    } else {
+      navigator.clipboard.writeText(url)
+        .then(() => showToast("🔗 Tracking link copied!"))
+        .catch(() => showToast("🔗 " + url));
+    }
+  }
+
+  const ratingLabels = ["","😞 Poor","😐 Fair","🙂 Good","😊 Great","🤩 Excellent!"];
+  function rateStar(val) {
+    selectedRating = val;
+    document.querySelectorAll(".star").forEach((s, i) => s.classList.toggle("active", i < val));
+    document.getElementById("ratingLabel").innerText = ratingLabels[val] || "";
+  }
+  function submitRating() {
+    if (selectedRating > 0) showToast(`⭐ Thanks for your ${ratingLabels[selectedRating]} rating!`);
+    closePopup();
+  }
+
+  function showDeliveryPopup() {
+    document.getElementById("popupOverlay").style.display  = "block";
+    document.getElementById("deliveryPopup").style.display = "block";
+    if (countdownTimer) clearInterval(countdownTimer);
+    document.getElementById("arrivalText").innerText  = "Delivered! 🎉";
+    document.getElementById("arrivalClock").innerText = "Your order has arrived";
+    document.getElementById("countdown").innerText    = "🎉";
+    document.getElementById("countdownWrap").querySelector(".countdown-label").innerText = "";
+  }
+  function closePopup() {
+    document.getElementById("popupOverlay").style.display  = "none";
+    document.getElementById("deliveryPopup").style.display = "none";
+  }
+
+  // ── TIMELINE ─────────────────────────────────────────────
+  const STATUS_STEPS  = ["placed","confirmed","on_the_way","delivered"];
+  const PROGRESS_PCTS = { placed:"5%", confirmed:"36%", on_the_way:"68%", delivered:"100%" };
+
+  function updateTimeline(status) {
+    const idx = STATUS_STEPS.indexOf(status);
+    STATUS_STEPS.forEach((s, i) => {
+      const el = document.getElementById(`tl-${s}`);
+      if (!el) return;
+      el.classList.remove("done","active");
+      if (i < idx)   el.classList.add("done");
+      if (i === idx) el.classList.add("active");
+    });
+    document.getElementById("tlProgress").style.width = PROGRESS_PCTS[status] || "5%";
+  }
+
+  function updateStatusBadge(key, type) {
+    const el = document.getElementById("statusBadge");
+    el.innerText = t(key); el.className = type || "";
+  }
+
+  // ── DRAW ROUTE ────────────────────────────────────────────
+  function drawRoute(origin, destination) {
+    if (!routesLib) return;
+    const svc = new routesLib.DirectionsService();
+    if (!directionsRenderer) {
+      directionsRenderer = new routesLib.DirectionsRenderer({
+        suppressMarkers: true,
+        polylineOptions: { strokeColor: "#1a7a4a", strokeWeight: 5, strokeOpacity: 0.85 }
+      });
+      directionsRenderer.setMap(map);
+    }
+
+    svc.route({ origin, destination, travelMode: google.maps.TravelMode.DRIVING }, (result, status) => {
+      if (status !== "OK" || !result.routes.length) {
+        console.warn("Route error:", status);
+        return;
+      }
+      directionsRenderer.setDirections(result);
+      const leg = result.routes[0].legs[0];
+
+      // ✅ ACCURATE distance and ETA from Google Directions API
+      document.getElementById("distance").innerText = (leg.distance.value / 1000).toFixed(2) + " km";
+      document.getElementById("eta").innerText      = leg.duration?.text || "--";
+      if (leg.duration?.value) setArrivalInfo(leg.duration.value);
+
+      if (!mapFitted) {
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(origin); bounds.extend(destination);
+        map.fitBounds(bounds, { bottom: 360, top: 60, left: 20, right: 20 });
+        mapFitted = true;
+      }
+
+      // ✅ FIX 2 — TIMELINE BUG:
+      // updateTimeline("delivered") was missing! Added it here.
+      // This is why "On the way" never changed to "Delivered"
+      // when the rider was close — the timeline wasn't being updated
+      // from within drawRoute, only from socket events.
+      let newStatus = "";
+      if (leg.distance.value < 200) {
+        newStatus = "delivered";
+        updateStatusBadge("delivered","delivered");
+        setStatusHero("delivered");
+        updateTimeline("delivered");         // ✅ THE FIX
+      } else if (leg.distance.value < 1000) {
+        newStatus = "arriving";
+        updateStatusBadge("arriving","arrived");
+        setStatusHero("arriving");
+        updateTimeline("on_the_way");        // keep timeline on "on the way" while arriving
+      } else {
+        newStatus = "onTheWay";
+        updateStatusBadge("onTheWay","connected");
+      }
+
+      if (newStatus !== lastStatus) {
+        if (newStatus === "arriving")  speak("speechArriving");
+        if (newStatus === "delivered") {
+          speak("speechDelivered");
+          if (!popupShown) { popupShown = true; showDeliveryPopup(); }
+        }
+        lastStatus = newStatus;
+      }
+    });
+  }
+
+  // ── LOAD ORDER ────────────────────────────────────────────
+  async function loadOrder() {
+    document.getElementById("loadingText").innerText = "Fetching your order...";
+    try {
+      const res  = await fetch(`/api/orders/${orderId}/track`);
+      if (!res.ok) throw new Error("Not found");
+      const data = await res.json();
+
+      riderName = data.rider_name || "Your rider";
+      document.getElementById("riderName").innerText   = riderName;
+      document.getElementById("riderPhone").innerText  = "📞 " + (data.rider_phone || "--");
+      document.getElementById("callBtn").href          = `tel:${data.rider_phone || ""}`;
+
+      const waPhone = (data.rider_phone || "").replace(/\D/g,"");
+      document.getElementById("whatsappBtn").href =
+        `https://wa.me/${waPhone}?text=Hi, I'm tracking order %23${data.id}`;
+
+      const dbStatus = (data.status || "placed").toLowerCase().replace(/ /g,"_");
+      updateTimeline(dbStatus);
+      setStatusHero(dbStatus, `Order #${data.id} · ${riderName}`);
+      document.getElementById("statusSubText").innerText = `Order #${data.id} · ${riderName}`;
+
+      const riderPos = (data.lat && data.lng)
+        ? { lat: parseFloat(data.lat), lng: parseFloat(data.lng) }
+        : { ...RESTAURANT_POS };
+
+      // ✅ Use real delivery coordinates if stored in DB
+      customerPos = (data.delivery_lat && data.delivery_lng)
+        ? { lat: parseFloat(data.delivery_lat), lng: parseFloat(data.delivery_lng) }
+        : { ...DEFAULT_CUSTOMER_POS };
+
+      await initMap(riderPos, customerPos);
+      document.getElementById("loadingScreen").style.display = "none";
+      connectSocket();
+
+    } catch (err) {
+      console.error(err);
+      document.getElementById("loadingText").innerText = "❌ Order not found. Check the link.";
+      document.getElementById("retryBtn").style.display = "inline-block";
+    }
+  }
+
+  // ── SOCKET ────────────────────────────────────────────────
+  function connectSocket() {
+    if (typeof io === "undefined") {
+      document.getElementById("offlineBanner").style.display = "block";
+      document.getElementById("retryBtn").style.display = "inline-block";
+      updateStatusBadge("serverOffline","error");
+      return;
+    }
+    if (socketInstance?.connected) return;
+    if (socketInstance) socketInstance.disconnect();
+    socketInstance = io("/", { query: { type:"customer", orderId } });
+
+    socketInstance.on("connect", () => {
+      document.getElementById("offlineBanner").style.display = "none";
+      document.getElementById("retryBtn").style.display = "none";
+      updateStatusBadge("onTheWay","connected");
+    });
+
+    socketInstance.on("orderLocationUpdate", (data) => {
+      if (!data?.lat || !data?.lng) return;
+      const lat = parseFloat(data.lat), lng = parseFloat(data.lng);
+      if (isNaN(lat) || isNaN(lng)) return;
+      const newPos = { lat, lng }, now = Date.now();
+
+      // ✅ FIX 3 — ACCURATE SPEED: Haversine distance ÷ real elapsed time
+      if (lastPosition && lastTime) {
+        const dist = getDistanceMeters(lastPosition, newPos);
+        const sec  = Math.max((now - lastTime) / 1000, 1);
+        const kmh  = (dist / sec) * 3.6;
+        // Only show speed if it's realistic (0–120 km/h for a delivery rider)
+        if (kmh >= 0 && kmh <= 120) {
+          document.getElementById("speed").innerText = kmh.toFixed(1) + " km/h";
+        }
+      }
+      lastPosition = newPos; lastTime = now;
+      if (riderMarker) smoothMoveMarker(newPos);
+      if (shouldUpdateRoute(newPos)) drawRoute(newPos, customerPos);
+    });
+
+    socketInstance.on("orderStatusUpdate", (data) => {
+      if (data.orderId != orderId) return;
+      const s = data.status;
+      updateTimeline(s);
+      if (s === "delivered") {
+        updateStatusBadge("delivered","delivered");
+        setStatusHero("delivered");
+        speak("speechDelivered");
+        if (!popupShown) { popupShown = true; showDeliveryPopup(); }
+      } else if (s === "on_the_way") {
+        updateStatusBadge("onTheWay","connected");
+        setStatusHero("on_the_way", `${riderName} picked up your order!`);
+        speak("speechOnTheWay");
+        showToast(`🛵 ${riderName} is on the way!`);
+      } else if (s === "confirmed") {
+        updateStatusBadge("confirmed","");
+        setStatusHero("confirmed","Kitchen is preparing your order");
+        showToast("🏪 Your order has been confirmed!");
+      }
+    });
+
+    socketInstance.on("connect_error", () => {
+      document.getElementById("offlineBanner").style.display = "block";
+      document.getElementById("retryBtn").style.display = "inline-block";
+      updateStatusBadge("connectionLost","error");
+    });
+    socketInstance.on("disconnect", () => updateStatusBadge("reconnecting","pulse"));
+  }
+
+  function retryConnection() {
+    updateStatusBadge("connecting","pulse");
+    if (typeof io === "undefined") {
+      const s = document.createElement("script");
+      s.src = "/socket.io/socket.io.js"; s.onload = connectSocket;
+      s.onerror = () => updateStatusBadge("serverOffline","error");
+      document.body.appendChild(s);
+    } else { connectSocket(); }
+  }
+
+  if (!orderId || isNaN(orderId)) {
+    document.getElementById("loadingText").innerText = "❌ No order ID in URL. Use /track/123";
+  } else {
+    loadOrder();
+  }
+</script>
+</body>
+</html>

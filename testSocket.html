@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Delivery Tracking</title>
+
+  <style>
+    body { margin: 0; font-family: Arial; }
+
+    #map {
+      height: 100vh;
+      width: 100%;
+    }
+
+    /* ── OFFLINE BANNER ── shown when Socket.IO fails to connect ── */
+    #offlineBanner {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background: #c62828;
+      color: white;
+      text-align: center;
+      padding: 10px 16px;
+      font-size: 14px;
+      font-weight: bold;
+      z-index: 9999;
+      animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+      from { transform: translateY(-100%); }
+      to   { transform: translateY(0);     }
+    }
+
+    #offlineBanner button {
+      margin-left: 12px;
+      background: white;
+      color: #c62828;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    /* BOTTOM SHEET */
+    #bottomSheet {
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      background: white;
+      border-radius: 20px 20px 0 0;
+      padding: 15px 20px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.2);
+      z-index: 1000;
+      box-sizing: border-box;
+    }
+
+    .handle {
+      width: 50px;
+      height: 5px;
+      background: #ccc;
+      margin: 0 auto 10px;
+      border-radius: 10px;
+    }
+
+    .infoRow {
+      display: flex;
+      justify-content: space-between;
+      margin: 5px 0;
+      font-size: 14px;
+    }
+
+    .rider {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .rider img {
+      width: 40px;
+    }
+
+    /* TIMELINE */
+    .timeline {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 12px 0;
+      position: relative;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      top: 14px;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: #eee;
+      z-index: 0;
+    }
+
+    .timeline-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      z-index: 1;
+      font-size: 11px;
+      text-align: center;
+      width: 60px;
+    }
+
+    .timeline-step .dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #ddd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .timeline-step.done .dot {
+      background: #4CAF50;
+    }
+
+    .timeline-step.active .dot {
+      background: #2196F3;
+      box-shadow: 0 0 0 4px rgba(33,150,243,0.2);
+    }
+
+    .timeline-step span {
+      color: #666;
+      font-size: 10px;
+    }
+
+    .timeline-step.done span,
+    .timeline-step.active span {
+      color: #333;
+      font-weight: bold;
+    }
+
+    /* STATUS BADGE */
+    #status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      background: #e3f2fd;
+      color: #1565c0;
+      font-weight: bold;
+      font-size: 14px;
+      margin: 4px 0 8px;
+      transition: background 0.4s, color 0.4s;
+      animation: pulse 1s infinite;
+    }
+
+    #status.connected {
+      animation: none;
+    }
+
+    #status.error {
+      background: #ffebee;
+      color: #b71c1c;
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%   { opacity: 0.5; }
+      50%  { opacity: 1;   }
+      100% { opacity: 0.5; }
+    }
+
+    /* DELIVERY POPUP */
+    #deliveryPopup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      text-align: center;
+      z-index: 9999;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+      animation: popIn 0.3s ease;
+    }
+
+    #deliveryPopup h2 {
+      margin: 10px 0 5px;
+      font-size: 22px;
+    }
+
+    #deliveryPopup p {
+      color: #666;
+      margin: 0 0 15px;
+    }
+
+    #deliveryPopup button {
+      padding: 10px 25px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      cursor: pointer;
+    }
+
+    #popupOverlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 9998;
+    }
+
+    @keyframes popIn {
+      from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+      to   { transform: translate(-50%, -50%) scale(1);   opacity: 1; }
+    }
+
+    /* RETRY button inside status area */
+    #retryBtn {
+      display: none;
+      margin: 6px 0 0;
+      padding: 6px 16px;
+      background: #1565c0;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    #retryBtn:hover {
+      background: #0d47a1;
+    }
+  </style>
+</head>
+
+<body>
+
+<!-- ── OFFLINE BANNER ── appears when server is unreachable ── -->
+<div id="offlineBanner">
+  ⚠️ Cannot connect to server. Live tracking is unavailable.
+  <button onclick="retryConnection()">Retry</button>
+</div>
+
+<div id="map"></div>
+
+<!-- BOTTOM SHEET -->
+<div id="bottomSheet">
+  <div class="handle"></div>
+
+  <h3 style="margin:0 0 4px">🚚 Order Status</h3>
+  <p id="status">Connecting...</p>
+
+  <!-- Retry button shown when socket fails -->
+  <button id="retryBtn" onclick="retryConnection()">🔄 Retry Connection</button>
+
+  <!-- DELIVERY TIMELINE -->
+  <div class="timeline">
+    <div class="timeline-step done" id="step-placed">
+      <div class="dot">✅</div>
+      <span>Placed</span>
+    </div>
+    <div class="timeline-step done" id="step-confirmed">
+      <div class="dot">✅</div>
+      <span>Confirmed</span>
+    </div>
+    <div class="timeline-step active" id="step-delivery">
+      <div class="dot">🚚</div>
+      <span>On the way</span>
+    </div>
+    <div class="timeline-step" id="step-delivered">
+      <div class="dot">🎉</div>
+      <span>Delivered</span>
+    </div>
+  </div>
+
+  <div class="infoRow">
+    <span>📍 Distance:</span>
+    <span id="distance">--</span>
+  </div>
+
+  <div class="infoRow">
+    <span>⏱ ETA:</span>
+    <span id="eta">--</span>
+  </div>
+
+  <div class="infoRow">
+    <span>🏍 Speed:</span>
+    <span id="speed">--</span>
+  </div>
+
+  <hr style="margin: 10px 0;">
+
+  <div class="rider">
+    <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" alt="Rider">
+    <div>
+      <p style="margin:0"><b>Ravi (Rider)</b></p>
+      <p style="margin:0">📞 9876543210</p>
+    </div>
+  </div>
+</div>
+
+<!-- DELIVERY COMPLETE POPUP -->
+<div id="popupOverlay"></div>
+<div id="deliveryPopup">
+  <div style="font-size:50px">🎉</div>
+  <h2>Order Delivered!</h2>
+  <p>Your order has been delivered successfully.</p>
+  <button onclick="closePopup()">OK</button>
+</div>
+
+<!-- ✅ FIX 1: Google Maps API -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8"></script>
+
+<!-- ✅ Socket.IO served directly from the Express backend -->
+<script src="/socket.io/socket.io.js"></script>
+
+<script>
+
+  // ─────────────────────────────────────────────────────────────
+  // ✅ SAFETY CHECK #1 — Did Socket.IO library load correctly?
+  // ─────────────────────────────────────────────────────────────
+  if (typeof io === "undefined") {
+    console.error("❌ Socket.IO not loaded — CDN may be unreachable.");
+
+    document.getElementById("offlineBanner").style.display = "block";
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = "⚠️ Server offline";
+    statusEl.classList.add("error");
+    statusEl.classList.remove("connected");
+
+    document.getElementById("retryBtn").style.display = "inline-block";
+  }
+
+  // Suppress non-critical browser warnings
+  console.warn = function() {};
+
+  console.log("Script loaded ✅");
+
+  // ── STATE VARIABLES ─────────────────────────────────────────
+  let map;
+  let marker;
+  let directionsService;
+  let directionsRenderer;
+  let lastStatus         = "";
+  let deliveryPopupShown = false;
+  let mapFitted          = false;
+  let moveInterval;
+  let lastPosition       = null;
+  let lastTime           = null;
+  let lastRoutePosition  = null;
+  let lastRouteTime      = 0;
+  let socketInstance     = null;
+
+
+  // ── HAVERSINE — accurate GPS distance in metres ──────────────
+  function getDistanceMeters(p1, p2) {
+    const R     = 6371000;
+    const toRad = x => x * Math.PI / 180;
+    const dLat  = toRad(p2.lat - p1.lat);
+    const dLng  = toRad(p2.lng - p1.lng);
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(toRad(p1.lat)) * Math.cos(toRad(p2.lat)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  }
+
+
+  // ── ROUTE GATE — only re-route when rider moved ≥50 m AND ≥3 s ──
+  function shouldUpdateRoute(newPos) {
+    const now = Date.now();
+    if (now - lastRouteTime < 3000) return false;
+    if (!lastRoutePosition) {
+      lastRoutePosition = newPos;
+      lastRouteTime     = now;
+      return true;
+    }
+    const dist = getDistanceMeters(lastRoutePosition, newPos);
+    if (dist > 50) {
+      lastRoutePosition = newPos;
+      lastRouteTime     = now;
+      return true;
+    }
+    return false;
+  }
+
+
+  // Fixed customer (destination) position
+  const customer = { lat: 9.740, lng: 77.330 };
+
+
+  // ── INIT MAP ─────────────────────────────────────────────────
+  function initMap() {
+    const initialPosition = { lat: 9.735, lng: 77.325 };
+
+    map = new google.maps.Map(document.getElementById("map"), {
+      zoom: 15,
+      center: initialPosition,
+    });
+
+    marker = new google.maps.Marker({
+      position: initialPosition,
+      map: map,
+      icon: {
+        url: "https://cdn-icons-png.flaticon.com/512/2972/2972185.png",
+        scaledSize: new google.maps.Size(40, 40),
+      }
+    });
+
+    directionsService  = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({ suppressMarkers: true });
+    directionsRenderer.setMap(map);
+
+    new google.maps.Marker({ position: { lat: 9.735, lng: 77.325 }, map, label: "🏪" });
+    new google.maps.Marker({ position: customer,                     map, label: "🏠" });
+  }
+
+  initMap();
+
+
+  // ── SMOOTH MARKER ANIMATION ──────────────────────────────────
+  function smoothMoveMarker(newPosition) {
+    const start    = marker.getPosition();
+    let   lat      = start.lat();
+    let   lng      = start.lng();
+    const steps    = 40;
+    const deltaLat = (newPosition.lat - lat) / steps;
+    const deltaLng = (newPosition.lng - lng) / steps;
+    let   i        = 0;
+
+    if (moveInterval) clearInterval(moveInterval);
+
+    moveInterval = setInterval(() => {
+      if (i >= steps) { clearInterval(moveInterval); return; }
+      lat += deltaLat;
+      lng += deltaLng;
+      const position = { lat, lng };
+      marker.setPosition(position);
+      map.panTo(position);
+      if (map.getZoom() < 15) map.setZoom(15);
+      i++;
+    }, 25);
+  }
+
+
+  // ── SPEECH ───────────────────────────────────────────────────
+  function speakStatus(text) {
+    if ("speechSynthesis" in window) {
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.lang  = "en-US";
+      msg.rate  = 0.95;
+      window.speechSynthesis.speak(msg);
+    }
+  }
+
+
+  // ── DELIVERY POPUP ───────────────────────────────────────────
+  function showDeliveryPopup() {
+    document.getElementById("popupOverlay").style.display  = "block";
+    document.getElementById("deliveryPopup").style.display = "block";
+  }
+
+  function closePopup() {
+    document.getElementById("popupOverlay").style.display  = "none";
+    document.getElementById("deliveryPopup").style.display = "none";
+  }
+
+
+  // ── TIMELINE ─────────────────────────────────────────────────
+  function updateTimeline(distanceValue) {
+    ["step-placed", "step-confirmed", "step-delivery", "step-delivered"]
+      .forEach(id => document.getElementById(id).classList.remove("active"));
+
+    if (distanceValue < 200) {
+      document.getElementById("step-placed").classList.add("done");
+      document.getElementById("step-confirmed").classList.add("done");
+      document.getElementById("step-delivery").classList.add("done");
+      document.getElementById("step-delivered").classList.add("done", "active");
+    } else {
+      document.getElementById("step-placed").classList.add("done");
+      document.getElementById("step-confirmed").classList.add("done");
+      document.getElementById("step-delivery").classList.add("active");
+    }
+  }
+
+
+  // ── DRAW ROUTE ───────────────────────────────────────────────
+  function drawRoute(origin, destination) {
+    directionsService.route(
+      {
+        origin:      origin,
+        destination: destination,
+        travelMode:  google.maps.TravelMode.DRIVING,
+      },
+      (result, status) => {
+        if (status === "OK" && result.routes.length) {
+          directionsRenderer.setDirections(result);
+          const leg = result.routes[0].legs[0];
+
+          document.getElementById("distance").innerText = (leg.distance.value / 1000).toFixed(2) + " km";
+          document.getElementById("eta").innerText      = leg.duration?.text || "--";
+
+          if (!mapFitted) {
+            const bounds = new google.maps.LatLngBounds();
+            bounds.extend(origin);
+            bounds.extend(destination);
+            map.fitBounds(bounds);
+            mapFitted = true;
+          }
+
+          const statusEl = document.getElementById("status");
+          let newStatus  = "";
+
+          if (leg.distance.value < 200) {
+            newStatus                  = "Delivered ✅";
+            statusEl.style.background = "#e8f5e9";
+            statusEl.style.color      = "#2e7d32";
+          } else if (leg.distance.value < 1000) {
+            newStatus                  = "Arriving 🚀";
+            statusEl.style.background = "#fff8e1";
+            statusEl.style.color      = "#f57f17";
+          } else {
+            newStatus                  = "On the way";
+            statusEl.style.background = "#e3f2fd";
+            statusEl.style.color      = "#1565c0";
+          }
+
+          statusEl.innerText = newStatus;
+
+          if (newStatus !== lastStatus) {
+            if (newStatus === "Arriving 🚀") {
+              speakStatus("Your order is arriving soon!");
+            } else if (newStatus === "Delivered ✅") {
+              speakStatus("Your order has been delivered!");
+              if (!deliveryPopupShown) {
+                deliveryPopupShown = true;
+                showDeliveryPopup();
+              }
+            }
+            lastStatus = newStatus;
+          }
+
+          updateTimeline(leg.distance.value);
+
+        } else {
+          console.log("Route error:", status);
+        }
+      }
+    );
+  }
+
+
+  // ─────────────────────────────────────────────────────────────
+  // ✅ FIX 3: connectSocket() now targets localhost:3000
+  // ─────────────────────────────────────────────────────────────
+  function connectSocket() {
+
+    // Guard: don't try if Socket.IO library didn't load
+    if (typeof io === "undefined") {
+      console.error("❌ Cannot connect — Socket.IO library is not loaded.");
+      return;
+    }
+
+    // Prevent duplicate connections on retry
+    if (socketInstance && socketInstance.connected) {
+      console.log("ℹ️ Socket already connected, skipping duplicate.");
+      return;
+    }
+
+    // Disconnect old broken socket before making a new one
+    if (socketInstance) {
+      socketInstance.disconnect();
+    }
+
+    console.log("🔌 Connecting to socket server on port 3000...");
+
+    // ✅ FIX 3: Corrected server URL — port 5500 with customer identifier
+    socketInstance = io("http://localhost:5000", { query: { type: "customer" } });
+
+    // ── Connected successfully ────────────────────────────────
+    socketInstance.on("connect", () => {
+      console.log("✅ Socket connected:", socketInstance.id);
+
+      document.getElementById("offlineBanner").style.display = "none";
+      document.getElementById("retryBtn").style.display = "none";
+
+      const statusEl = document.getElementById("status");
+      statusEl.innerText           = "On the way";
+      statusEl.style.background    = "#e3f2fd";
+      statusEl.style.color         = "#1565c0";
+      statusEl.classList.add("connected");
+      statusEl.classList.remove("error");
+    });
+
+    // ── Live location update from rider ──────────────────────
+    socketInstance.on("orderLocationUpdate", (data) => {
+
+      // Validate incoming data
+      if (!data || typeof data.lat === "undefined" || typeof data.lng === "undefined") {
+        console.warn("⚠️ Received invalid location data:", data);
+        return;
+      }
+
+      const lat = parseFloat(data.lat);
+      const lng = parseFloat(data.lng);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        console.warn("⚠️ lat/lng are not valid numbers:", data);
+        return;
+      }
+
+      console.log("🚀 Live location received:", { lat, lng });
+
+      const newPosition = { lat, lng };
+
+      // Real GPS speed calculation (Haversine distance ÷ time)
+      const now = Date.now();
+      if (lastPosition && lastTime) {
+        const distMetres = getDistanceMeters(lastPosition, newPosition);
+        const timeSec    = Math.max((now - lastTime) / 1000, 1);
+        const speedKmh   = ((distMetres / timeSec) * 3.6).toFixed(1);
+        document.getElementById("speed").innerText = speedKmh + " km/h";
+      }
+      lastPosition = newPosition;
+      lastTime     = now;
+
+      smoothMoveMarker(newPosition);
+
+      if (shouldUpdateRoute(newPosition)) {
+        drawRoute(newPosition, customer);
+      }
+    });
+
+    // ── Connection error ──────────────────────────────────────
+    socketInstance.on("connect_error", (err) => {
+      console.error("❌ Socket connection error:", err.message);
+
+      document.getElementById("offlineBanner").style.display = "block";
+      document.getElementById("retryBtn").style.display = "inline-block";
+
+      const statusEl = document.getElementById("status");
+      statusEl.innerText        = "⚠️ Connection lost";
+      statusEl.classList.add("error");
+      statusEl.classList.remove("connected");
+    });
+
+    // ── Disconnected ──────────────────────────────────────────
+    socketInstance.on("disconnect", (reason) => {
+      console.warn("⚠️ Socket disconnected:", reason);
+
+      const statusEl = document.getElementById("status");
+      statusEl.innerText = "⚠️ Reconnecting...";
+      statusEl.classList.remove("connected", "error");
+    });
+
+  }
+
+
+  // ─────────────────────────────────────────────────────────────
+  // ✅ RETRY FUNCTION — called by "Retry" buttons in the UI
+  //    Now retries CDN load instead of localhost script tag
+  // ─────────────────────────────────────────────────────────────
+  function retryConnection() {
+    console.log("🔄 Retrying connection...");
+
+    const statusEl = document.getElementById("status");
+    statusEl.innerText = "Connecting...";
+    statusEl.classList.remove("error", "connected");
+
+    // If Socket.IO library itself failed to load, reload from CDN
+    if (typeof io === "undefined") {
+      const script    = document.createElement("script");
+      // ✅ FIX: Retry loads from local server on port 5500
+      script.src      = "/socket.io/socket.io.js";
+      script.onload   = () => {
+        console.log("✅ Socket.IO library loaded from CDN on retry");
+        connectSocket();
+      };
+      script.onerror  = () => {
+        console.error("❌ CDN still unreachable. Check your internet connection.");
+        statusEl.innerText = "⚠️ Server still offline";
+        statusEl.classList.add("error");
+      };
+      document.body.appendChild(script);
+    } else {
+      // Library already loaded, just reconnect
+      connectSocket();
+    }
+  }
+
+
+  // ── Start the socket connection on page load ─────────────────
+  connectSocket();
+
+</script>
+
+</body>
+</html>
