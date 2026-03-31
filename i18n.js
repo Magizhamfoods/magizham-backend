@@ -163,10 +163,6 @@ function setLang(lang) {
     const key = el.getAttribute("data-i18n");
     el.innerText = t(key);
   });
-
-  // Update toggle button
-  const btn = document.getElementById("langToggle");
-  if (btn) btn.innerText = lang === "ar" ? "EN" : "عربي";
 }
 
 // ── Toggle between en ↔ ar ─────────────────────────────────
@@ -174,33 +170,7 @@ function toggleLang() {
   setLang(currentLang === "en" ? "ar" : "en");
 }
 
-// ── Inject language toggle button into page ────────────────
-function injectLangButton() {
-  const btn = document.createElement("button");
-  btn.id          = "langToggle";
-  btn.onclick     = toggleLang;
-  btn.innerText   = currentLang === "ar" ? "EN" : "عربي";
-  btn.style.cssText = `
-    position: fixed;
-    top: 12px;
-    ${currentLang === "ar" ? "left" : "right"}: 12px;
-    z-index: 9000;
-    background: #2d6a4f;
-    color: white;
-    border: none;
-    border-radius: 20px;
-    padding: 6px 14px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: "Nunito", sans-serif;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-  `;
-  document.body.appendChild(btn);
-}
-
 // ── Auto-init on DOM ready ─────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-  setLang(currentLang);   // apply RTL + translate data-i18n elements
-  injectLangButton();     // show EN/عربي toggle button
+  setLang(currentLang); // apply RTL + translate data-i18n elements
 });
