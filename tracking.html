@@ -256,7 +256,7 @@
     #deliveryPopup h2 { font-size: 22px; margin: 10px 0 4px; font-weight: 900; }
     #deliveryPopup p  { color: var(--gray); font-size: 13px; margin-bottom: 16px; }
     .star-rating { display: flex; justify-content: center; gap: 8px; margin-bottom: 8px; }
-    .star { font-size: 30px; cursor: pointer; transition: transform 0.15s; filter: grayscale(1); opacity: 0.4; }
+    .star { font-size: 30px; cursor: pointer; transition: transform 0.15px; filter: grayscale(1); opacity: 0.4; }
     .star.active { filter: grayscale(0); opacity: 1; transform: scale(1.2); }
     .star:hover  { transform: scale(1.3); filter: grayscale(0); opacity: 1; }
     .rating-label { font-size: 13px; color: var(--gray); min-height: 18px; font-weight: 700; margin-bottom: 16px; }
@@ -446,14 +446,14 @@
 <script src="/i18n.js"></script>
 
 <script>
-  // ── Order ID: supports /track/1  OR  /track/1?... ─────────
+  // ── Order ID ───────────────────────────────────────────────
   const pathParts = window.location.pathname.split("/");
   const pathId    = pathParts[pathParts.length - 1];
   const orderId   = (pathId && pathId !== "" && pathId !== "tracking.html")
     ? pathId
     : new URLSearchParams(window.location.search).get("orderId");
 
-  // ── Restaurant: Magizham Arogya Cafeteria, 31st St, Al Karama, Dubai ──
+  // ── Restaurant position ────────────────────────────────────
   const RESTAURANT_POS       = { lat: 25.2426266, lng: 55.3026453 };
   const DEFAULT_CUSTOMER_POS = { lat: 25.2320,    lng: 55.3120    };
 
@@ -474,7 +474,6 @@
   let riderName          = "Your rider";
   let customerPos        = { ...DEFAULT_CUSTOMER_POS };
 
-  // ── ✅ NO compound emoji here — safe for all browsers ──────
   var STATUS_MESSAGES = {
     placed:     { icon: "📋", main: "Order placed!",    sub: "We received your order" },
     confirmed:  { icon: "🍳", main: "Being prepared",   sub: "The kitchen is working on it" },
@@ -521,18 +520,6 @@
     });
   }
 
-  // ── Language toggle ────────────────────────────────────────
-  function toggleLang() {
-    var next = (typeof currentLang !== "undefined" && currentLang === "ar") ? "en" : "ar";
-    localStorage.setItem("magizham_lang", next);
-    window.location.reload();
-  }
-
-  document.addEventListener("DOMContentLoaded", function() {
-    var btn = document.getElementById("langToggle");
-    if (btn) btn.innerText = (typeof currentLang !== "undefined" && currentLang === "ar") ? "English" : "عربي";
-  });
-
   // ── Countdown ──────────────────────────────────────────────
   function startCountdown(seconds) {
     if (countdownTimer) clearInterval(countdownTimer);
@@ -545,31 +532,46 @@
       } else {
         clearInterval(countdownTimer);
         document.getElementById("countdown").innerText = "🏠";
+        document.getElementById("arrivalText").innerText = "Arriving now!";
       }
     }, 1000);
   }
 
+  // ✅ FIXED: renderCountdown now syncs ETA, arrivalText, arrivalClock, and map bubble
   function renderCountdown() {
     var m = Math.floor(countdownSecs / 60);
     var s = countdownSecs % 60;
     document.getElementById("countdown").innerText =
       (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+
+    var totalMins = Math.ceil(countdownSecs / 60);
+    if (totalMins > 0) {
+      // Update "Arriving in X mins"
+      document.getElementById("arrivalText").innerText =
+        "Arriving in " + totalMins + " min" + (totalMins !== 1 ? "s" : "");
+
+      // Update ETA pill
+      document.getElementById("eta").innerText = totalMins + " min" + (totalMins !== 1 ? "s" : "");
+
+      // Update ETA bubble on map
+      if (etaMarker && etaMarker.content) {
+        etaMarker.content.innerText = "ETA: " + totalMins + " MIN" + (totalMins !== 1 ? "S" : "");
+      }
+
+      // Update arrival clock ("By 3:54 PM")
+      var arrDate = new Date(Date.now() + countdownSecs * 1000);
+      var h    = arrDate.getHours();
+      var min  = arrDate.getMinutes();
+      var ampm = h >= 12 ? "PM" : "AM";
+      var h12  = h % 12 || 12;
+      document.getElementById("arrivalClock").innerText =
+        "By " + h12 + ":" + (min < 10 ? "0" : "") + min + " " + ampm;
+    }
   }
 
   function setArrivalInfo(durationSecs) {
     if (!durationSecs || durationSecs <= 0) return;
-    var arrDate = new Date(Date.now() + durationSecs * 1000);
-    var h    = arrDate.getHours();
-    var min  = arrDate.getMinutes();
-    var ampm = h >= 12 ? "PM" : "AM";
-    var h12  = h % 12 || 12;
-    var mins = Math.ceil(durationSecs / 60);
-    document.getElementById("arrivalText").innerText  = "Arriving in " + mins + " min" + (mins !== 1 ? "s" : "");
-    document.getElementById("arrivalClock").innerText = "By " + h12 + ":" + (min < 10 ? "0" : "") + min + " " + ampm;
     startCountdown(durationSecs);
-    if (etaMarker && etaMarker.content) {
-      etaMarker.content.innerText = "ETA: " + mins + " MIN" + (mins !== 1 ? "S" : "");
-    }
   }
 
   // ── Init Map ───────────────────────────────────────────────
@@ -580,8 +582,8 @@
     var markerLib = await google.maps.importLibrary("marker");
     routesLib     = await google.maps.importLibrary("routes");
 
-    var MapClass                = mapsLib.Map;
-    var AdvancedMarkerElement   = markerLib.AdvancedMarkerElement;
+    var MapClass              = mapsLib.Map;
+    var AdvancedMarkerElement = markerLib.AdvancedMarkerElement;
 
     map = new MapClass(document.getElementById("map"), {
       zoom: 15,
@@ -593,17 +595,14 @@
       zoomControl: false
     });
 
-    // Directions
-    var DirectionsService  = routesLib.DirectionsService;
     var DirectionsRenderer = routesLib.DirectionsRenderer;
-
     directionsRenderer = new DirectionsRenderer({
       suppressMarkers: true,
       polylineOptions: { strokeColor: "#1a7a4a", strokeWeight: 5, strokeOpacity: 0.85 }
     });
     directionsRenderer.setMap(map);
 
-    // Rider marker with pulse
+    // Rider marker
     var riderWrap = document.createElement("div");
     riderWrap.className = "rider-marker-wrap";
     var ring1 = document.createElement("div"); ring1.className = "rider-pulse-ring";
@@ -615,7 +614,7 @@
     riderWrap.appendChild(circle);
     riderMarker = new AdvancedMarkerElement({ position: riderPos, map: map, content: riderWrap, title: "Rider", zIndex: 4 });
 
-    // ETA bubble above rider
+    // ETA bubble
     var etaEl = document.createElement("div");
     etaEl.className = "eta-bubble";
     etaEl.innerText = "ETA: --";
@@ -624,7 +623,7 @@
       map: map, content: etaEl, title: "ETA", zIndex: 5
     });
 
-    // Home destination marker
+    // Home marker
     var homeWrap = document.createElement("div"); homeWrap.className = "home-marker";
     var homeBody = document.createElement("div"); homeBody.className = "home-marker-body";
     var homeIcon = document.createElement("div"); homeIcon.className = "home-marker-icon";
@@ -668,7 +667,7 @@
     if (!window.speechSynthesis) return;
     var text = (typeof t === "function") ? t(key) : key;
     var u = new SpeechSynthesisUtterance(text);
-    u.lang = (typeof currentLang !== "undefined" && currentLang === "ar") ? "ar-AE" : "en-US";
+    u.lang = "en-US";
     u.rate = 0.95;
     window.speechSynthesis.speak(u);
   }
@@ -688,9 +687,7 @@
     if (navigator.share) {
       navigator.share({ title: "Track my Magizham order", text: "Follow my delivery live!", url: url });
     } else if (navigator.clipboard) {
-      navigator.clipboard.writeText(url).then(function() {
-        showToast("🔗 Tracking link copied!");
-      });
+      navigator.clipboard.writeText(url).then(function() { showToast("🔗 Tracking link copied!"); });
     } else {
       showToast("🔗 " + url);
     }
@@ -712,7 +709,7 @@
     closePopup();
   }
 
-  // ── ✅ markDelivered — single source of truth ──────────────
+  // ── markDelivered ──────────────────────────────────────────
   function markDelivered() {
     updateTimeline("delivered");
     updateStatusBadge("delivered", "delivered");
@@ -721,6 +718,7 @@
     document.getElementById("countdown").innerText    = "🎉";
     document.getElementById("arrivalText").innerText  = "Delivered!";
     document.getElementById("arrivalClock").innerText = "Your order has arrived";
+    document.getElementById("eta").innerText          = "Done";
     var label = document.getElementById("countdownWrap").querySelector(".countdown-label");
     if (label) label.innerText = "";
     speak("speechDelivered");
@@ -764,7 +762,6 @@
   function drawRoute(origin, destination) {
     if (!routesLib || !directionsRenderer) return;
     var svc = new routesLib.DirectionsService();
-
     svc.route(
       { origin: origin, destination: destination, travelMode: google.maps.TravelMode.DRIVING },
       function(result, status) {
@@ -776,7 +773,6 @@
         var leg = result.routes[0].legs[0];
 
         document.getElementById("distance").innerText = (leg.distance.value / 1000).toFixed(2) + " km";
-        document.getElementById("eta").innerText      = leg.duration ? leg.duration.text : "--";
         if (leg.duration && leg.duration.value > 0) setArrivalInfo(leg.duration.value);
 
         if (!mapFitted) {
@@ -808,7 +804,7 @@
     );
   }
 
-  // ── Load order from API ────────────────────────────────────
+  // ── Load order ─────────────────────────────────────────────
   async function loadOrder() {
     document.getElementById("loadingText").innerText = "Fetching your order...";
     try {
@@ -817,9 +813,9 @@
       var data = await res.json();
 
       riderName = data.rider_name || "Your rider";
-      document.getElementById("riderName").innerText   = riderName;
-      document.getElementById("riderPhone").innerText  = "📞 " + (data.rider_phone || "--");
-      document.getElementById("callBtn").href          = "tel:" + (data.rider_phone || "");
+      document.getElementById("riderName").innerText     = riderName;
+      document.getElementById("riderPhone").innerText    = "📞 " + (data.rider_phone || "--");
+      document.getElementById("callBtn").href            = "tel:" + (data.rider_phone || "");
       document.getElementById("statusSubText").innerText = "Order #" + data.id + " · " + riderName;
 
       var waPhone = (data.rider_phone || "").replace(/\D/g, "");
@@ -829,7 +825,6 @@
       var dbStatus = (data.status || "placed").toLowerCase().replace(/ /g, "_");
       updateTimeline(dbStatus);
       setStatusHero(dbStatus, "Order #" + data.id + " · " + riderName);
-
       if (dbStatus === "delivered") { markDelivered(); }
 
       var riderPos = (data.lat && data.lng)
