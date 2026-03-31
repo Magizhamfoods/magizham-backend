@@ -145,6 +145,10 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
+    // 🔥 EMIT STATUS CHANGE TO CUSTOMER
+    const io = req.app.get("io");
+    io.emit("orderStatusUpdate", { orderId: id, status });
+
     res.json({
       message: "Order status updated ✅",
       data: result.rows[0]
@@ -196,7 +200,6 @@ exports.updateLocation = async (req, res) => {
   }
 
   try {
-    // ✅ DB UPDATE FIRST
     const result = await pool.query(
       `UPDATE orders SET lat=$1, lng=$2 WHERE id=$3 RETURNING *`,
       [lat, lng, id]
@@ -206,14 +209,9 @@ exports.updateLocation = async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // 🔥 EMIT LIVE LOCATION AFTER DB UPDATE
+    // 🔥 EMIT LIVE LOCATION TO CUSTOMER
     const io = req.app.get("io");
-
-    io.emit("orderLocationUpdate", {
-      order_id: id,
-      lat,
-      lng
-    });
+    io.emit("orderLocationUpdate", { orderId: id, lat, lng });
 
     res.json({
       message: "Location updated 📍",
@@ -223,5 +221,30 @@ exports.updateLocation = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Failed to update location" });
+  }
+};
+
+
+// 🗺️ TRACK ORDER (used by /track/:id frontend page)
+exports.trackOrder = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT id, status, rider_name, rider_phone,
+              lat, lng, delivery_lat, delivery_lng
+       FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error("trackOrder error:", err);
+    res.status(500).json({ error: "Server error" });
   }
 };
