@@ -143,6 +143,7 @@
       box-shadow: 0 3px 10px rgba(0,0,0,0.3);
     }
     .home-marker-icon { transform: rotate(45deg); font-size: 16px; }
+
     .restaurant-marker {
       background: white; border: 2.5px solid var(--green); border-radius: 20px;
       padding: 5px 10px; font-size: 11px; font-weight: 800; color: var(--green);
@@ -245,7 +246,6 @@
     #loadingScreen p { font-size: 14px; color: var(--gray); font-weight: 700; }
     #retryBtn { display: none; padding: 8px 20px; background: var(--green); color: white; border: none; border-radius: 20px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: "Nunito", sans-serif; }
 
-
     #trafficLegend { display: none; position: fixed; bottom: 320px; right: 12px; background: rgba(255,255,255,0.95); border-radius: 10px; padding: 8px 12px; z-index: 500; box-shadow: 0 2px 10px rgba(0,0,0,0.15); font-size: 10px; font-weight: 700; }
     .legend-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
     .legend-dot { width: 12px; height: 4px; border-radius: 2px; }
@@ -262,7 +262,9 @@
   <button id="retryBtn" onclick="retryConnection()">🔄 Retry</button>
 </div>
 
-<div id="offlineBanner">⚠️ Signal lost — predicting movement from last location. <button onclick="retryConnection()">Retry</button></div>
+<div id="offlineBanner">⚠️ Signal lost — predicting movement.
+  <button onclick="retryConnection()" style="margin-left:8px;background:white;color:var(--red);border:none;padding:3px 10px;border-radius:20px;font-weight:800;cursor:pointer;">Retry</button>
+</div>
 <div id="predictionBadge">🔮 Offline prediction mode</div>
 
 <div id="proximityBanner">
@@ -289,7 +291,6 @@
   <div class="top-badge"><span id="statusBadge" class="pulse">Connecting...</span></div>
   <div class="top-actions">
     <button class="top-action-btn" onclick="shareTracking()" title="Share">🔗</button>
-
   </div>
 </div>
 
@@ -325,9 +326,9 @@
   </div>
 
   <div id="infoStrip">
-    <div class="info-pill" id="pillDistance"><div class="ip-label">📍 Distance</div><div class="ip-value" id="distance">--</div></div>
-    <div class="info-pill" id="pillEta"><div class="ip-label">⏱ ETA</div><div class="ip-value" id="eta">--</div></div>
-    <div class="info-pill" id="pillSpeed"><div class="ip-label">🏍 Speed</div><div class="ip-value" id="speed">--</div></div>
+    <div class="info-pill" id="pillDistance"><div class="ip-label">Distance</div><div class="ip-value" id="distance">--</div></div>
+    <div class="info-pill" id="pillEta"><div class="ip-label">ETA</div><div class="ip-value" id="eta">--</div></div>
+    <div class="info-pill" id="pillSpeed"><div class="ip-label">Speed</div><div class="ip-value" id="speed">--</div></div>
   </div>
 
   <div id="riderSection">
@@ -364,7 +365,6 @@
   <button class="pop-btn" onclick="submitRating()">Done, thanks! 🙌</button>
 </div>
 
-<!-- ✅ FIX: loading=async eliminates the Google Maps loading warning -->
 <script>
   function initMapCallback() {
     window._googleMapsReady = true;
@@ -374,14 +374,12 @@
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8&loading=async&libraries=maps,marker,routes&v=weekly&callback=initMapCallback" async></script>
 <script src="/socket.io/socket.io.js"></script>
 
-
 <script>
-  // ── ORDER ID ─────────────────────────────────────────────
-  const urlParams = new URLSearchParams(window.location.search);
-  const orderId = urlParams.get("orderId")
-    || window.location.pathname.split("/track/")[1]
-    || (window.location.pathname.split("/").pop() !== "tracking.html"
-        ? window.location.pathname.split("/").pop() : null);
+  // ── Order ID from /track/1 or /track/1?... ─────────────────
+  const pathParts = window.location.pathname.split("/");
+  const pathId    = pathParts[pathParts.length - 1];
+  const orderId   = (pathId && pathId !== "" && pathId !== "tracking.html")
+    ? pathId : new URLSearchParams(window.location.search).get("orderId");
 
   const RESTAURANT_POS       = { lat: 25.2426266, lng: 55.3026453 };
   const DEFAULT_CUSTOMER_POS = { lat: 25.2320,    lng: 55.3120    };
@@ -408,7 +406,7 @@
   let isArrivingState  = false;
   let proximityAlertShown = false;
 
-  // ── ETA SMOOTHING (EMA — prevents jumpy ETA) ──────────────
+  // ETA smoothing (EMA)
   let smoothedETA = null;
   const ETA_ALPHA = 0.25;
   function getSmoothedETA(rawSecs) {
@@ -418,7 +416,7 @@
     return Math.round(smoothedETA);
   }
 
-  // ── OFFLINE PREDICTION ────────────────────────────────────
+  // Offline prediction
   let lastVelocity  = { vLat: 0, vLng: 0 };
   let offlineInterval = null;
 
@@ -443,7 +441,6 @@
     document.getElementById("offlineBanner").style.display   = "none";
   }
 
-  // ── BEARING (heading direction) ───────────────────────────
   function getBearing(p1, p2) {
     const r = x => x * Math.PI / 180;
     const lat1 = r(p1.lat), lat2 = r(p2.lat), dLng = r(p2.lng - p1.lng);
@@ -456,16 +453,17 @@
     if (bikeSvgEl) bikeSvgEl.style.transform = `rotate(${bearing - 90}deg)`;
   }
 
+  // ✅ STATUS_MESSAGES — safe emoji only (no ZWJ compound chars)
   const STATUS_MESSAGES = {
-    placed:     { icon: "🧑‍🍳", main: "Order placed!",      sub: "We received your order" },
-    confirmed:  { icon: "👨‍🍳", main: "Being prepared",     sub: "The kitchen is working on it" },
-    on_the_way: { icon: "🛵",   main: "On the way!",        sub: "Your rider has picked up your order" },
-    arriving:   { icon: "🏁",   main: "Almost there!",      sub: "Your rider is less than 500m away" },
-    delivered:  { icon: "🎉",   main: "Delivered!",         sub: "Your order has arrived. Enjoy!" },
+    placed:     { icon: "📋", main: "Order placed!",    sub: "We received your order" },
+    confirmed:  { icon: "🍳", main: "Being prepared",   sub: "The kitchen is working on it" },
+    on_the_way: { icon: "🛵", main: "On the way!",      sub: "Your rider has picked up your order" },
+    arriving:   { icon: "🏁", main: "Almost there!",    sub: "Your rider is less than 500m away" },
+    delivered:  { icon: "🎉", main: "Delivered!",       sub: "Your order has arrived. Enjoy!" }
   };
 
   function setStatusHero(statusKey, customSub) {
-    const msg = STATUS_MESSAGES[statusKey] || STATUS_MESSAGES["placed"];
+    const msg = STATUS_MESSAGES[statusKey] || STATUS_MESSAGES.placed;
     document.getElementById("statusIcon").innerText     = msg.icon;
     document.getElementById("statusMainText").innerText = msg.main;
     document.getElementById("statusSubText").innerText  = customSub || msg.sub;
@@ -475,7 +473,7 @@
     const R = 6371000, r = x => x * Math.PI / 180;
     const dLat = r(p2.lat - p1.lat), dLng = r(p2.lng - p1.lng);
     const a = Math.sin(dLat/2)**2 + Math.cos(r(p1.lat)) * Math.cos(r(p2.lat)) * Math.sin(dLng/2)**2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
   function shouldUpdateRoute(pos) {
@@ -494,36 +492,64 @@
     });
   }
 
-
-
+  // ── COUNTDOWN ─────────────────────────────────────────────
   function startCountdown(seconds) {
     if (countdownTimer) clearInterval(countdownTimer);
-    countdownSecs = seconds;
+    countdownSecs = Math.max(0, seconds);
     renderCountdown();
     countdownTimer = setInterval(() => {
-      if (countdownSecs > 0) { countdownSecs--; renderCountdown(); }
-      else { clearInterval(countdownTimer); document.getElementById("countdown").innerText = "🏠"; }
+      if (countdownSecs > 0) {
+        countdownSecs--;
+        renderCountdown();
+      } else {
+        clearInterval(countdownTimer);
+        document.getElementById("countdown").innerText = "🏠";
+      }
     }, 1000);
   }
 
+  // ✅ THE FIX — renderCountdown now also updates ETA pill,
+  //    arrival text AND the ETA bubble on map every single second.
   function renderCountdown() {
-    const m = Math.floor(countdownSecs / 60), s = countdownSecs % 60;
+    const m = Math.floor(countdownSecs / 60);
+    const s = countdownSecs % 60;
     document.getElementById("countdown").innerText =
-      `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+      String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+
+    if (countdownSecs <= 0) return;
+
+    const minsLeft = Math.ceil(countdownSecs / 60);
+
+    // ── ETA pill ──────────────────────────────────────────
+    document.getElementById("eta").innerText =
+      minsLeft <= 1 ? "1 min" : minsLeft + " min";
+
+    // ── Arrival row text ──────────────────────────────────
+    document.getElementById("arrivalText").innerText =
+      minsLeft <= 1 ? "Arriving now! 🏁" :
+      "Arriving in " + minsLeft + " min" + (minsLeft !== 1 ? "s" : "");
+
+    // ── Clock (recalculate from remaining secs) ───────────
+    const arrDate = new Date(Date.now() + countdownSecs * 1000);
+    const h       = arrDate.getHours();
+    const min     = String(arrDate.getMinutes()).padStart(2, "0");
+    const h12     = h % 12 || 12;
+    const ampm    = h >= 12 ? "PM" : "AM";
+    document.getElementById("arrivalClock").innerText = "By " + h12 + ":" + min + " " + ampm;
+
+    // ── ETA bubble on map ─────────────────────────────────
+    if (etaMarker && etaMarker.content) {
+      etaMarker.content.innerText = minsLeft <= 1 ? "ETA: NOW" : "ETA: " + minsLeft + " MINS";
+    }
   }
 
   function setArrivalInfo(durationSecs) {
-    const arrDate = new Date(Date.now() + durationSecs * 1000);
-    const h = arrDate.getHours(), min = String(arrDate.getMinutes()).padStart(2,"0");
-    const h12 = h % 12 || 12, ampm = h >= 12 ? "PM" : "AM";
-    const mins = Math.ceil(durationSecs / 60);
-    document.getElementById("arrivalText").innerText  = mins <= 1 ? "Arriving now! 🏁" : `Arriving in ${mins} mins`;
-    document.getElementById("arrivalClock").innerText = `By ${h12}:${min} ${ampm}`;
-    startCountdown(durationSecs);
-    if (etaMarker?.content) etaMarker.content.innerText = `ETA: ${mins <= 1 ? "1 MIN" : mins + " MINS"}`;
+    if (!durationSecs || durationSecs <= 0) return;
+    startCountdown(durationSecs); // renderCountdown() is called inside, which sets everything
   }
 
-  function updateAccuracyCircle(pos, accuracy = 40) {
+  function updateAccuracyCircle(pos, accuracy) {
+    accuracy = accuracy || 40;
     if (!map) return;
     if (accuracyCircle) { accuracyCircle.setCenter(pos); accuracyCircle.setRadius(accuracy); }
     else {
@@ -562,8 +588,8 @@
         ctx.fillStyle = p.color; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
         ctx.restore();
       });
-      if (alive) { frame = requestAnimationFrame(animate); }
-      else { canvas.style.display = "none"; }
+      if (alive) frame = requestAnimationFrame(animate);
+      else canvas.style.display = "none";
     }
     animate();
     setTimeout(() => { canvas.style.display = "none"; cancelAnimationFrame(frame); }, 5500);
@@ -634,7 +660,7 @@
     customerMarker = new AdvancedMarkerElement({ position: custPos, map, content: homeWrap, title: "Delivery location", zIndex: 3 });
 
     const restEl = document.createElement("div"); restEl.className = "restaurant-marker";
-    restEl.innerHTML = `<span>🏪</span><span>Magizham</span>`;
+    restEl.innerHTML = "<span>🏪</span><span>Magizham</span>";
     restaurantMarker = new AdvancedMarkerElement({ position: RESTAURANT_POS, map, content: restEl, title: "Magizham", zIndex: 2 });
 
     updateAccuracyCircle(riderPos);
@@ -672,7 +698,7 @@
       travelMode: google.maps.TravelMode.DRIVING,
       drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel.BEST_GUESS }
     }, (result, status) => {
-      if (status !== "OK" || !result.routes.length) { console.warn("Route error:", status); return; }
+      if (status !== "OK" || !result.routes.length) { console.warn("Route:", status); return; }
 
       const leg = result.routes[0].legs[0];
 
@@ -690,13 +716,10 @@
       document.getElementById("distance").innerText = (leg.distance.value / 1000).toFixed(2) + " km";
       document.getElementById("pillDistance").classList.add("live");
 
-      if (leg.duration?.value) {
+      if (leg.duration && leg.duration.value) {
         const smoothed = getSmoothedETA(leg.duration.value);
-        document.getElementById("eta").innerText = smoothed < 60
-          ? smoothed + " sec"
-          : Math.ceil(smoothed / 60) + " min";
         document.getElementById("pillEta").classList.add("live");
-        setArrivalInfo(smoothed);
+        setArrivalInfo(smoothed); // ← sets countdown + all labels via renderCountdown
       }
 
       if (!mapFitted) {
@@ -710,14 +733,14 @@
       let newStatus = "";
       if (dist < 200) {
         newStatus = "delivered";
-        updateStatusBadge("delivered", "delivered"); setStatusHero("delivered"); updateTimeline("delivered");
+        updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); updateTimeline("delivered");
       } else if (dist < 500) {
         newStatus = "arriving";
-        updateStatusBadge("arriving", "arrived"); setStatusHero("arriving"); updateTimeline("on_the_way");
+        updateStatusBadge("arriving","arrived"); setStatusHero("arriving"); updateTimeline("on_the_way");
         triggerArrivingState(); triggerProximityAlert();
       } else {
         newStatus = "onTheWay";
-        updateStatusBadge("onTheWay", "connected");
+        updateStatusBadge("onTheWay","connected");
         if (dist >= 500) clearArrivingState();
       }
 
@@ -734,6 +757,11 @@
 
   function triggerDelivery() {
     if (map && customerPos) { map.setZoom(18); map.panTo(customerPos); }
+    if (countdownTimer) clearInterval(countdownTimer);
+    document.getElementById("countdown").innerText    = "🎉";
+    document.getElementById("arrivalText").innerText  = "Delivered!";
+    document.getElementById("arrivalClock").innerText = "Your order has arrived";
+    document.getElementById("countdownWrap").querySelector(".countdown-label").innerText = "";
     setTimeout(() => { launchConfetti(); setTimeout(showDeliveryPopup, 600); }, 800);
   }
 
@@ -751,7 +779,8 @@
     }
   }
 
-  function showToast(msg, duration = 2800) {
+  function showToast(msg, duration) {
+    duration = duration || 2800;
     const el = document.getElementById("toast");
     el.innerText = msg; el.style.display = "block";
     setTimeout(() => { el.style.display = "none"; }, duration);
@@ -759,29 +788,29 @@
 
   function shareTracking() {
     const url = window.location.href;
-    if (navigator.share) { navigator.share({ title: "Track my Magizham order 🛵", text: "Follow my delivery live!", url }).catch(() => {}); }
-    else { navigator.clipboard.writeText(url).then(() => showToast("🔗 Tracking link copied!")).catch(() => showToast("🔗 " + url)); }
+    if (navigator.share) {
+      navigator.share({ title: "Track my Magizham order", text: "Follow my delivery live!", url }).catch(() => {});
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => showToast("🔗 Tracking link copied!"));
+    } else {
+      showToast("🔗 " + url);
+    }
   }
 
-  const ratingLabels = ["","😞 Poor","😐 Fair","🙂 Good","😊 Great","🤩 Excellent!"];
+  const ratingLabels = ["","Poor","Fair","Good","Great","Excellent!"];
   function rateStar(val) {
     selectedRating = val;
     document.querySelectorAll(".star").forEach((s, i) => s.classList.toggle("active", i < val));
     document.getElementById("ratingLabel").innerText = ratingLabels[val] || "";
   }
   function submitRating() {
-    if (selectedRating > 0) showToast(`⭐ Thanks for your ${ratingLabels[selectedRating]} rating!`);
+    if (selectedRating > 0) showToast("Thanks for rating " + ratingLabels[selectedRating] + "!");
     closePopup();
   }
 
   function showDeliveryPopup() {
     document.getElementById("popupOverlay").style.display  = "block";
     document.getElementById("deliveryPopup").style.display = "block";
-    if (countdownTimer) clearInterval(countdownTimer);
-    document.getElementById("arrivalText").innerText  = "Delivered! 🎉";
-    document.getElementById("arrivalClock").innerText = "Your order has arrived";
-    document.getElementById("countdown").innerText    = "🎉";
-    document.getElementById("countdownWrap").querySelector(".countdown-label").innerText = "";
   }
   function closePopup() {
     document.getElementById("popupOverlay").style.display  = "none";
@@ -790,10 +819,12 @@
 
   const STATUS_STEPS  = ["placed","confirmed","on_the_way","delivered"];
   const PROGRESS_PCTS = { placed:"5%", confirmed:"36%", on_the_way:"68%", delivered:"100%" };
+
   function updateTimeline(status) {
     const idx = STATUS_STEPS.indexOf(status);
+    if (idx < 0) return;
     STATUS_STEPS.forEach((s, i) => {
-      const el = document.getElementById(`tl-${s}`); if (!el) return;
+      const el = document.getElementById("tl-" + s); if (!el) return;
       el.classList.remove("done","active");
       if (i < idx) el.classList.add("done");
       if (i === idx) el.classList.add("active");
@@ -814,32 +845,35 @@
 
   function updateStatusBadge(key, type) {
     const el = document.getElementById("statusBadge");
-    el.innerText = STATUS_BADGE_LABELS[key] || key; el.className = type || "";
+    el.innerText = STATUS_BADGE_LABELS[key] || key;
+    el.className = type || "";
   }
 
   async function loadOrder() {
     document.getElementById("loadingText").innerText = "Fetching your order...";
     try {
-      const res  = await fetch(`/api/orders/${orderId}/track`);
+      const res  = await fetch("/api/orders/" + orderId + "/track");
       if (!res.ok) throw new Error("Not found");
       const data = await res.json();
 
       riderName = data.rider_name || "Your rider";
       document.getElementById("riderName").innerText  = riderName;
       document.getElementById("riderPhone").innerText = "📞 " + (data.rider_phone || "--");
-      document.getElementById("callBtn").href         = `tel:${data.rider_phone || ""}`;
-      const waPhone = (data.rider_phone || "").replace(/\D/g,"");
-      document.getElementById("whatsappBtn").href = `https://wa.me/${waPhone}?text=Hi, I'm tracking order %23${data.id}`;
+      document.getElementById("callBtn").href         = "tel:" + (data.rider_phone || "");
+      const waPhone = (data.rider_phone || "").replace(/\D/g, "");
+      document.getElementById("whatsappBtn").href = "https://wa.me/" + waPhone + "?text=Hi, I'm tracking order %23" + data.id;
 
-      const dbStatus = (data.status || "placed").toLowerCase().replace(/ /g,"_");
+      const dbStatus = (data.status || "placed").toLowerCase().replace(/ /g, "_");
       updateTimeline(dbStatus);
-      setStatusHero(dbStatus, `Order #${data.id} · ${riderName}`);
-      document.getElementById("statusSubText").innerText = `Order #${data.id} · ${riderName}`;
+      setStatusHero(dbStatus, "Order #" + data.id + " · " + riderName);
+      document.getElementById("statusSubText").innerText = "Order #" + data.id + " · " + riderName;
 
       const riderPos = (data.lat && data.lng)
-        ? { lat: parseFloat(data.lat), lng: parseFloat(data.lng) } : { ...RESTAURANT_POS };
+        ? { lat: parseFloat(data.lat), lng: parseFloat(data.lng) }
+        : { ...RESTAURANT_POS };
       customerPos = (data.delivery_lat && data.delivery_lng)
-        ? { lat: parseFloat(data.delivery_lat), lng: parseFloat(data.delivery_lng) } : { ...DEFAULT_CUSTOMER_POS };
+        ? { lat: parseFloat(data.delivery_lat), lng: parseFloat(data.delivery_lng) }
+        : { ...DEFAULT_CUSTOMER_POS };
 
       await initMap(riderPos, customerPos);
       document.getElementById("loadingScreen").style.display = "none";
@@ -854,21 +888,21 @@
 
   function connectSocket() {
     if (typeof io === "undefined") {
-      updateStatusBadge("serverOffline", "error");
+      updateStatusBadge("serverOffline","error");
       startOfflinePrediction(); return;
     }
-    if (socketInstance?.connected) return;
+    if (socketInstance && socketInstance.connected) return;
     if (socketInstance) socketInstance.disconnect();
-    socketInstance = io("/", { query: { type: "customer", orderId } });
+    socketInstance = io("/", { query: { type: "customer", orderId: orderId } });
 
     socketInstance.on("connect", () => {
       stopOfflinePrediction();
       document.getElementById("retryBtn").style.display = "none";
-      updateStatusBadge("onTheWay", "connected");
+      updateStatusBadge("onTheWay","connected");
     });
 
     socketInstance.on("orderLocationUpdate", (data) => {
-      if (!data?.lat || !data?.lng) return;
+      if (!data || !data.lat || !data.lng) return;
       const lat = parseFloat(data.lat), lng = parseFloat(data.lng);
       if (isNaN(lat) || isNaN(lng)) return;
       const newPos = { lat, lng }, now = Date.now();
@@ -909,12 +943,15 @@
       const s = data.status;
       updateTimeline(s);
       if (s === "delivered") {
-        updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); speak("speechDelivered");
+        updateStatusBadge("delivered","delivered");
+        setStatusHero("delivered");
+        speak("speechDelivered");
         if (!popupShown) { popupShown = true; triggerDelivery(); }
       } else if (s === "on_the_way") {
         updateStatusBadge("onTheWay","connected");
-        setStatusHero("on_the_way", `${riderName} picked up your order!`);
-        speak("speechOnTheWay"); showToast(`🛵 ${riderName} is on the way!`);
+        setStatusHero("on_the_way", riderName + " picked up your order!");
+        speak("speechOnTheWay");
+        showToast("🛵 " + riderName + " is on the way!");
       } else if (s === "confirmed") {
         updateStatusBadge("confirmed","");
         setStatusHero("confirmed","Kitchen is preparing your order");
@@ -923,24 +960,24 @@
     });
 
     socketInstance.on("connect_error", () => {
-      updateStatusBadge("connectionLost", "error");
+      updateStatusBadge("connectionLost","error");
       document.getElementById("retryBtn").style.display = "inline-block";
       startOfflinePrediction();
     });
     socketInstance.on("disconnect", () => {
-      updateStatusBadge("reconnecting", "pulse");
+      updateStatusBadge("reconnecting","pulse");
       startOfflinePrediction();
     });
   }
 
   function retryConnection() {
     stopOfflinePrediction();
-    updateStatusBadge("connecting", "pulse");
+    updateStatusBadge("connecting","pulse");
     document.getElementById("retryBtn").style.display = "none";
     if (typeof io === "undefined") {
       const s = document.createElement("script");
       s.src = "/socket.io/socket.io.js"; s.onload = connectSocket;
-      s.onerror = () => updateStatusBadge("serverOffline", "error");
+      s.onerror = () => updateStatusBadge("serverOffline","error");
       document.body.appendChild(s);
     } else { connectSocket(); }
   }
