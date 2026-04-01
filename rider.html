@@ -4,193 +4,91 @@
   <title>Rider App — Magizham</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-
   <style>
     :root {
       --green: #2d6a4f;
-      --gold:  #d4a017;
+      --green2: #22c55e;
       --dark:  #111827;
       --card:  #1f2937;
       --text:  #f9fafb;
       --gray:  #9ca3af;
       --red:   #ef4444;
     }
-
     * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: "Nunito", sans-serif; background: var(--dark); color: var(--text); min-height: 100vh; padding: 20px 16px 40px; }
 
-    body {
-      font-family: "Nunito", sans-serif;
-      background: var(--dark);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 20px 16px 40px;
-    }
-
-    .header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 24px;
-    }
-
+    .header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
     .header-logo { font-size: 36px; }
+    .header-text h1 { font-size: 20px; font-weight: 800; }
+    .header-text p  { font-size: 12px; color: var(--gray); }
+    .live-indicator { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
+    .live-dot { width: 10px; height: 10px; border-radius: 50%; background: #6b7280; transition: background 0.3s; }
+    .live-dot.active { background: var(--green2); box-shadow: 0 0 0 4px rgba(34,197,94,0.25); animation: blink 1.2s infinite; }
+    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
 
-    .header-text h1 {
-      font-size: 20px;
-      font-weight: 800;
-    }
+    .card { background: var(--card); border-radius: 18px; padding: 18px; margin-bottom: 14px; }
+    .card-title { font-size: 12px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
 
-    .header-text p {
-      font-size: 12px;
-      color: var(--gray);
-    }
-
-    .live-indicator {
-      margin-left: auto;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .live-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #6b7280;
-    }
-
-    .live-dot.active {
-      background: #22c55e;
-      box-shadow: 0 0 0 4px rgba(34,197,94,0.25);
-      animation: blink 1.2s infinite;
-    }
-
-    @keyframes blink {
-      0%,100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
-    .card {
-      background: var(--card);
-      border-radius: 18px;
-      padding: 18px;
-      margin-bottom: 14px;
-    }
-
-    .card-title {
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--gray);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      margin-bottom: 12px;
-    }
-
-    .order-input-row {
-      display: flex;
-      gap: 10px;
-    }
-
+    .order-input-row { display: flex; gap: 10px; }
     .order-input-row input {
-      flex: 1;
-      background: #374151;
-      border: none;
-      border-radius: 12px;
-      padding: 12px 16px;
-      color: white;
-      font-size: 15px;
-      font-weight: 700;
-      outline: none;
+      flex: 1; background: #374151; border: 2px solid transparent; border-radius: 12px;
+      padding: 12px 16px; color: white; font-size: 16px; font-weight: 700; outline: none;
+      font-family: "Nunito", sans-serif; transition: border 0.2s;
     }
-
+    .order-input-row input:focus { border-color: var(--green2); }
     .load-btn {
-      background: var(--green);
-      color: white;
-      border: none;
-      border-radius: 12px;
-      padding: 12px 18px;
-      font-size: 14px;
-      font-weight: 700;
-      cursor: pointer;
+      background: var(--green); color: white; border: none; border-radius: 12px;
+      padding: 12px 20px; font-size: 14px; font-weight: 800; cursor: pointer;
+      font-family: "Nunito", sans-serif; transition: opacity 0.2s;
     }
+    .load-btn:active { opacity: 0.8; }
 
-    #orderInfo { display: none; }
+    #orderInfo { display: none; margin-top: 14px; }
+    .order-detail-row { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-bottom: 1px solid #374151; }
+    .order-detail-row:last-child { border-bottom: none; }
+    .order-detail-row span:last-child { font-weight: 800; color: var(--green2); }
 
-    .order-detail-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 13px;
-      padding: 5px 0;
-      border-bottom: 1px solid #374151;
-    }
-
-    .status-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
-    .status-btn {
-      padding: 11px 10px;
-      border: 2px solid #374151;
-      border-radius: 12px;
-      background: transparent;
-      color: var(--gray);
-      font-size: 12px;
-      font-weight: 700;
-      cursor: pointer;
-    }
-
-    .status-btn.current {
-      border-color: var(--green);
-      background: var(--green);
-      color: white;
-    }
-
+    /* ── GPS BUTTON ── */
     #gpsBtn {
-      width: 100%;
-      padding: 16px;
-      border: none;
-      border-radius: 14px;
-      font-size: 16px;
-      font-weight: 800;
-      cursor: pointer;
+      width: 100%; padding: 18px; border: none; border-radius: 16px;
+      font-size: 17px; font-weight: 800; cursor: pointer;
       background: linear-gradient(135deg, #2d6a4f, #1a3d2d);
-      color: white;
-      margin-bottom: 14px;
+      color: white; margin-bottom: 14px; font-family: "Nunito", sans-serif;
+      transition: all 0.3s; box-shadow: 0 4px 16px rgba(45,106,79,0.4);
     }
+    #gpsBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #gpsBtn.stop { background: linear-gradient(135deg, #dc2626, #7f1d1d); box-shadow: 0 4px 16px rgba(220,38,38,0.4); }
 
-    #gpsBtn.stop {
-      background: linear-gradient(135deg, #dc2626, #7f1d1d);
+    /* ── STATS GRID ── */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-card { background: #374151; border-radius: 12px; padding: 12px; }
+    .stat-label { font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .stat-value { font-size: 14px; font-weight: 800; color: var(--green2); font-variant-numeric: tabular-nums; }
+
+    /* ── STATUS BUTTONS ── */
+    .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .status-btn {
+      padding: 12px 10px; border: 2px solid #374151; border-radius: 12px;
+      background: transparent; color: var(--gray); font-size: 12px; font-weight: 700;
+      cursor: pointer; font-family: "Nunito", sans-serif; transition: all 0.2s;
     }
+    .status-btn:hover  { border-color: #6b7280; color: white; }
+    .status-btn.active { border-color: var(--green2); background: rgba(34,197,94,0.15); color: var(--green2); }
+    .status-btn.danger { border-color: var(--red); background: rgba(239,68,68,0.15); color: var(--red); }
 
-    .coords-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
+    /* ── LOG ── */
+    .log { max-height: 130px; overflow-y: auto; font-size: 11px; }
+    .log-line { padding: 3px 0; border-bottom: 1px solid #374151; color: var(--gray); }
+    .log-line.ok  { color: var(--green2); }
+    .log-line.err { color: var(--red); }
+    .log-line.warn { color: #fbbf24; }
+
+    /* ── PING COUNTER ── */
+    .ping-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #374151; border-radius: 20px; padding: 4px 12px;
+      font-size: 11px; font-weight: 700; color: var(--gray); margin-top: 10px;
     }
-
-    .coord-card {
-      background: #374151;
-      border-radius: 10px;
-      padding: 10px 12px;
-    }
-
-    .coord-card .c-value {
-      font-size: 13px;
-      font-weight: 800;
-      color: #34d399;
-    }
-
-    .log {
-      max-height: 120px;
-      overflow-y: auto;
-      font-size: 11px;
-    }
-
-    .log-line { padding: 3px 0; }
   </style>
 </head>
 <body>
@@ -207,77 +105,224 @@
   </div>
 </div>
 
+<!-- ORDER LOADER -->
 <div class="card">
   <div class="card-title">📦 Your Order</div>
   <div class="order-input-row">
-    <input type="number" id="orderIdInput" placeholder="Enter Order ID">
+    <input type="text" id="orderIdInput" placeholder="Enter Order ID (e.g. 1)" inputmode="numeric">
     <button class="load-btn" onclick="loadOrder()">Load</button>
   </div>
-  <div id="orderInfo" style="margin-top:12px">
-    <div class="order-detail-row">
-      <span>Order ID</span>
-      <span id="oi-id">--</span>
-    </div>
+  <div id="orderInfo">
+    <div class="order-detail-row"><span>Order ID</span><span id="oi-id">--</span></div>
+    <div class="order-detail-row"><span>Customer</span><span id="oi-customer">--</span></div>
+    <div class="order-detail-row"><span>Address</span><span id="oi-address">--</span></div>
+    <div class="order-detail-row"><span>Status</span><span id="oi-status">--</span></div>
   </div>
 </div>
 
-<button id="gpsBtn" onclick="toggleGPS()">▶ Start Sharing GPS</button>
+<!-- GPS TOGGLE -->
+<button id="gpsBtn" onclick="toggleGPS()" disabled>▶ Start Sharing GPS</button>
 
+<!-- LIVE STATS -->
 <div class="card">
-  <div class="card-title">📍 Current Location</div>
-  <div class="coords-grid">
-    <div class="coord-card"><div id="lat">--</div></div>
-    <div class="coord-card"><div id="lng">--</div></div>
+  <div class="card-title">📍 Live Location</div>
+  <div class="stats-grid">
+    <div class="stat-card"><div class="stat-label">Latitude</div><div class="stat-value" id="dispLat">--</div></div>
+    <div class="stat-card"><div class="stat-label">Longitude</div><div class="stat-value" id="dispLng">--</div></div>
+    <div class="stat-card"><div class="stat-label">Speed</div><div class="stat-value" id="dispSpeed">--</div></div>
+    <div class="stat-card"><div class="stat-label">Accuracy</div><div class="stat-value" id="dispAccuracy">--</div></div>
+  </div>
+  <div class="ping-badge">📡 Pings sent: <span id="pingCount">0</span></div>
+</div>
+
+<!-- STATUS UPDATE -->
+<div class="card">
+  <div class="card-title">🔄 Update Order Status</div>
+  <div class="status-grid">
+    <button class="status-btn" onclick="updateStatus('confirmed')">🏪 Confirmed</button>
+    <button class="status-btn" onclick="updateStatus('on_the_way')">🛵 On the way</button>
+    <button class="status-btn danger" onclick="updateStatus('delivered')">🎉 Delivered</button>
   </div>
 </div>
 
+<!-- LOG -->
 <div class="card">
   <div class="card-title">🔧 Activity Log</div>
   <div class="log" id="log"></div>
 </div>
 
-<!-- ✅ Scripts -->
 <script src="/socket.io/socket.io.js"></script>
-<script src="/i18n.js"></script>
 
 <script>
-let socket=null,isTracking=false,watchId=null,currentOrderId=null;
+  let socket       = null;
+  let isTracking   = false;
+  let watchId      = null;
+  let currentOrderId = null;
+  let pingCount    = 0;
+  let currentStatus = null;
 
-function log(msg){
-  const el=document.getElementById("log");
-  const d=document.createElement("div");
-  d.textContent=msg;
-  el.prepend(d);
-}
+  // ── LOG ──────────────────────────────────────────────────
+  function log(msg, type = "") {
+    const el  = document.getElementById("log");
+    const div = document.createElement("div");
+    div.className = "log-line " + type;
+    div.textContent = new Date().toLocaleTimeString() + " — " + msg;
+    el.prepend(div);
+    // Keep max 50 lines
+    while (el.children.length > 50) el.removeChild(el.lastChild);
+  }
 
-function toggleGPS(){
-  isTracking?stopGPS():startGPS();
-}
+  // ── SOCKET SETUP ─────────────────────────────────────────
+  function initSocket() {
+    if (socket?.connected) return;
+    socket = io("/", { query: { type: "rider", orderId: currentOrderId } });
 
-function startGPS(){
-  if(!navigator.geolocation){log("No GPS");return;}
-  isTracking=true;
-  document.getElementById("gpsBtn").innerText="Stop GPS";
+    socket.on("connect", () => {
+      document.getElementById("liveDot").classList.add("active");
+      document.getElementById("liveText").innerText = "Live";
+      log("Connected to server ✅", "ok");
+    });
 
-  watchId=navigator.geolocation.watchPosition(pos=>{
-    const lat=pos.coords.latitude;
-    const lng=pos.coords.longitude;
+    socket.on("disconnect", () => {
+      document.getElementById("liveDot").classList.remove("active");
+      document.getElementById("liveText").innerText = "Offline";
+      log("Disconnected ⚠️", "warn");
+    });
 
-    document.getElementById("lat").innerText=lat.toFixed(6);
-    document.getElementById("lng").innerText=lng.toFixed(6);
+    socket.on("connect_error", (e) => {
+      log("Connection error: " + e.message, "err");
+    });
+  }
 
-    if(socket?.connected){
-      socket.emit("riderLocationUpdate",{lat,lng});
+  // ── LOAD ORDER ───────────────────────────────────────────
+  async function loadOrder() {
+    const input = document.getElementById("orderIdInput").value.trim();
+    if (!input) { log("Enter an order ID first", "warn"); return; }
+
+    log("Loading order #" + input + "...");
+    try {
+      const res  = await fetch(`/api/orders/${input}/track`);
+      if (!res.ok) throw new Error("Order not found (HTTP " + res.status + ")");
+      const data = await res.json();
+
+      currentOrderId = input;
+      document.getElementById("oi-id").innerText       = data.id || input;
+      document.getElementById("oi-customer").innerText = data.customer_name || "--";
+      document.getElementById("oi-address").innerText  = data.customer_address || "--";
+      document.getElementById("oi-status").innerText   = data.status || "--";
+      document.getElementById("orderInfo").style.display = "block";
+      document.getElementById("gpsBtn").disabled = false;
+
+      log("Order #" + input + " loaded ✅ — " + (data.customer_name || ""), "ok");
+
+      // Connect socket now that we have an orderId
+      initSocket();
+
+    } catch (err) {
+      log("❌ " + err.message, "err");
     }
+  }
+
+  // ── GPS TOGGLE ───────────────────────────────────────────
+  function toggleGPS() {
+    isTracking ? stopGPS() : startGPS();
+  }
+
+  function startGPS() {
+    if (!navigator.geolocation) { log("GPS not available on this device", "err"); return; }
+    if (!currentOrderId) { log("Load an order first", "warn"); return; }
+
+    isTracking = true;
+    const btn  = document.getElementById("gpsBtn");
+    btn.innerText = "⏹ Stop GPS";
+    btn.classList.add("stop");
+    log("GPS started — watching position...", "ok");
+
+    watchId = navigator.geolocation.watchPosition(
+      onPosition,
+      onGPSError,
+      {
+        enableHighAccuracy: true,   // ✅ uses GPS chip, not wifi/cell
+        maximumAge: 2000,           // accept 2s old position
+        timeout: 10000
+      }
+    );
+  }
+
+  function stopGPS() {
+    isTracking = false;
+    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+    const btn = document.getElementById("gpsBtn");
+    btn.innerText = "▶ Start Sharing GPS";
+    btn.classList.remove("stop");
+    log("GPS stopped", "warn");
+  }
+
+  // ── ON POSITION ──────────────────────────────────────────
+  function onPosition(pos) {
+    const lat      = pos.coords.latitude;
+    const lng      = pos.coords.longitude;
+    const speedMs  = pos.coords.speed;          // m/s or null
+    const accuracy = pos.coords.accuracy;       // metres
+
+    // Convert speed m/s → km/h
+    const speedKmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null;
+
+    // Update display
+    document.getElementById("dispLat").innerText      = lat.toFixed(6);
+    document.getElementById("dispLng").innerText      = lng.toFixed(6);
+    document.getElementById("dispSpeed").innerText    = speedKmh != null ? speedKmh.toFixed(1) + " km/h" : "--";
+    document.getElementById("dispAccuracy").innerText = accuracy != null ? Math.round(accuracy) + " m" : "--";
+
+    // Emit to server — include ALL fields the customer tracking page needs
+    if (socket?.connected) {
+      socket.emit("riderLocationUpdate", {
+        orderId:  currentOrderId,
+        lat,
+        lng,
+        speed:    speedKmh,          // km/h — matching what tracking.html expects
+        accuracy: accuracy || 40,
+      });
+
+      pingCount++;
+      document.getElementById("pingCount").innerText = pingCount;
+    } else {
+      log("Socket not connected — GPS data not sent", "warn");
+    }
+  }
+
+  function onGPSError(err) {
+    const msgs = {
+      1: "Permission denied — allow location in browser",
+      2: "Position unavailable",
+      3: "GPS timeout"
+    };
+    log("GPS error: " + (msgs[err.code] || err.message), "err");
+  }
+
+  // ── STATUS UPDATE ────────────────────────────────────────
+  function updateStatus(status) {
+    if (!currentOrderId) { log("Load an order first", "warn"); return; }
+    if (!socket?.connected) { log("Not connected to server", "err"); return; }
+
+    // Highlight active button
+    document.querySelectorAll(".status-btn").forEach(b => b.classList.remove("active"));
+    event.target.classList.add("active");
+
+    socket.emit("orderStatusUpdate", {
+      orderId: currentOrderId,
+      status
+    });
+
+    document.getElementById("oi-status").innerText = status.replace(/_/g, " ");
+    currentStatus = status;
+    log("Status updated → " + status, "ok");
+  }
+
+  // ── ALLOW ENTER KEY ON ORDER INPUT ───────────────────────
+  document.getElementById("orderIdInput").addEventListener("keydown", e => {
+    if (e.key === "Enter") loadOrder();
   });
-}
-
-function stopGPS(){
-  isTracking=false;
-  navigator.geolocation.clearWatch(watchId);
-  document.getElementById("gpsBtn").innerText="Start GPS";
-}
 </script>
-
 </body>
 </html>
