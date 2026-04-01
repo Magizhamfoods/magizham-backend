@@ -17,11 +17,21 @@ const server = http.createServer(app);
 
 // ── SOCKET.IO ───────────────────────────────────────────────
 const io = new Server(server, {
-  cors: { origin: "*", methods: ["GET", "POST"] }
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"],
+    credentials: false
+  },
+  transports: ["websocket", "polling"],   // ✅ WebSocket first, polling fallback
+  allowEIO3: true,                         // ✅ Support older clients
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  allowUpgrades: true
 });
 
 // ── MIDDLEWARE ──────────────────────────────────────────────
-app.use(cors());
+app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
@@ -34,7 +44,6 @@ pool.connect()
   .then(async () => {
     console.log("Database connected successfully ✅");
 
-    // ✅ Auto-create tables — runs every startup, safe to repeat
     await pool.query(`
       CREATE TABLE IF NOT EXISTS orders (
         id            SERIAL PRIMARY KEY,
@@ -51,7 +60,6 @@ pool.connect()
       )
     `);
 
-    // ✅ Insert test order so /track/1 works immediately
     await pool.query(`
       INSERT INTO orders
         (id, user_id, total, status, rider_name, rider_phone, lat, lng, delivery_lat, delivery_lng)
@@ -83,11 +91,7 @@ app.get("/rider", (req, res) => {
   res.sendFile(path.join(__dirname, "rider.html"));
 });
 
-// ─────────────────────────────────────────────────────────────
-// TRACKING API
-// ─────────────────────────────────────────────────────────────
-
-// GET order tracking — also returns delivery_lat/lng
+// ── TRACKING API ─────────────────────────────────────────────
 app.get("/api/orders/:id/track", async (req, res) => {
   const { id } = req.params;
   try {
@@ -108,7 +112,7 @@ app.get("/api/orders/:id/track", async (req, res) => {
   }
 });
 
-// UPDATE order status
+// ── UPDATE ORDER STATUS ───────────────────────────────────────
 app.post("/api/orders/:id/status", async (req, res) => {
   const { id }     = req.params;
   const { status } = req.body;
@@ -129,7 +133,7 @@ app.post("/api/orders/:id/status", async (req, res) => {
   }
 });
 
-// RIDER LOCATION API
+// ── RIDER LOCATION API ────────────────────────────────────────
 app.post("/api/rider/location", async (req, res) => {
   const { orderId, lat, lng } = req.body;
 
@@ -148,7 +152,10 @@ app.post("/api/rider/location", async (req, res) => {
         "UPDATE orders SET lat = $1, lng = $2 WHERE id = $3",
         [parsedLat, parsedLng, orderId]
       );
-      io.to(`order_${orderId}`).emit("orderLocationUpdate", { lat: parsedLat, lng: parsedLng });
+      io.to(`order_${orderId}`).emit("orderLocationUpdate", {
+        lat: parsedLat,
+        lng: parsedLng
+      });
       console.log(`📍 Order ${orderId} → ${parsedLat}, ${parsedLng}`);
     }
     res.json({ success: true });
@@ -158,21 +165,22 @@ app.post("/api/rider/location", async (req, res) => {
   }
 });
 
-// HEALTH CHECK
+// ── HEALTH CHECK ──────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({ status: "✅ Running", uptime: Math.floor(process.uptime()) });
 });
 
-// ─────────────────────────────────────────────────────────────
-// SOCKET.IO
-// ─────────────────────────────────────────────────────────────
+// ── SOCKET.IO ─────────────────────────────────────────────────
 io.on("connection", (socket) => {
   const type    = socket.handshake.query.type    || "unknown";
   const orderId = socket.handshake.query.orderId;
 
-  console.log(`✅ ${type} connected | Order: ${orderId || "none"}`);
+  console.log(`✅ ${type} connected | Order: ${orderId || "none"} | Transport: ${socket.conn.transport.name}`);
 
   if (orderId) socket.join(`order_${orderId}`);
+
+  // ✅ Confirm connection to client
+  socket.emit("connected", { message: "Socket connected", orderId });
 
   socket.on("riderLocationUpdate", async (data) => {
     const { lat, lng, orderId: oId } = data;
@@ -199,15 +207,17 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("disconnect", () => console.log("❌ Disconnected"));
+  socket.on("disconnect", (reason) => {
+    console.log(`❌ Disconnected | Reason: ${reason}`);
+  });
 });
 
 app.set("io", io);
 
-// ── START SERVER ─────────────────────────────────────────────
+// ── START SERVER ──────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
   console.log("");
   console.log("🚀 Server running:");
   console.log(`👉 http://localhost:${PORT}`);
