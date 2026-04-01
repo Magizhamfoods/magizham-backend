@@ -244,7 +244,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     #loadingScreen p { font-size: 14px; color: var(--gray); font-weight: 700; }
     #retryBtn { display: none; padding: 8px 20px; background: var(--green); color: white; border: none; border-radius: 20px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: "Nunito", sans-serif; }
-    #langToggle { background: var(--green); color: white; border: none; border-radius: 20px; padding: 6px 14px; font-size: 13px; font-weight: 800; cursor: pointer; font-family: "Nunito", sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+
 
     #trafficLegend { display: none; position: fixed; bottom: 320px; right: 12px; background: rgba(255,255,255,0.95); border-radius: 10px; padding: 8px 12px; z-index: 500; box-shadow: 0 2px 10px rgba(0,0,0,0.15); font-size: 10px; font-weight: 700; }
     .legend-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
@@ -289,7 +289,7 @@
   <div class="top-badge"><span id="statusBadge" class="pulse">Connecting...</span></div>
   <div class="top-actions">
     <button class="top-action-btn" onclick="shareTracking()" title="Share">🔗</button>
-    <button class="top-action-btn" id="langToggle" onclick="toggleLang()" style="font-size:11px;font-weight:800;border-radius:20px;padding:0 10px;width:auto;">عربي</button>
+
   </div>
 </div>
 
@@ -373,7 +373,7 @@
 </script>
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8&loading=async&libraries=maps,marker,routes&v=weekly&callback=initMapCallback" async></script>
 <script src="/socket.io/socket.io.js"></script>
-<script src="/i18n.js"></script>
+
 
 <script>
   // ── ORDER ID ─────────────────────────────────────────────
@@ -494,15 +494,7 @@
     });
   }
 
-  function toggleLang() {
-    const next = currentLang === "en" ? "ar" : "en";
-    localStorage.setItem("magizham_lang", next);
-    window.location.reload();
-  }
-  window.addEventListener("DOMContentLoaded", () => {
-    const btn = document.getElementById("langToggle");
-    if (btn) btn.innerText = currentLang === "ar" ? "English" : "عربي";
-  });
+
 
   function startCountdown(seconds) {
     if (countdownTimer) clearInterval(countdownTimer);
@@ -745,10 +737,16 @@
     setTimeout(() => { launchConfetti(); setTimeout(showDeliveryPopup, 600); }, 800);
   }
 
+  const SPEECH_TEXT = {
+    speechArriving:  "Your rider is almost there! Get ready to receive your order.",
+    speechDelivered: "Your order has been delivered. Enjoy your meal!",
+    speechOnTheWay:  "Your rider has picked up your order and is on the way!",
+  };
+
   function speak(key) {
     if ("speechSynthesis" in window) {
-      const u = new SpeechSynthesisUtterance(t(key));
-      u.lang = currentLang === "ar" ? "ar-AE" : "en-US"; u.rate = 0.95;
+      const u = new SpeechSynthesisUtterance(SPEECH_TEXT[key] || key);
+      u.lang = "en-US"; u.rate = 0.95;
       window.speechSynthesis.speak(u);
     }
   }
@@ -803,9 +801,20 @@
     document.getElementById("tlProgress").style.width = PROGRESS_PCTS[status] || "5%";
   }
 
+  const STATUS_BADGE_LABELS = {
+    delivered:      "Delivered 🎉",
+    arriving:       "Almost there! 🏁",
+    onTheWay:       "On the way 🛵",
+    serverOffline:  "Server offline",
+    connectionLost: "Connection lost",
+    reconnecting:   "Reconnecting...",
+    connecting:     "Connecting...",
+    confirmed:      "Confirmed 🏪",
+  };
+
   function updateStatusBadge(key, type) {
     const el = document.getElementById("statusBadge");
-    el.innerText = t(key); el.className = type || "";
+    el.innerText = STATUS_BADGE_LABELS[key] || key; el.className = type || "";
   }
 
   async function loadOrder() {
