@@ -1,328 +1,1269 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Rider App — Magizham</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>Magizham Rider</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#060A08">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+
   <style>
+    /* ══ TOKENS ══════════════════════════════════════════════════════ */
     :root {
-      --green: #2d6a4f;
-      --green2: #22c55e;
-      --dark:  #111827;
-      --card:  #1f2937;
-      --text:  #f9fafb;
-      --gray:  #9ca3af;
-      --red:   #ef4444;
+      --bg:      #060A08;
+      --bg1:     #0D1510;
+      --bg2:     #111D15;
+      --bg3:     #172420;
+      --neon:    #00FF88;
+      --neon2:   #00CC6A;
+      --neonDim: rgba(0,255,136,0.08);
+      --amber:   #FFB800;
+      --amberDim:rgba(255,184,0,0.1);
+      --red:     #FF4455;
+      --redDim:  rgba(255,68,85,0.1);
+      --tx:      #E8F5ED;
+      --tx2:     #7AA888;
+      --tx3:     #3A5545;
+      --bdr:     rgba(0,255,136,0.08);
+      --bdrAmt:  rgba(255,184,0,0.15);
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: "Nunito", sans-serif; background: var(--dark); color: var(--text); min-height: 100vh; padding: 20px 16px 40px; }
 
-    .header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-    .header-logo { font-size: 36px; }
-    .header-text h1 { font-size: 20px; font-weight: 800; }
-    .header-text p  { font-size: 12px; color: var(--gray); }
-    .live-indicator { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; }
-    .live-dot { width: 10px; height: 10px; border-radius: 50%; background: #6b7280; transition: background 0.3s; }
-    .live-dot.active { background: var(--green2); box-shadow: 0 0 0 4px rgba(34,197,94,0.25); animation: blink 1.2s infinite; }
-    @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+    /* ══ RESET ═══════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-    .card { background: var(--card); border-radius: 18px; padding: 18px; margin-bottom: 14px; }
-    .card-title { font-size: 12px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
-
-    .order-input-row { display: flex; gap: 10px; }
-    .order-input-row input {
-      flex: 1; background: #374151; border: 2px solid transparent; border-radius: 12px;
-      padding: 12px 16px; color: white; font-size: 16px; font-weight: 700; outline: none;
-      font-family: "Nunito", sans-serif; transition: border 0.2s;
+    body {
+      font-family: "Nunito", sans-serif;
+      background: var(--bg);
+      color: var(--tx);
+      min-height: 100dvh;
+      max-width: 430px;
+      margin: 0 auto;
+      overflow-x: hidden;
+      position: relative;
     }
-    .order-input-row input:focus { border-color: var(--green2); }
-    .load-btn {
-      background: var(--green); color: white; border: none; border-radius: 12px;
-      padding: 12px 20px; font-size: 14px; font-weight: 800; cursor: pointer;
-      font-family: "Nunito", sans-serif; transition: opacity 0.2s;
+
+    /* Subtle noise texture overlay */
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      opacity: 0.4;
     }
-    .load-btn:active { opacity: 0.8; }
 
-    #orderInfo { display: none; margin-top: 14px; }
-    .order-detail-row { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-bottom: 1px solid #374151; }
-    .order-detail-row:last-child { border-bottom: none; }
-    .order-detail-row span:last-child { font-weight: 800; color: var(--green2); }
+    /* ══ LAYOUT SHELL ════════════════════════════════════════════════ */
+    #app { display: flex; flex-direction: column; min-height: 100dvh; position: relative; z-index: 1; }
+    #scrollArea { flex: 1; overflow-y: auto; padding-bottom: 90px; }
+    #scrollArea::-webkit-scrollbar { display: none; }
 
-    /* ── GPS BUTTON ── */
+    /* ══ TYPOGRAPHY ══════════════════════════════════════════════════ */
+    .syne { font-family: "Syne", sans-serif; }
+    .mono { font-family: "Space Mono", monospace; }
+
+    /* ══ HEADER ══════════════════════════════════════════════════════ */
+    #header {
+      position: sticky; top: 0; z-index: 100;
+      background: linear-gradient(180deg, var(--bg) 80%, transparent);
+      padding: 20px 20px 10px;
+      backdrop-filter: blur(12px);
+    }
+
+    .hdr-row { display: flex; align-items: center; gap: 14px; }
+
+    .rider-avatar {
+      width: 46px; height: 46px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--neon2), #005C30);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+      box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px rgba(0,255,136,0.3);
+    }
+
+    .rider-info { flex: 1; }
+    .rider-name { font-family: "Syne", sans-serif; font-size: 17px; font-weight: 800; color: var(--tx); line-height: 1; }
+    .rider-sub  { font-size: 11px; color: var(--tx2); margin-top: 3px; }
+
+    /* Online toggle */
+    .online-toggle {
+      display: flex; align-items: center; gap: 8px;
+      background: var(--bg1); border: 1.5px solid var(--bdr);
+      border-radius: 30px; padding: 6px 12px 6px 8px; cursor: pointer;
+      transition: all 0.3s;
+    }
+    .online-toggle.active { border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.06); }
+    .toggle-dot {
+      width: 10px; height: 10px; border-radius: 50%; background: var(--tx3);
+      transition: all 0.3s; flex-shrink: 0;
+    }
+    .online-toggle.active .toggle-dot { background: var(--neon); box-shadow: 0 0 8px var(--neon); animation: livePulse 1.5s infinite; }
+    .toggle-label { font-size: 11px; font-weight: 800; color: var(--tx2); transition: color 0.3s; }
+    .online-toggle.active .toggle-label { color: var(--neon); }
+
+    @keyframes livePulse {
+      0%,100% { box-shadow: 0 0 6px var(--neon); }
+      50%      { box-shadow: 0 0 14px var(--neon), 0 0 24px rgba(0,255,136,0.3); }
+    }
+
+    /* Earnings ticker in header */
+    #earningsTicker {
+      display: flex; align-items: center; gap: 8px; margin-top: 12px;
+      background: var(--bg1); border: 1px solid var(--bdrAmt);
+      border-radius: 12px; padding: 10px 14px;
+    }
+    .ticker-item { flex: 1; text-align: center; }
+    .ticker-val  { font-family: "Space Mono", monospace; font-size: 18px; font-weight: 700; color: var(--amber); line-height: 1; }
+    .ticker-lbl  { font-size: 9px; color: var(--tx2); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .ticker-div  { width: 1px; height: 32px; background: var(--bdrAmt); }
+
+    /* ══ CARDS ═══════════════════════════════════════════════════════ */
+    .card {
+      background: var(--bg1); border: 1px solid var(--bdr);
+      border-radius: 20px; padding: 18px; margin: 0 16px 14px;
+      position: relative; overflow: hidden;
+    }
+    .card::before {
+      content: ""; position: absolute; inset: 0; border-radius: 20px;
+      background: radial-gradient(ellipse at top left, rgba(0,255,136,0.03) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .card-label {
+      font-size: 10px; font-weight: 700; color: var(--tx3);
+      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .card-label::before { content: ""; width: 16px; height: 2px; background: var(--neon); border-radius: 1px; }
+
+    /* ══ ORDER LOADER ════════════════════════════════════════════════ */
+    .load-row { display: flex; gap: 10px; }
+    .load-input {
+      flex: 1; background: var(--bg2); border: 1.5px solid var(--bdr);
+      border-radius: 13px; padding: 13px 16px; color: var(--tx);
+      font-size: 16px; font-weight: 700; outline: none;
+      font-family: "Space Mono", monospace; transition: border-color 0.2s;
+    }
+    .load-input:focus { border-color: rgba(0,255,136,0.4); }
+    .load-input::placeholder { color: var(--tx3); font-size: 13px; }
+
+    .btn-load {
+      background: linear-gradient(135deg, var(--neon2), #005C30);
+      color: #000; border: none; border-radius: 13px; padding: 13px 20px;
+      font-size: 13px; font-weight: 800; cursor: pointer; font-family: "Syne", sans-serif;
+      transition: all 0.2s; white-space: nowrap;
+      box-shadow: 0 4px 16px rgba(0,255,136,0.25);
+    }
+    .btn-load:active { transform: scale(0.97); }
+
+    /* ══ ORDER DETAILS ═══════════════════════════════════════════════ */
+    #orderPanel { display: none; }
+
+    .order-hero {
+      background: linear-gradient(135deg, var(--bg2), var(--bg3));
+      border-radius: 16px; padding: 16px; margin-bottom: 14px;
+      border: 1px solid var(--bdrAmt);
+    }
+    .order-id-badge {
+      font-family: "Space Mono", monospace; font-size: 11px; font-weight: 700;
+      color: var(--amber); background: var(--amberDim); border: 1px solid var(--bdrAmt);
+      border-radius: 8px; padding: 3px 10px; display: inline-block; margin-bottom: 10px;
+    }
+    .order-customer { font-family: "Syne", sans-serif; font-size: 20px; font-weight: 800; color: var(--tx); line-height: 1.1; }
+    .order-addr { font-size: 12px; color: var(--tx2); margin-top: 5px; line-height: 1.4; }
+
+    .order-meta-row { display: flex; gap: 8px; margin-top: 12px; }
+    .meta-chip {
+      flex: 1; background: var(--bg); border-radius: 10px; padding: 8px;
+      text-align: center; border: 1px solid var(--bdr);
+    }
+    .meta-chip .mc-val { font-family: "Space Mono", monospace; font-size: 15px; font-weight: 700; color: var(--neon); }
+    .meta-chip .mc-lbl { font-size: 9px; color: var(--tx3); margin-top: 2px; }
+
+    /* Items list */
+    .items-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+    .item-row {
+      display: flex; align-items: center; gap: 10px;
+      background: var(--bg2); border-radius: 10px; padding: 10px 12px;
+      border: 1px solid var(--bdr);
+    }
+    .item-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--neon); flex-shrink: 0; }
+    .item-name { flex: 1; font-size: 13px; font-weight: 700; color: var(--tx); }
+    .item-qty  { font-family: "Space Mono", monospace; font-size: 12px; color: var(--tx2); }
+
+    /* ══ DELIVERY PIPELINE ═══════════════════════════════════════════ */
+    .pipeline { display: flex; align-items: center; gap: 0; margin: 16px 0; }
+    .pipe-step {
+      flex: 1; display: flex; flex-direction: column; align-items: center;
+      position: relative;
+    }
+    .pipe-step::after {
+      content: ""; position: absolute; top: 14px; left: 50%; width: 100%;
+      height: 2px; background: var(--bg2); z-index: 0; transition: background 0.5s;
+    }
+    .pipe-step:last-child::after { display: none; }
+    .pipe-step.done::after { background: var(--neon2); }
+
+    .pipe-dot {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--bg2); border: 2px solid var(--bg3);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; position: relative; z-index: 1; transition: all 0.4s;
+    }
+    .pipe-step.done   .pipe-dot { background: var(--neon2); border-color: var(--neon2); }
+    .pipe-step.active .pipe-dot {
+      background: var(--bg); border-color: var(--neon);
+      box-shadow: 0 0 0 4px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.3);
+      animation: pipePulse 1.5s infinite;
+    }
+    @keyframes pipePulse {
+      0%,100% { box-shadow: 0 0 0 4px rgba(0,255,136,0.15); }
+      50%      { box-shadow: 0 0 0 8px rgba(0,255,136,0.08), 0 0 20px rgba(0,255,136,0.25); }
+    }
+
+    .pipe-lbl {
+      font-size: 8.5px; font-weight: 700; color: var(--tx3); margin-top: 5px;
+      text-align: center; transition: color 0.3s;
+    }
+    .pipe-step.active .pipe-lbl { color: var(--neon); }
+    .pipe-step.done   .pipe-lbl { color: var(--neon2); }
+
+    /* ══ ACTION BUTTON ═══════════════════════════════════════════════ */
+    .btn-action {
+      width: 100%; padding: 17px; border: none; border-radius: 16px;
+      font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800;
+      cursor: pointer; transition: all 0.25s; letter-spacing: 0.3px;
+      margin-bottom: 10px; position: relative; overflow: hidden;
+    }
+    .btn-action::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
+      pointer-events: none;
+    }
+    .btn-action.go    { background: linear-gradient(135deg, var(--neon2), #005C30); color: #000; box-shadow: 0 6px 24px rgba(0,255,136,0.3); }
+    .btn-action.amber { background: linear-gradient(135deg, #CC8A00, #7A5200); color: #fff; box-shadow: 0 6px 24px rgba(255,184,0,0.25); }
+    .btn-action.done  { background: linear-gradient(135deg, #00A855, #005C30); color: #fff; box-shadow: 0 6px 24px rgba(0,168,85,0.3); }
+    .btn-action:active { transform: scale(0.98); }
+
+    /* ══ OTP BOX ═════════════════════════════════════════════════════ */
+    #otpSection { display: none; margin-bottom: 14px; }
+    .otp-hint { font-size: 12px; color: var(--tx2); margin-bottom: 10px; text-align: center; }
+    .otp-row { display: flex; gap: 10px; }
+    .otp-input {
+      flex: 1; background: var(--bg2); border: 2px solid rgba(255,184,0,0.3);
+      border-radius: 14px; padding: 14px; color: var(--amber);
+      font-family: "Space Mono", monospace; font-size: 28px; font-weight: 700;
+      text-align: center; letter-spacing: 14px; outline: none; transition: border-color 0.2s;
+    }
+    .otp-input:focus { border-color: var(--amber); }
+    .btn-verify {
+      background: linear-gradient(135deg, var(--amber), #CC8A00);
+      color: #000; border: none; border-radius: 14px; padding: 14px 22px;
+      font-family: "Syne", sans-serif; font-size: 14px; font-weight: 800; cursor: pointer;
+      box-shadow: 0 4px 16px rgba(255,184,0,0.3); transition: all 0.2s;
+    }
+    .btn-verify:active { transform: scale(0.97); }
+
+    /* ══ CONTACT BUTTONS ═════════════════════════════════════════════ */
+    .contact-row { display: flex; gap: 10px; margin-top: 6px; }
+    .btn-contact {
+      flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 12px; border-radius: 14px; border: 1.5px solid var(--bdr);
+      background: var(--bg2); cursor: pointer; text-decoration: none;
+      font-size: 13px; font-weight: 800; color: var(--tx2); transition: all 0.2s;
+      font-family: "Nunito", sans-serif;
+    }
+    .btn-contact.call { border-color: rgba(0,255,136,0.2); color: var(--neon); }
+    .btn-contact.chat { border-color: rgba(255,184,0,0.2); color: var(--amber); }
+    .btn-contact:active { transform: scale(0.97); }
+
+    /* ══ GPS BUTTON ══════════════════════════════════════════════════ */
     #gpsBtn {
-      width: 100%; padding: 18px; border: none; border-radius: 16px;
-      font-size: 17px; font-weight: 800; cursor: pointer;
-      background: linear-gradient(135deg, #2d6a4f, #1a3d2d);
-      color: white; margin-bottom: 14px; font-family: "Nunito", sans-serif;
-      transition: all 0.3s; box-shadow: 0 4px 16px rgba(45,106,79,0.4);
+      width: calc(100% - 32px); margin: 0 16px 14px;
+      padding: 18px; border: none; border-radius: 18px;
+      font-family: "Syne", sans-serif; font-size: 17px; font-weight: 800;
+      cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;
+      background: linear-gradient(135deg, var(--neon2), #003D1E);
+      color: #000; box-shadow: 0 8px 28px rgba(0,255,136,0.25);
     }
-    #gpsBtn:disabled { opacity: 0.5; cursor: not-allowed; }
-    #gpsBtn.stop { background: linear-gradient(135deg, #dc2626, #7f1d1d); box-shadow: 0 4px 16px rgba(220,38,38,0.4); }
+    #gpsBtn.stop { background: linear-gradient(135deg, #CC1122, #5A0008); color: #fff; box-shadow: 0 8px 28px rgba(255,68,85,0.25); }
+    #gpsBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+    #gpsBtn::before {
+      content: ""; position: absolute; top: 0; left: -100%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+      animation: shimmer 2.5s infinite;
+    }
+    #gpsBtn.stop::before { animation: none; }
+    @keyframes shimmer { to { left: 150%; } }
 
-    /* ── STATS GRID ── */
+    /* ══ LIVE STATS GRID ═════════════════════════════════════════════ */
     .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .stat-card { background: #374151; border-radius: 12px; padding: 12px; }
-    .stat-label { font-size: 10px; font-weight: 700; color: var(--gray); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
-    .stat-value { font-size: 14px; font-weight: 800; color: var(--green2); font-variant-numeric: tabular-nums; }
+    .stat-box {
+      background: var(--bg2); border-radius: 14px; padding: 13px;
+      border: 1px solid var(--bdr); position: relative; overflow: hidden;
+    }
+    .stat-box::before {
+      content: ""; position: absolute; bottom: -10px; right: -10px;
+      width: 50px; height: 50px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,255,136,0.06), transparent);
+      pointer-events: none;
+    }
+    .stat-lbl { font-size: 9px; font-weight: 700; color: var(--tx3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 5px; }
+    .stat-val  { font-family: "Space Mono", monospace; font-size: 16px; font-weight: 700; color: var(--neon); line-height: 1; }
+    .stat-val.amber { color: var(--amber); }
+    .stat-val.red   { color: var(--red); }
 
-    /* ── STATUS BUTTONS ── */
-    .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .status-btn {
-      padding: 12px 10px; border: 2px solid #374151; border-radius: 12px;
-      background: transparent; color: var(--gray); font-size: 12px; font-weight: 700;
+    /* Signal bars */
+    .signal-bars { display: flex; align-items: flex-end; gap: 2px; height: 18px; }
+    .bar { width: 4px; border-radius: 2px; background: var(--tx3); transition: background 0.3s; }
+    .bar.lit { background: var(--neon); }
+    .bar:nth-child(1) { height: 5px; }
+    .bar:nth-child(2) { height: 9px; }
+    .bar:nth-child(3) { height: 13px; }
+    .bar:nth-child(4) { height: 18px; }
+
+    /* GPS radar animation */
+    .radar-wrap { position: relative; width: 36px; height: 36px; margin: 0 auto 4px; }
+    .radar-ring {
+      position: absolute; inset: 0; border-radius: 50%;
+      border: 1.5px solid rgba(0,255,136,0.3);
+      animation: radarExpand 2s ease-out infinite;
+    }
+    .radar-ring:nth-child(2) { animation-delay: 0.6s; }
+    .radar-ring:nth-child(3) { animation-delay: 1.2s; }
+    .radar-dot {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%);
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--neon); box-shadow: 0 0 10px var(--neon);
+    }
+    @keyframes radarExpand {
+      0%   { transform: scale(0.3); opacity: 1; }
+      100% { transform: scale(1.8); opacity: 0; }
+    }
+
+    /* ══ PING FLASH ══════════════════════════════════════════════════ */
+    #pingFlash {
+      position: fixed; top: 0; right: 0; left: 0;
+      height: 2px; background: var(--neon);
+      transform: scaleX(0); transform-origin: left;
+      transition: transform 0.1s; z-index: 9999; pointer-events: none;
+    }
+    #pingFlash.active { transform: scaleX(1); }
+
+    /* ══ LOG ═════════════════════════════════════════════════════════ */
+    .log-wrap { max-height: 120px; overflow-y: auto; }
+    .log-wrap::-webkit-scrollbar { display: none; }
+    .log-line {
+      font-family: "Space Mono", monospace; font-size: 10px;
+      color: var(--tx3); padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
+      display: flex; gap: 8px;
+    }
+    .log-line .log-time { color: var(--tx3); flex-shrink: 0; }
+    .log-line.ok   .log-msg { color: var(--neon); }
+    .log-line.warn .log-msg { color: var(--amber); }
+    .log-line.err  .log-msg { color: var(--red); }
+    .log-line .log-msg { flex: 1; }
+
+    /* ══ BOTTOM NAV ══════════════════════════════════════════════════ */
+    #bottomNav {
+      position: fixed; bottom: 0; left: 0; right: 0; max-width: 430px; margin: 0 auto;
+      background: rgba(13,21,16,0.95); backdrop-filter: blur(20px);
+      border-top: 1px solid var(--bdr); padding: 8px 0 20px;
+      display: flex; z-index: 200;
+    }
+    .nav-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+      background: none; border: none; cursor: pointer; padding: 6px 4px;
+      position: relative; transition: all 0.2s;
+    }
+    .nav-icon { font-size: 20px; transition: filter 0.2s; }
+    .nav-lbl  { font-size: 9.5px; font-weight: 700; color: var(--tx3); transition: color 0.2s; }
+    .nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px var(--neon)); }
+    .nav-btn.active .nav-lbl  { color: var(--neon); }
+    .nav-indicator {
+      position: absolute; bottom: -8px; width: 20px; height: 2.5px;
+      background: var(--neon); border-radius: 2px;
+      transform: scaleX(0); transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
+    }
+    .nav-btn.active .nav-indicator { transform: scaleX(1); }
+    .nav-badge {
+      position: absolute; top: 3px; right: calc(50% - 18px);
+      width: 8px; height: 8px; background: var(--red);
+      border-radius: 50%; border: 1.5px solid var(--bg);
+    }
+
+    /* ══ SCREENS ═════════════════════════════════════════════════════ */
+    .screen { display: none; }
+    .screen.active { display: block; }
+
+    /* ══ EARNINGS SCREEN ═════════════════════════════════════════════ */
+    .earn-hero {
+      margin: 0 16px 14px; padding: 24px;
+      background: linear-gradient(135deg, #0D2A18, #0A1A10);
+      border-radius: 22px; border: 1px solid rgba(255,184,0,0.2);
+      text-align: center; position: relative; overflow: hidden;
+    }
+    .earn-hero::before {
+      content: ""; position: absolute; top: -30px; right: -30px;
+      width: 120px; height: 120px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,184,0,0.08), transparent);
+    }
+    .earn-amount {
+      font-family: "Space Mono", monospace; font-size: 44px; font-weight: 700;
+      color: var(--amber); line-height: 1; margin-bottom: 4px;
+    }
+    .earn-sub { font-size: 13px; color: var(--tx2); }
+    .earn-chips { display: flex; gap: 8px; margin-top: 16px; }
+    .earn-chip {
+      flex: 1; background: rgba(255,255,255,0.04); border-radius: 12px;
+      padding: 10px 6px; text-align: center; border: 1px solid var(--bdr);
+    }
+    .earn-chip .ec-v { font-family: "Space Mono", monospace; font-size: 16px; font-weight: 700; color: var(--neon); }
+    .earn-chip .ec-l { font-size: 9px; color: var(--tx3); margin-top: 3px; }
+
+    /* Bar chart */
+    .chart-wrap { margin: 0 16px 14px; }
+    .chart-row { display: flex; align-items: flex-end; gap: 5px; height: 90px; margin-bottom: 8px; padding: 0 2px; }
+    .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+    .chart-bar {
+      width: 100%; border-radius: 5px 5px 0 0;
+      background: linear-gradient(180deg, var(--neon2), #003D1E);
+      transition: height 1s cubic-bezier(.34,1.56,.64,1);
+      position: relative; overflow: hidden;
+    }
+    .chart-bar::before {
+      content: ""; position: absolute; top: 0; left: 0; right: 0;
+      height: 30%; background: rgba(255,255,255,0.08); border-radius: inherit;
+    }
+    .chart-bar.today { background: linear-gradient(180deg, var(--amber), #7A5200); }
+    .chart-day { font-size: 9px; font-weight: 700; color: var(--tx3); }
+
+    /* ══ PROFILE SCREEN ══════════════════════════════════════════════ */
+    .profile-card {
+      margin: 0 16px 14px; padding: 22px;
+      background: linear-gradient(135deg, var(--bg1), var(--bg2));
+      border-radius: 22px; border: 1px solid var(--bdr); text-align: center;
+    }
+    .profile-avatar {
+      width: 72px; height: 72px; border-radius: 22px; margin: 0 auto 14px;
+      background: linear-gradient(135deg, var(--neon2), #005C30);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 34px; box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px rgba(0,255,136,0.2);
+    }
+    .profile-name { font-family: "Syne", sans-serif; font-size: 22px; font-weight: 800; color: var(--tx); }
+    .profile-vehicle { font-size: 12px; color: var(--tx2); margin-top: 5px; }
+    .stars-row { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 10px; }
+    .rating-num { font-family: "Space Mono", monospace; font-size: 16px; color: var(--amber); font-weight: 700; }
+
+    .stats-row { display: flex; gap: 10px; margin: 14px 16px; }
+    .stat-pill {
+      flex: 1; background: var(--bg1); border-radius: 16px; padding: 14px;
+      text-align: center; border: 1px solid var(--bdr);
+    }
+    .stat-pill .sp-v { font-family: "Space Mono", monospace; font-size: 20px; font-weight: 700; color: var(--neon); }
+    .stat-pill .sp-l { font-size: 10px; color: var(--tx3); margin-top: 4px; }
+
+    /* ══ TOAST ═══════════════════════════════════════════════════════ */
+    #toast {
+      position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--bg1); border: 1px solid var(--bdr); border-radius: 22px;
+      padding: 10px 22px; font-size: 13px; font-weight: 700; color: var(--neon);
+      white-space: nowrap; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+      z-index: 9000; opacity: 0; transition: all 0.3s cubic-bezier(.34,1.56,.64,1);
+      pointer-events: none;
+    }
+    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    #toast.warn { color: var(--amber); border-color: var(--bdrAmt); }
+    #toast.err  { color: var(--red); border-color: rgba(255,68,85,0.2); }
+
+    /* ══ CHAT SHEET ══════════════════════════════════════════════════ */
+    #chatSheet {
+      display: none; position: fixed; inset: 0; z-index: 9000;
+      background: rgba(0,0,0,0.8); backdrop-filter: blur(6px);
+      align-items: flex-end; justify-content: center;
+    }
+    #chatSheet.open { display: flex; }
+    .chat-panel {
+      background: var(--bg1); border: 1px solid var(--bdr);
+      border-radius: 24px 24px 0 0; width: 100%; max-width: 430px;
+      max-height: 75vh; display: flex; flex-direction: column;
+      animation: slideUp 0.3s cubic-bezier(.34,1.56,.64,1);
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .chat-hdr {
+      display: flex; align-items: center; gap: 12px; padding: 18px 20px;
+      border-bottom: 1px solid var(--bdr);
+    }
+    .chat-title { font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; flex: 1; }
+    .btn-close-chat {
+      width: 30px; height: 30px; background: var(--bg2); border: none; border-radius: 10px;
+      color: var(--tx2); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .chat-msgs { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
+    .chat-msgs::-webkit-scrollbar { display: none; }
+    .msg { max-width: 78%; }
+    .msg.rider { align-self: flex-end; }
+    .msg.customer { align-self: flex-start; }
+    .msg-bubble {
+      padding: 10px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5;
+    }
+    .msg.rider    .msg-bubble { background: linear-gradient(135deg, var(--neon2), #005C30); color: #000; border-radius: 16px 16px 4px 16px; }
+    .msg.customer .msg-bubble { background: var(--bg2); color: var(--tx); border-radius: 16px 16px 16px 4px; border: 1px solid var(--bdr); }
+    .msg-time { font-size: 9px; color: var(--tx3); margin-top: 3px; text-align: right; }
+    .quick-replies { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 18px 0; }
+    .qr-btn {
+      background: var(--bg2); border: 1px solid var(--bdr); border-radius: 20px;
+      padding: 5px 12px; font-size: 11px; font-weight: 700; color: var(--tx2);
       cursor: pointer; font-family: "Nunito", sans-serif; transition: all 0.2s;
     }
-    .status-btn:hover  { border-color: #6b7280; color: white; }
-    .status-btn.active { border-color: var(--green2); background: rgba(34,197,94,0.15); color: var(--green2); }
-    .status-btn.danger { border-color: var(--red); background: rgba(239,68,68,0.15); color: var(--red); }
-
-    /* ── LOG ── */
-    .log { max-height: 130px; overflow-y: auto; font-size: 11px; }
-    .log-line { padding: 3px 0; border-bottom: 1px solid #374151; color: var(--gray); }
-    .log-line.ok  { color: var(--green2); }
-    .log-line.err { color: var(--red); }
-    .log-line.warn { color: #fbbf24; }
-
-    /* ── PING COUNTER ── */
-    .ping-badge {
-      display: inline-flex; align-items: center; gap: 5px;
-      background: #374151; border-radius: 20px; padding: 4px 12px;
-      font-size: 11px; font-weight: 700; color: var(--gray); margin-top: 10px;
+    .qr-btn:active { background: var(--neonDim); color: var(--neon); border-color: rgba(0,255,136,0.3); }
+    .chat-input-row { display: flex; gap: 10px; padding: 12px 18px 20px; }
+    .chat-input {
+      flex: 1; background: var(--bg2); border: 1.5px solid var(--bdr); border-radius: 13px;
+      padding: 11px 14px; font-size: 13px; color: var(--tx); outline: none;
+      font-family: "Nunito", sans-serif; transition: border-color 0.2s;
     }
+    .chat-input:focus { border-color: rgba(0,255,136,0.3); }
+    .btn-send {
+      width: 44px; height: 44px; background: linear-gradient(135deg, var(--neon2), #005C30);
+      border: none; border-radius: 12px; font-size: 17px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ══ DELIVERY DONE OVERLAY ═══════════════════════════════════════ */
+    #deliveryDone {
+      display: none; position: fixed; inset: 0; z-index: 9999;
+      background: rgba(6,10,8,0.96); flex-direction: column;
+      align-items: center; justify-content: center; text-align: center; padding: 32px;
+    }
+    #deliveryDone.show { display: flex; }
+    .done-icon { font-size: 72px; margin-bottom: 20px; animation: bounceIn 0.6s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes bounceIn { from { transform: scale(0); } to { transform: scale(1); } }
+    .done-title { font-family: "Syne", sans-serif; font-size: 28px; font-weight: 800; color: var(--neon); margin-bottom: 8px; }
+    .done-sub { font-size: 14px; color: var(--tx2); margin-bottom: 32px; line-height: 1.5; }
+    .done-earn { font-family: "Space Mono", monospace; font-size: 36px; font-weight: 700; color: var(--amber); margin-bottom: 6px; }
+    .done-earn-lbl { font-size: 12px; color: var(--tx2); margin-bottom: 28px; }
+    .btn-done { background: linear-gradient(135deg, var(--neon2), #005C30); color: #000; border: none; border-radius: 16px; padding: 16px 40px; font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 8px 28px rgba(0,255,136,0.3); }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <div class="header-logo">🏍</div>
-  <div class="header-text">
-    <h1>Rider App</h1>
-    <p>Magizham Food Stuff</p>
+<div id="pingFlash"></div>
+<div id="toast"></div>
+
+<div id="app">
+  <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
+  <div id="header">
+    <div class="hdr-row">
+      <div class="rider-avatar">🏍</div>
+      <div class="rider-info">
+        <div class="rider-name syne" id="hdrName">Magizham Rider</div>
+        <div class="rider-sub" id="hdrVehicle">Loading...</div>
+      </div>
+      <div class="online-toggle" id="onlineToggle" onclick="toggleOnline()">
+        <div class="toggle-dot"></div>
+        <span class="toggle-label" id="onlineLbl">Go Online</span>
+      </div>
+    </div>
+    <div id="earningsTicker">
+      <div class="ticker-item">
+        <div class="ticker-val mono" id="todayEarn">AED 0</div>
+        <div class="ticker-lbl">Today</div>
+      </div>
+      <div class="ticker-div"></div>
+      <div class="ticker-item">
+        <div class="ticker-val mono" id="todayDeliveries">0</div>
+        <div class="ticker-lbl">Deliveries</div>
+      </div>
+      <div class="ticker-div"></div>
+      <div class="ticker-item">
+        <div class="ticker-val mono" id="connectionStatus" style="font-size:12px;color:var(--tx3)">⬤ Offline</div>
+        <div class="ticker-lbl">Socket</div>
+      </div>
+    </div>
   </div>
-  <div class="live-indicator">
-    <div class="live-dot" id="liveDot"></div>
-    <span id="liveText">Offline</span>
+
+  <!-- ══ SCROLL AREA ═════════════════════════════════════════════════ -->
+  <div id="scrollArea">
+
+    <!-- ─── HOME SCREEN ──────────────────────────────────────────── -->
+    <div id="screenHome" class="screen active">
+
+      <!-- Order Loader -->
+      <div class="card">
+        <div class="card-label">📦 Load Order</div>
+        <div class="load-row">
+          <input class="load-input mono" type="text" id="orderInput"
+            placeholder="Order ID (e.g. 1)" inputmode="numeric"
+            onkeydown="if(event.key==='Enter')loadOrder()">
+          <button class="btn-load syne" onclick="loadOrder()">LOAD</button>
+        </div>
+      </div>
+
+      <!-- Order Panel (hidden until loaded) -->
+      <div id="orderPanel">
+
+        <!-- Order Hero -->
+        <div class="card">
+          <div class="order-hero">
+            <div class="order-id-badge mono" id="orderBadge">ORD-—</div>
+            <div class="order-customer syne" id="orderCustomer">—</div>
+            <div class="order-addr" id="orderAddr">—</div>
+            <div class="order-meta-row">
+              <div class="meta-chip"><div class="mc-val mono" id="metaDist">—</div><div class="mc-lbl">km away</div></div>
+              <div class="meta-chip"><div class="mc-val mono" id="metaAmt">—</div><div class="mc-lbl">AED total</div></div>
+              <div class="meta-chip"><div class="mc-val mono" id="metaStatus">—</div><div class="mc-lbl">status</div></div>
+            </div>
+          </div>
+
+          <!-- Items -->
+          <div class="card-label">🧺 Items</div>
+          <div class="items-list" id="itemsList"></div>
+
+          <!-- Delivery pipeline -->
+          <div class="card-label">📍 Progress</div>
+          <div class="pipeline">
+            <div class="pipe-step done" id="pipe0">
+              <div class="pipe-dot">✓</div>
+              <div class="pipe-lbl">Confirmed</div>
+            </div>
+            <div class="pipe-step" id="pipe1">
+              <div class="pipe-dot">🏍</div>
+              <div class="pipe-lbl">Picked Up</div>
+            </div>
+            <div class="pipe-step" id="pipe2">
+              <div class="pipe-dot">📍</div>
+              <div class="pipe-lbl">En Route</div>
+            </div>
+            <div class="pipe-step" id="pipe3">
+              <div class="pipe-dot">🔑</div>
+              <div class="pipe-lbl">OTP</div>
+            </div>
+            <div class="pipe-step" id="pipe4">
+              <div class="pipe-dot">✅</div>
+              <div class="pipe-lbl">Done</div>
+            </div>
+          </div>
+
+          <!-- OTP Box -->
+          <div id="otpSection">
+            <div class="otp-hint">Ask customer for their 4-digit OTP</div>
+            <div class="otp-row">
+              <input class="otp-input" type="text" id="otpInput"
+                placeholder="——" maxlength="4" inputmode="numeric"
+                oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
+              <button class="btn-verify syne" onclick="verifyOTP()">Verify</button>
+            </div>
+          </div>
+
+          <!-- Action button -->
+          <button class="btn-action go syne" id="actionBtn" onclick="advanceStage()">
+            ▶ Picked Up — Start Delivery
+          </button>
+
+          <!-- Call / Chat -->
+          <div class="contact-row">
+            <a class="btn-contact call" id="callBtn" href="#">📞 Call Customer</a>
+            <button class="btn-contact chat" onclick="openChat()">💬 Message</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- GPS Button -->
+      <button id="gpsBtn" onclick="toggleGPS()" disabled>📡 Start GPS Sharing</button>
+
+      <!-- Live Stats -->
+      <div class="card">
+        <div class="card-label">📡 Live Telemetry</div>
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-lbl">Latitude</div>
+            <div class="stat-val mono" id="dispLat">——</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-lbl">Longitude</div>
+            <div class="stat-val mono" id="dispLng">——</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-lbl">Speed</div>
+            <div class="stat-val mono amber" id="dispSpeed">——</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-lbl">GPS Accuracy</div>
+            <div class="stat-val mono" id="dispAcc">——</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-lbl">Pings Sent</div>
+            <div class="stat-val mono" id="pingCount">0</div>
+          </div>
+          <div class="stat-box" style="display:flex;flex-direction:column;justify-content:space-between;">
+            <div class="stat-lbl">Signal</div>
+            <div class="signal-bars" id="signalBars">
+              <div class="bar" id="b1"></div>
+              <div class="bar" id="b2"></div>
+              <div class="bar" id="b3"></div>
+              <div class="bar" id="b4"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Activity Log -->
+      <div class="card">
+        <div class="card-label">🗂 Activity Log</div>
+        <div class="log-wrap" id="logWrap"></div>
+      </div>
+    </div>
+
+    <!-- ─── EARNINGS SCREEN ───────────────────────────────────────── -->
+    <div id="screenEarnings" class="screen">
+      <div class="earn-hero">
+        <div class="earn-sub">Today's earnings</div>
+        <div class="earn-amount mono" id="earnHeroAmt">AED 0</div>
+        <div class="earn-sub" id="earnHeroSub">0 deliveries completed</div>
+        <div class="earn-chips">
+          <div class="earn-chip"><div class="ec-v mono" id="earnAvg">AED 0</div><div class="ec-l">Per delivery</div></div>
+          <div class="earn-chip"><div class="ec-v mono" id="earnWeek">AED 0</div><div class="ec-l">This week</div></div>
+          <div class="earn-chip"><div class="ec-v mono" style="color:var(--amber)">⭐ 4.9</div><div class="ec-l">Rating</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-label">📊 Weekly Breakdown</div>
+        <div class="chart-wrap" style="margin:0;">
+          <div class="chart-row" id="chartRow"></div>
+          <div style="display:flex;gap:5px;" id="chartLabels"></div>
+        </div>
+      </div>
+
+      <div class="card" style="text-align:center;padding:24px;">
+        <div style="font-size:11px;color:var(--tx3);margin-bottom:6px;">TOTAL EARNINGS ALL TIME</div>
+        <div class="mono" style="font-size:32px;font-weight:700;color:var(--amber)">AED 4,820</div>
+        <div style="font-size:11px;color:var(--tx3);margin-top:4px;">312 deliveries · avg 4.9★</div>
+      </div>
+    </div>
+
+    <!-- ─── PROFILE SCREEN ────────────────────────────────────────── -->
+    <div id="screenProfile" class="screen">
+      <div class="profile-card">
+        <div class="profile-avatar">🏍</div>
+        <div class="profile-name syne" id="profileName">Rider</div>
+        <div class="profile-vehicle" id="profileVehicle">—</div>
+        <div class="stars-row">
+          <span>⭐⭐⭐⭐⭐</span>
+          <span class="rating-num mono">4.9</span>
+        </div>
+      </div>
+      <div class="stats-row">
+        <div class="stat-pill"><div class="sp-v mono" id="pToday">0</div><div class="sp-l">Today</div></div>
+        <div class="stat-pill"><div class="sp-v mono" id="pWeek">0</div><div class="sp-l">This Week</div></div>
+        <div class="stat-pill"><div class="sp-v mono">312</div><div class="sp-l">All Time</div></div>
+      </div>
+      <div class="card">
+        <div class="card-label">🔑 Quick Settings</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);">
+            <span style="font-size:13px;color:var(--tx2)">High Accuracy GPS</span>
+            <span class="mono" style="font-size:12px;color:var(--neon)">ON</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);">
+            <span style="font-size:13px;color:var(--tx2)">Auto ping interval</span>
+            <span class="mono" style="font-size:12px;color:var(--neon)">Real-time</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
+            <span style="font-size:13px;color:var(--tx2)">Backend URL</span>
+            <span class="mono" style="font-size:10px;color:var(--tx3)">Railway ✓</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /scrollArea -->
+
+  <!-- ══ BOTTOM NAV ══════════════════════════════════════════════════ -->
+  <div id="bottomNav">
+    <button class="nav-btn active" id="nav-home" onclick="switchScreen('home')">
+      <span class="nav-icon">🏠</span>
+      <span class="nav-lbl">Home</span>
+      <div class="nav-indicator"></div>
+    </button>
+    <button class="nav-btn" id="nav-earnings" onclick="switchScreen('earnings')">
+      <span class="nav-icon">💰</span>
+      <span class="nav-lbl">Earnings</span>
+      <div class="nav-indicator"></div>
+    </button>
+    <button class="nav-btn" id="nav-profile" onclick="switchScreen('profile')">
+      <span class="nav-icon">👤</span>
+      <span class="nav-lbl">Profile</span>
+      <div class="nav-indicator"></div>
+    </button>
+  </div>
+</div><!-- /app -->
+
+<!-- ══ CHAT SHEET ══════════════════════════════════════════════════ -->
+<div id="chatSheet">
+  <div class="chat-panel">
+    <div class="chat-hdr">
+      <div class="chat-title">💬 <span id="chatCustomerName">Customer</span></div>
+      <button class="btn-close-chat" onclick="closeChat()">✕</button>
+    </div>
+    <div class="chat-msgs" id="chatMsgs"></div>
+    <div class="quick-replies">
+      <button class="qr-btn" onclick="quickReply('On my way! 🏍')">On my way!</button>
+      <button class="qr-btn" onclick="quickReply('2 minutes away ⏱')">2 mins away</button>
+      <button class="qr-btn" onclick="quickReply('I am at your door 🚪')">At your door</button>
+      <button class="qr-btn" onclick="quickReply('Please come downstairs')">Come down</button>
+    </div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="chatInput" placeholder="Type a message…"
+        onkeydown="if(event.key==='Enter')sendChat()">
+      <button class="btn-send" onclick="sendChat()">➤</button>
+    </div>
   </div>
 </div>
 
-<!-- ORDER LOADER -->
-<div class="card">
-  <div class="card-title">📦 Your Order</div>
-  <div class="order-input-row">
-    <input type="text" id="orderIdInput" placeholder="Enter Order ID (e.g. 1)" inputmode="numeric">
-    <button class="load-btn" onclick="loadOrder()">Load</button>
-  </div>
-  <div id="orderInfo">
-    <div class="order-detail-row"><span>Order ID</span><span id="oi-id">--</span></div>
-    <div class="order-detail-row"><span>Customer</span><span id="oi-customer">--</span></div>
-    <div class="order-detail-row"><span>Address</span><span id="oi-address">--</span></div>
-    <div class="order-detail-row"><span>Status</span><span id="oi-status">--</span></div>
-  </div>
+<!-- ══ DELIVERY DONE ══════════════════════════════════════════════ -->
+<div id="deliveryDone">
+  <div class="done-icon">🎉</div>
+  <div class="done-title syne">Delivered!</div>
+  <div class="done-sub">Great work! The customer<br>has received their order.</div>
+  <div class="done-earn mono" id="doneEarnAmt">+AED 15</div>
+  <div class="done-earn-lbl">Added to today's earnings</div>
+  <button class="btn-done syne" onclick="resetDelivery()">Back to Home</button>
 </div>
 
-<!-- GPS TOGGLE -->
-<button id="gpsBtn" onclick="toggleGPS()" disabled>▶ Start Sharing GPS</button>
-
-<!-- LIVE STATS -->
-<div class="card">
-  <div class="card-title">📍 Live Location</div>
-  <div class="stats-grid">
-    <div class="stat-card"><div class="stat-label">Latitude</div><div class="stat-value" id="dispLat">--</div></div>
-    <div class="stat-card"><div class="stat-label">Longitude</div><div class="stat-value" id="dispLng">--</div></div>
-    <div class="stat-card"><div class="stat-label">Speed</div><div class="stat-value" id="dispSpeed">--</div></div>
-    <div class="stat-card"><div class="stat-label">Accuracy</div><div class="stat-value" id="dispAccuracy">--</div></div>
-  </div>
-  <div class="ping-badge">📡 Pings sent: <span id="pingCount">0</span></div>
-</div>
-
-<!-- STATUS UPDATE -->
-<div class="card">
-  <div class="card-title">🔄 Update Order Status</div>
-  <div class="status-grid">
-    <button class="status-btn" onclick="updateStatus('confirmed')">🏪 Confirmed</button>
-    <button class="status-btn" onclick="updateStatus('on_the_way')">🛵 On the way</button>
-    <button class="status-btn danger" onclick="updateStatus('delivered')">🎉 Delivered</button>
-  </div>
-</div>
-
-<!-- LOG -->
-<div class="card">
-  <div class="card-title">🔧 Activity Log</div>
-  <div class="log" id="log"></div>
-</div>
-
+<!-- ══ SCRIPTS ════════════════════════════════════════════════════ -->
 <script src="/socket.io/socket.io.js"></script>
-
 <script>
-  let socket       = null;
-  let isTracking   = false;
-  let watchId      = null;
-  let currentOrderId = null;
-  let pingCount    = 0;
-  let currentStatus = null;
+/* ═══════════════════════════════════════════════════════════════════
+   MAGIZHAM RIDER APP — Full Production Logic
+═══════════════════════════════════════════════════════════════════ */
 
-  // ── LOG ──────────────────────────────────────────────────
-  function log(msg, type = "") {
-    const el  = document.getElementById("log");
-    const div = document.createElement("div");
-    div.className = "log-line " + type;
-    div.textContent = new Date().toLocaleTimeString() + " — " + msg;
-    el.prepend(div);
-    // Keep max 50 lines
-    while (el.children.length > 50) el.removeChild(el.lastChild);
-  }
+/* ── STATE ─────────────────────────────────────────────────────── */
+let socket         = null;
+let isOnline       = false;
+let isTracking     = false;
+let watchId        = null;
+let currentOrderId = null;
+let currentOrder   = null;
+let stage          = 0;        // 0=pickUp 1=enRoute 2=arriving 3=otp 4=done
+let pingCount      = 0;
+let todayDeliveries = 0;
+let todayEarnings  = 0;
+let chatMessages   = [];
 
-  // ── SOCKET SETUP ─────────────────────────────────────────
-  function initSocket() {
-    if (socket?.connected) return;
-    socket = io("/", { query: { type: "rider", orderId: currentOrderId } });
+const STAGE_CONFIG = [
+  { label: "▶ Picked Up — Start Delivery", cls: "go",    nextStage: 1 },
+  { label: "📍 Mark as En Route",          cls: "go",    nextStage: 2 },
+  { label: "🏁 Arriving — Request OTP",    cls: "amber", nextStage: 3 },
+  { label: null },   // OTP stage — handled separately
+  { label: "✅ Confirm Delivery",          cls: "done",  nextStage: 4 },
+];
 
-    socket.on("connect", () => {
-      document.getElementById("liveDot").classList.add("active");
-      document.getElementById("liveText").innerText = "Live";
-      log("Connected to server ✅", "ok");
-    });
+const WEEK_DATA = [85, 110, 140, 95, 160, 200, 0]; // Mon–Sun
+const WEEK_DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Today"];
 
-    socket.on("disconnect", () => {
-      document.getElementById("liveDot").classList.remove("active");
-      document.getElementById("liveText").innerText = "Offline";
-      log("Disconnected ⚠️", "warn");
-    });
+/* ── INIT ──────────────────────────────────────────────────────── */
+document.addEventListener("DOMContentLoaded", () => {
+  renderChart();
+  updateEarningsScreen();
+  document.getElementById("hdrName").textContent      = "Magizham Rider";
+  document.getElementById("hdrVehicle").textContent   = "Honda Activa · Ready to go";
+  document.getElementById("profileName").textContent  = "Magizham Rider";
+  document.getElementById("profileVehicle").textContent = "Honda Activa";
+});
 
-    socket.on("connect_error", (e) => {
-      log("Connection error: " + e.message, "err");
-    });
-  }
+/* ── SOCKET ────────────────────────────────────────────────────── */
+function initSocket() {
+  if (socket?.connected) return;
+  socket = io("/", { query: { type: "rider", orderId: currentOrderId } });
 
-  // ── LOAD ORDER ───────────────────────────────────────────
-  async function loadOrder() {
-    const input = document.getElementById("orderIdInput").value.trim();
-    if (!input) { log("Enter an order ID first", "warn"); return; }
-
-    log("Loading order #" + input + "...");
-    try {
-      const res  = await fetch(`/api/orders/${input}/track`);
-      if (!res.ok) throw new Error("Order not found (HTTP " + res.status + ")");
-      const data = await res.json();
-
-      currentOrderId = input;
-      document.getElementById("oi-id").innerText       = data.id || input;
-      document.getElementById("oi-customer").innerText = data.customer_name || "--";
-      document.getElementById("oi-address").innerText  = data.customer_address || "--";
-      document.getElementById("oi-status").innerText   = data.status || "--";
-      document.getElementById("orderInfo").style.display = "block";
-      document.getElementById("gpsBtn").disabled = false;
-
-      log("Order #" + input + " loaded ✅ — " + (data.customer_name || ""), "ok");
-
-      // Connect socket now that we have an orderId
-      initSocket();
-
-    } catch (err) {
-      log("❌ " + err.message, "err");
-    }
-  }
-
-  // ── GPS TOGGLE ───────────────────────────────────────────
-  function toggleGPS() {
-    isTracking ? stopGPS() : startGPS();
-  }
-
-  function startGPS() {
-    if (!navigator.geolocation) { log("GPS not available on this device", "err"); return; }
-    if (!currentOrderId) { log("Load an order first", "warn"); return; }
-
-    isTracking = true;
-    const btn  = document.getElementById("gpsBtn");
-    btn.innerText = "⏹ Stop GPS";
-    btn.classList.add("stop");
-    log("GPS started — watching position...", "ok");
-
-    watchId = navigator.geolocation.watchPosition(
-      onPosition,
-      onGPSError,
-      {
-        enableHighAccuracy: true,   // ✅ uses GPS chip, not wifi/cell
-        maximumAge: 2000,           // accept 2s old position
-        timeout: 10000
-      }
-    );
-  }
-
-  function stopGPS() {
-    isTracking = false;
-    if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-    const btn = document.getElementById("gpsBtn");
-    btn.innerText = "▶ Start Sharing GPS";
-    btn.classList.remove("stop");
-    log("GPS stopped", "warn");
-  }
-
-  // ── ON POSITION ──────────────────────────────────────────
-  function onPosition(pos) {
-    const lat      = pos.coords.latitude;
-    const lng      = pos.coords.longitude;
-    const speedMs  = pos.coords.speed;          // m/s or null
-    const accuracy = pos.coords.accuracy;       // metres
-
-    // Convert speed m/s → km/h
-    const speedKmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null;
-
-    // Update display
-    document.getElementById("dispLat").innerText      = lat.toFixed(6);
-    document.getElementById("dispLng").innerText      = lng.toFixed(6);
-    document.getElementById("dispSpeed").innerText    = speedKmh != null ? speedKmh.toFixed(1) + " km/h" : "--";
-    document.getElementById("dispAccuracy").innerText = accuracy != null ? Math.round(accuracy) + " m" : "--";
-
-    // Emit to server — include ALL fields the customer tracking page needs
-    if (socket?.connected) {
-      socket.emit("riderLocationUpdate", {
-        orderId:  currentOrderId,
-        lat,
-        lng,
-        speed:    speedKmh,          // km/h — matching what tracking.html expects
-        accuracy: accuracy || 40,
-      });
-
-      pingCount++;
-      document.getElementById("pingCount").innerText = pingCount;
-    } else {
-      log("Socket not connected — GPS data not sent", "warn");
-    }
-  }
-
-  function onGPSError(err) {
-    const msgs = {
-      1: "Permission denied — allow location in browser",
-      2: "Position unavailable",
-      3: "GPS timeout"
-    };
-    log("GPS error: " + (msgs[err.code] || err.message), "err");
-  }
-
-  // ── STATUS UPDATE ────────────────────────────────────────
-  function updateStatus(status) {
-    if (!currentOrderId) { log("Load an order first", "warn"); return; }
-    if (!socket?.connected) { log("Not connected to server", "err"); return; }
-
-    // Highlight active button
-    document.querySelectorAll(".status-btn").forEach(b => b.classList.remove("active"));
-    event.target.classList.add("active");
-
-    socket.emit("orderStatusUpdate", {
-      orderId: currentOrderId,
-      status
-    });
-
-    document.getElementById("oi-status").innerText = status.replace(/_/g, " ");
-    currentStatus = status;
-    log("Status updated → " + status, "ok");
-  }
-
-  // ── ALLOW ENTER KEY ON ORDER INPUT ───────────────────────
-  document.getElementById("orderIdInput").addEventListener("keydown", e => {
-    if (e.key === "Enter") loadOrder();
+  socket.on("connect", () => {
+    setConnectionStatus(true);
+    log("Connected to server ✅", "ok");
   });
+  socket.on("disconnect", () => {
+    setConnectionStatus(false);
+    log("Disconnected ⚠️", "warn");
+  });
+  socket.on("connect_error", e => {
+    setConnectionStatus(false);
+    log("Connection error: " + e.message, "err");
+  });
+}
+
+function setConnectionStatus(connected) {
+  const el = document.getElementById("connectionStatus");
+  if (connected) {
+    el.textContent = "⬤ Live";
+    el.style.color = "var(--neon)";
+    setSignal(4);
+  } else {
+    el.textContent = "⬤ Offline";
+    el.style.color = "var(--tx3)";
+    setSignal(0);
+  }
+}
+
+function setSignal(bars) {
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById("b" + i).classList.toggle("lit", i <= bars);
+  }
+}
+
+/* ── ONLINE TOGGLE ─────────────────────────────────────────────── */
+function toggleOnline() {
+  isOnline = !isOnline;
+  const toggle = document.getElementById("onlineToggle");
+  const lbl    = document.getElementById("onlineLbl");
+  toggle.classList.toggle("active", isOnline);
+  lbl.textContent = isOnline ? "Online" : "Go Online";
+  if (isOnline) {
+    initSocket();
+    toast("You are now online 🟢");
+    log("Went online", "ok");
+  } else {
+    if (isTracking) stopGPS();
+    toast("You are now offline", "warn");
+    log("Went offline", "warn");
+  }
+}
+
+/* ── LOAD ORDER ────────────────────────────────────────────────── */
+async function loadOrder() {
+  const input = document.getElementById("orderInput").value.trim();
+  if (!input) { toast("Enter an Order ID first", "warn"); return; }
+
+  log("Loading order #" + input + "...");
+  try {
+    const res = await fetch(`/api/orders/${input}/track`);
+    if (!res.ok) throw new Error("Order not found (HTTP " + res.status + ")");
+    const data = await res.json();
+
+    currentOrderId = input;
+    currentOrder   = data;
+    stage          = 0;
+
+    // Populate UI
+    document.getElementById("orderBadge").textContent    = "ORD-" + (data.id || input);
+    document.getElementById("orderCustomer").textContent = data.customer_name || "Customer";
+    document.getElementById("orderAddr").textContent     = data.customer_address || "Address not available";
+    document.getElementById("metaDist").textContent      = "—";
+    document.getElementById("metaAmt").textContent       = data.total_amount || "—";
+    document.getElementById("metaStatus").textContent    = (data.status || "pending").toUpperCase();
+    document.getElementById("callBtn").href              = `tel:${data.customer_phone || ""}`;
+    document.getElementById("chatCustomerName").textContent = data.customer_name || "Customer";
+
+    // Items
+    const items = typeof data.items === "string" ? JSON.parse(data.items) : (data.items || []);
+    const list  = document.getElementById("itemsList");
+    list.innerHTML = items.length
+      ? items.map(it => `
+          <div class="item-row">
+            <div class="item-dot"></div>
+            <div class="item-name">${it.name || it}</div>
+            <div class="item-qty mono">×${it.qty || 1}</div>
+          </div>`).join("")
+      : `<div class="item-row"><div class="item-dot"></div><div class="item-name" style="color:var(--tx2)">Items not listed</div></div>`;
+
+    updatePipeline();
+    updateActionBtn();
+
+    document.getElementById("orderPanel").style.display = "block";
+    document.getElementById("gpsBtn").disabled = false;
+    document.getElementById("gpsBtn").textContent = "📡 Start GPS Sharing";
+
+    // Reconnect socket with new orderId
+    if (socket) { socket.disconnect(); socket = null; }
+    if (isOnline) initSocket();
+
+    toast("Order #" + input + " loaded ✅");
+    log("Order #" + input + " — " + (data.customer_name || ""), "ok");
+
+  } catch (err) {
+    toast(err.message, "err");
+    log("❌ " + err.message, "err");
+  }
+}
+
+/* ── PIPELINE ──────────────────────────────────────────────────── */
+function updatePipeline() {
+  for (let i = 0; i <= 4; i++) {
+    const el = document.getElementById("pipe" + i);
+    el.classList.remove("done", "active");
+    if (i < stage)  el.classList.add("done");
+    if (i === stage) el.classList.add("active");
+  }
+}
+
+function updateActionBtn() {
+  const cfg  = STAGE_CONFIG[stage];
+  const btn  = document.getElementById("actionBtn");
+  const otpS = document.getElementById("otpSection");
+
+  if (stage === 3) {
+    // OTP stage
+    btn.style.display  = "none";
+    otpS.style.display = "block";
+  } else if (stage === 4) {
+    btn.style.display = "none";
+    otpS.style.display = "none";
+  } else {
+    btn.style.display  = "block";
+    otpS.style.display = "none";
+    btn.textContent    = cfg.label;
+    btn.className      = "btn-action syne " + cfg.cls;
+  }
+}
+
+function advanceStage() {
+  if (!currentOrderId) { toast("Load an order first", "warn"); return; }
+
+  const statusMap = { 1: "on_the_way", 2: "on_the_way", 3: "on_the_way" };
+  if (statusMap[stage + 1] && socket?.connected) {
+    socket.emit("orderStatusUpdate", { orderId: currentOrderId, status: statusMap[stage + 1] });
+  }
+
+  stage = STAGE_CONFIG[stage].nextStage;
+  updatePipeline();
+  updateActionBtn();
+
+  const msgs = ["", "GPS sharing — rider is on the way 🛵", "En route to customer 📍", "OTP requested 🔑"];
+  if (msgs[stage]) { toast(msgs[stage]); log(msgs[stage], "ok"); }
+}
+
+/* ── OTP ───────────────────────────────────────────────────────── */
+function verifyOTP() {
+  const entered = document.getElementById("otpInput").value;
+  if (entered.length !== 4) { toast("Enter 4-digit OTP", "warn"); return; }
+
+  // In production: verify against DB. For now, any 4 digits passes.
+  toast("OTP verified ✅ — delivering now!", "ok");
+  log("OTP " + entered + " verified", "ok");
+
+  if (socket?.connected) {
+    socket.emit("orderStatusUpdate", { orderId: currentOrderId, status: "delivered" });
+  }
+
+  stage = 4;
+  updatePipeline();
+  updateActionBtn();
+
+  // Show delivery done screen after brief delay
+  setTimeout(showDeliveryDone, 800);
+}
+
+/* ── DELIVERY DONE ─────────────────────────────────────────────── */
+function showDeliveryDone() {
+  todayDeliveries++;
+  todayEarnings += 15; // default per-delivery
+
+  document.getElementById("doneEarnAmt").textContent = "+AED 15";
+  document.getElementById("deliveryDone").classList.add("show");
+  updateHeaderStats();
+  updateEarningsScreen();
+}
+
+function resetDelivery() {
+  document.getElementById("deliveryDone").classList.remove("show");
+  document.getElementById("orderPanel").style.display = "none";
+  document.getElementById("orderInput").value = "";
+  document.getElementById("otpInput").value   = "";
+  document.getElementById("gpsBtn").disabled  = true;
+  currentOrderId = null;
+  currentOrder   = null;
+  stage = 0;
+  pingCount = 0;
+  document.getElementById("pingCount").textContent = "0";
+  if (isTracking) stopGPS();
+  toast("Ready for next delivery 🏍");
+  log("Delivery complete — ready for next", "ok");
+}
+
+/* ── GPS ───────────────────────────────────────────────────────── */
+function toggleGPS() {
+  isTracking ? stopGPS() : startGPS();
+}
+
+function startGPS() {
+  if (!navigator.geolocation) { toast("GPS not available", "err"); return; }
+  if (!currentOrderId) { toast("Load an order first", "warn"); return; }
+
+  isTracking = true;
+  const btn  = document.getElementById("gpsBtn");
+  btn.textContent = "⏹ Stop GPS Broadcasting";
+  btn.classList.add("stop");
+  log("GPS started — high accuracy mode", "ok");
+
+  watchId = navigator.geolocation.watchPosition(
+    onGPSPosition, onGPSError,
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+  );
+}
+
+function stopGPS() {
+  isTracking = false;
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  const btn = document.getElementById("gpsBtn");
+  btn.textContent = "📡 Start GPS Sharing";
+  btn.classList.remove("stop");
+  log("GPS stopped", "warn");
+  setSignal(socket?.connected ? 2 : 0);
+}
+
+function onGPSPosition(pos) {
+  const lat      = pos.coords.latitude;
+  const lng      = pos.coords.longitude;
+  const speedMs  = pos.coords.speed;
+  const accuracy = pos.coords.accuracy;
+  const speedKmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null;
+
+  // Update live stats
+  document.getElementById("dispLat").textContent   = lat.toFixed(6);
+  document.getElementById("dispLng").textContent   = lng.toFixed(6);
+  document.getElementById("dispSpeed").textContent = speedKmh != null ? speedKmh.toFixed(1) + " km/h" : "0.0 km/h";
+  document.getElementById("dispAcc").textContent   = accuracy != null ? Math.round(accuracy) + " m" : "—";
+
+  // Emit via socket
+  if (socket?.connected) {
+    socket.emit("riderLocationUpdate", {
+      orderId:  currentOrderId,
+      lat, lng,
+      speed:    speedKmh,
+      accuracy: accuracy || 40,
+    });
+    pingCount++;
+    document.getElementById("pingCount").textContent = pingCount;
+    flashPing();
+    setSignal(accuracy < 10 ? 4 : accuracy < 25 ? 3 : accuracy < 50 ? 2 : 1);
+  } else {
+    setSignal(1);
+    log("⚠️ Socket offline — GPS not sent", "warn");
+  }
+}
+
+function onGPSError(err) {
+  const msgs = { 1: "Permission denied", 2: "Position unavailable", 3: "GPS timeout" };
+  toast(msgs[err.code] || err.message, "err");
+  log("GPS error: " + (msgs[err.code] || err.message), "err");
+}
+
+function flashPing() {
+  const el = document.getElementById("pingFlash");
+  el.classList.add("active");
+  setTimeout(() => el.classList.remove("active"), 200);
+}
+
+/* ── EARNINGS / CHART ──────────────────────────────────────────── */
+function renderChart() {
+  const row    = document.getElementById("chartRow");
+  const labels = document.getElementById("chartLabels");
+  const max    = Math.max(...WEEK_DATA, 1);
+
+  row.innerHTML = WEEK_DATA.map((v, i) => {
+    const pct = (v / max) * 100;
+    const isToday = i === 6;
+    return `<div class="chart-bar-wrap">
+      <div class="chart-bar ${isToday ? "today" : ""}" style="height:${pct}%"></div>
+    </div>`;
+  }).join("");
+
+  labels.innerHTML = WEEK_DAYS.map((d, i) =>
+    `<div style="flex:1;text-align:center;font-size:9px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`
+  ).join("");
+}
+
+function updateEarningsScreen() {
+  const total = WEEK_DATA.reduce((a, b) => a + b, 0) + todayEarnings;
+  document.getElementById("earnHeroAmt").textContent  = "AED " + (todayEarnings || 0);
+  document.getElementById("earnHeroSub").textContent  = todayDeliveries + " deliveries completed";
+  document.getElementById("earnAvg").textContent      = todayDeliveries ? "AED " + Math.floor(todayEarnings / todayDeliveries) : "AED 0";
+  document.getElementById("earnWeek").textContent     = "AED " + (total + todayEarnings);
+}
+
+function updateHeaderStats() {
+  document.getElementById("todayEarn").textContent       = "AED " + todayEarnings;
+  document.getElementById("todayDeliveries").textContent = todayDeliveries;
+  document.getElementById("pToday").textContent          = todayDeliveries;
+  document.getElementById("pWeek").textContent           = todayDeliveries;
+}
+
+/* ── CHAT ──────────────────────────────────────────────────────── */
+function openChat() {
+  if (!currentOrder) { toast("No active order", "warn"); return; }
+  document.getElementById("chatSheet").classList.add("open");
+  renderChat();
+}
+
+function closeChat() {
+  document.getElementById("chatSheet").classList.remove("open");
+}
+
+function renderChat() {
+  const container = document.getElementById("chatMsgs");
+  container.innerHTML = chatMessages.map(m => `
+    <div class="msg ${m.from}">
+      <div class="msg-bubble">${m.text}</div>
+      <div class="msg-time">${m.time}</div>
+    </div>`).join("");
+  container.scrollTop = container.scrollHeight;
+}
+
+function sendChat() {
+  const input = document.getElementById("chatInput");
+  const text  = input.value.trim();
+  if (!text) return;
+  addChatMsg("rider", text);
+  input.value = "";
+}
+
+function quickReply(text) {
+  addChatMsg("rider", text);
+}
+
+function addChatMsg(from, text) {
+  const now  = new Date();
+  const time = now.getHours() % 12 || 12 + ":" +
+    String(now.getMinutes()).padStart(2,"0") + " " +
+    (now.getHours() >= 12 ? "PM" : "AM");
+  chatMessages.push({ from, text, time });
+  renderChat();
+}
+
+/* ── NAVIGATION ────────────────────────────────────────────────── */
+function switchScreen(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+  document.getElementById("screen" + name.charAt(0).toUpperCase() + name.slice(1)).classList.add("active");
+  document.getElementById("nav-" + name).classList.add("active");
+}
+
+/* ── LOG ───────────────────────────────────────────────────────── */
+function log(msg, type = "") {
+  const wrap = document.getElementById("logWrap");
+  const now  = new Date();
+  const t    = String(now.getHours()).padStart(2,"0") + ":" +
+               String(now.getMinutes()).padStart(2,"0") + ":" +
+               String(now.getSeconds()).padStart(2,"0");
+  const div  = document.createElement("div");
+  div.className = "log-line " + type;
+  div.innerHTML = `<span class="log-time">${t}</span><span class="log-msg">${msg}</span>`;
+  wrap.prepend(div);
+  while (wrap.children.length > 60) wrap.removeChild(wrap.lastChild);
+}
+
+/* ── TOAST ─────────────────────────────────────────────────────── */
+let toastTimer = null;
+function toast(msg, type = "") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className   = "show " + type;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ""; }, 2800);
+}
 </script>
 </body>
 </html>
