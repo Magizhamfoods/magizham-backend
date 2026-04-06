@@ -8,1262 +8,1463 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#060A08;--bg1:#0D1510;--bg2:#111D15;--bg3:#172420;
+  --neon:#00FF88;--neon2:#00CC6A;--neonDim:rgba(0,255,136,0.08);
+  --amber:#FFB800;--amberDim:rgba(255,184,0,0.1);
+  --red:#FF4455;--redDim:rgba(255,68,85,0.1);
+  --blue:#3B82F6;--blueDim:rgba(59,130,246,0.1);
+  --purple:#A855F7;--purpleDim:rgba(168,85,247,0.1);
+  --tx:#E8F5ED;--tx2:#7AA888;--tx3:#3A5545;
+  --bdr:rgba(0,255,136,0.08);--bdrAmt:rgba(255,184,0,0.15);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:"Nunito",sans-serif;background:var(--bg);color:var(--tx);min-height:100dvh;max-width:430px;margin:0 auto;overflow-x:hidden;}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");opacity:0.4;}
+#app{display:flex;flex-direction:column;min-height:100dvh;position:relative;z-index:1;}
+#scrollArea{flex:1;overflow-y:auto;padding-bottom:90px;}
+#scrollArea::-webkit-scrollbar{display:none;}
+.syne{font-family:"Syne",sans-serif;}.mono{font-family:"Space Mono",monospace;}
 
-  <style>
-    /* ══ TOKENS ══════════════════════════════════════════════════════ */
-    :root {
-      --bg:      #060A08;
-      --bg1:     #0D1510;
-      --bg2:     #111D15;
-      --bg3:     #172420;
-      --neon:    #00FF88;
-      --neon2:   #00CC6A;
-      --neonDim: rgba(0,255,136,0.08);
-      --amber:   #FFB800;
-      --amberDim:rgba(255,184,0,0.1);
-      --red:     #FF4455;
-      --redDim:  rgba(255,68,85,0.1);
-      --tx:      #E8F5ED;
-      --tx2:     #7AA888;
-      --tx3:     #3A5545;
-      --bdr:     rgba(0,255,136,0.08);
-      --bdrAmt:  rgba(255,184,0,0.15);
-    }
+/* HEADER */
+#header{position:sticky;top:0;z-index:100;background:linear-gradient(180deg,var(--bg) 80%,transparent);padding:16px 20px 10px;backdrop-filter:blur(12px);}
+.hdr-row{display:flex;align-items:center;gap:12px;}
+.rider-av{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,var(--neon2),#005C30);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px rgba(0,255,136,0.3);}
+.rider-info{flex:1;}
+.rider-nm{font-family:"Syne",sans-serif;font-size:16px;font-weight:800;color:var(--tx);line-height:1;}
+.rider-sub{font-size:11px;color:var(--tx2);margin-top:2px;}
+.online-tog{display:flex;align-items:center;gap:7px;background:var(--bg1);border:1.5px solid var(--bdr);border-radius:30px;padding:6px 12px 6px 8px;cursor:pointer;transition:all 0.3s;}
+.online-tog.active{border-color:rgba(0,255,136,0.3);background:rgba(0,255,136,0.06);}
+.tog-dot{width:9px;height:9px;border-radius:50%;background:var(--tx3);transition:all 0.3s;flex-shrink:0;}
+.online-tog.active .tog-dot{background:var(--neon);box-shadow:0 0 8px var(--neon);animation:livePulse 1.5s infinite;}
+.tog-lbl{font-size:11px;font-weight:800;color:var(--tx2);transition:color 0.3s;}
+.online-tog.active .tog-lbl{color:var(--neon);}
+@keyframes livePulse{0%,100%{box-shadow:0 0 6px var(--neon);}50%{box-shadow:0 0 14px var(--neon),0 0 24px rgba(0,255,136,0.3);}}
 
-    /* ══ RESET ═══════════════════════════════════════════════════════ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+/* TICKER */
+#ticker{display:flex;align-items:center;gap:0;margin-top:10px;background:var(--bg1);border:1px solid var(--bdrAmt);border-radius:12px;overflow:hidden;}
+.tick-item{flex:1;text-align:center;padding:9px 6px;}
+.tick-val{font-family:"Space Mono",monospace;font-size:15px;font-weight:700;color:var(--amber);line-height:1;}
+.tick-lbl{font-size:8px;color:var(--tx2);margin-top:2px;text-transform:uppercase;letter-spacing:0.06em;}
+.tick-div{width:1px;height:32px;background:var(--bdrAmt);}
 
-    body {
-      font-family: "Nunito", sans-serif;
-      background: var(--bg);
-      color: var(--tx);
-      min-height: 100dvh;
-      max-width: 430px;
-      margin: 0 auto;
-      overflow-x: hidden;
-      position: relative;
-    }
+/* VOICE BAR */
+#voiceBar{display:none;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);border-radius:12px;margin:8px 0 0;padding:8px 14px;align-items:center;gap:10px;}
+#voiceBar.active{display:flex;}
+.voice-waves{display:flex;align-items:center;gap:3px;height:20px;}
+.wave-bar{width:3px;background:var(--neon);border-radius:2px;animation:waveAnim 0.8s ease-in-out infinite;}
+.wave-bar:nth-child(1){height:6px;animation-delay:0s;}
+.wave-bar:nth-child(2){height:14px;animation-delay:0.1s;}
+.wave-bar:nth-child(3){height:20px;animation-delay:0.2s;}
+.wave-bar:nth-child(4){height:14px;animation-delay:0.3s;}
+.wave-bar:nth-child(5){height:6px;animation-delay:0.4s;}
+@keyframes waveAnim{0%,100%{transform:scaleY(0.5);}50%{transform:scaleY(1);}}
+.voice-text{font-size:12px;font-weight:700;color:var(--neon);flex:1;}
+.voice-cancel{font-size:14px;cursor:pointer;color:var(--tx3);}
 
-    /* Subtle noise texture overlay */
-    body::before {
-      content: "";
-      position: fixed; inset: 0; z-index: 0; pointer-events: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-      opacity: 0.4;
-    }
+/* CARDS */
+.card{background:var(--bg1);border:1px solid var(--bdr);border-radius:18px;padding:16px;margin:0 14px 12px;position:relative;overflow:hidden;}
+.card::before{content:"";position:absolute;inset:0;border-radius:18px;background:radial-gradient(ellipse at top left,rgba(0,255,136,0.03) 0%,transparent 60%);pointer-events:none;}
+.card-lbl{font-size:9.5px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
+.card-lbl::before{content:"";width:14px;height:2px;background:var(--neon);border-radius:1px;}
 
-    /* ══ LAYOUT SHELL ════════════════════════════════════════════════ */
-    #app { display: flex; flex-direction: column; min-height: 100dvh; position: relative; z-index: 1; }
-    #scrollArea { flex: 1; overflow-y: auto; padding-bottom: 90px; }
-    #scrollArea::-webkit-scrollbar { display: none; }
+/* LANG SWITCHER */
+.lang-row{display:flex;gap:6px;margin:8px 14px 0;}
+.lang-btn{flex:1;padding:8px;border:1.5px solid var(--bdr);border-radius:10px;background:var(--bg2);color:var(--tx3);font-size:11px;font-weight:700;cursor:pointer;text-align:center;transition:all 0.2s;font-family:"Nunito",sans-serif;}
+.lang-btn.active{border-color:var(--neon);color:var(--neon);background:var(--neonDim);}
 
-    /* ══ TYPOGRAPHY ══════════════════════════════════════════════════ */
-    .syne { font-family: "Syne", sans-serif; }
-    .mono { font-family: "Space Mono", monospace; }
+/* ORDER LOADER */
+.load-row{display:flex;gap:8px;}
+.load-input{flex:1;background:var(--bg2);border:1.5px solid var(--bdr);border-radius:12px;padding:12px 14px;color:var(--tx);font-size:16px;font-weight:700;outline:none;font-family:"Space Mono",monospace;transition:border-color 0.2s;}
+.load-input:focus{border-color:rgba(0,255,136,0.4);}
+.load-input::placeholder{color:var(--tx3);font-size:12px;}
+.btn-load{background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;border:none;border-radius:12px;padding:12px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:"Syne",sans-serif;box-shadow:0 4px 14px rgba(0,255,136,0.25);}
+.btn-load:active{transform:scale(0.97);}
 
-    /* ══ HEADER ══════════════════════════════════════════════════════ */
-    #header {
-      position: sticky; top: 0; z-index: 100;
-      background: linear-gradient(180deg, var(--bg) 80%, transparent);
-      padding: 20px 20px 10px;
-      backdrop-filter: blur(12px);
-    }
+/* ORDER PANEL */
+#orderPanel{display:none;}
+.order-hero{background:linear-gradient(135deg,var(--bg2),var(--bg3));border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid var(--bdrAmt);}
+.ord-badge{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;color:var(--amber);background:var(--amberDim);border:1px solid var(--bdrAmt);border-radius:7px;padding:2px 9px;display:inline-block;margin-bottom:8px;}
+.ord-cust{font-family:"Syne",sans-serif;font-size:19px;font-weight:800;color:var(--tx);line-height:1.1;}
+.ord-addr{font-size:11px;color:var(--tx2);margin-top:4px;line-height:1.5;}
+.ord-floor{font-size:11px;color:var(--neon);margin-top:3px;font-weight:700;}
+.meta-row{display:flex;gap:7px;margin-top:10px;}
+.meta-c{flex:1;background:var(--bg);border-radius:9px;padding:7px;text-align:center;border:1px solid var(--bdr);}
+.meta-c .mv{font-family:"Space Mono",monospace;font-size:13px;font-weight:700;color:var(--neon);}
+.meta-c .ml{font-size:8px;color:var(--tx3);margin-top:1px;}
 
-    .hdr-row { display: flex; align-items: center; gap: 14px; }
+/* LAST METER NAV */
+#lastMeterNav{display:none;background:linear-gradient(135deg,var(--bg2),var(--bg3));border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid rgba(59,130,246,0.2);}
+.lmn-title{font-family:"Syne",sans-serif;font-size:13px;font-weight:800;color:var(--blue);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+.lmn-step{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
+.lmn-step:last-child{border:none;}
+.lmn-num{width:22px;height:22px;border-radius:50%;background:rgba(59,130,246,0.2);border:1.5px solid var(--blue);display:flex;align-items:center;justify-content:center;font-family:"Space Mono",monospace;font-size:10px;font-weight:700;color:var(--blue);flex-shrink:0;}
+.lmn-txt{font-size:12px;color:var(--tx2);line-height:1.4;}
 
-    .rider-avatar {
-      width: 46px; height: 46px; border-radius: 14px;
-      background: linear-gradient(135deg, var(--neon2), #005C30);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 22px; flex-shrink: 0;
-      box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px rgba(0,255,136,0.3);
-    }
+/* ITEMS */
+.items-list{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+.item-row{display:flex;align-items:center;gap:9px;background:var(--bg2);border-radius:9px;padding:9px 11px;border:1px solid var(--bdr);}
+.item-dot{width:7px;height:7px;border-radius:50%;background:var(--neon);flex-shrink:0;}
+.item-nm{flex:1;font-size:12px;font-weight:700;color:var(--tx);}
+.item-qty{font-family:"Space Mono",monospace;font-size:11px;color:var(--tx2);}
 
-    .rider-info { flex: 1; }
-    .rider-name { font-family: "Syne", sans-serif; font-size: 17px; font-weight: 800; color: var(--tx); line-height: 1; }
-    .rider-sub  { font-size: 11px; color: var(--tx2); margin-top: 3px; }
+/* PIPELINE */
+.pipeline{display:flex;align-items:center;margin:14px 0;}
+.pipe-step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;}
+.pipe-step::after{content:"";position:absolute;top:13px;left:50%;width:100%;height:2px;background:var(--bg2);z-index:0;transition:background 0.5s;}
+.pipe-step:last-child::after{display:none;}
+.pipe-step.done::after{background:var(--neon2);}
+.pipe-dot{width:26px;height:26px;border-radius:50%;background:var(--bg2);border:2px solid var(--bg3);display:flex;align-items:center;justify-content:center;font-size:10px;position:relative;z-index:1;transition:all 0.4s;}
+.pipe-step.done .pipe-dot{background:var(--neon2);border-color:var(--neon2);}
+.pipe-step.active .pipe-dot{background:var(--bg);border-color:var(--neon);box-shadow:0 0 0 4px rgba(0,255,136,0.15),0 0 14px rgba(0,255,136,0.3);animation:pipePulse 1.5s infinite;}
+@keyframes pipePulse{0%,100%{box-shadow:0 0 0 4px rgba(0,255,136,0.15);}50%{box-shadow:0 0 0 8px rgba(0,255,136,0.07),0 0 18px rgba(0,255,136,0.25);}}
+.pipe-lbl{font-size:8px;font-weight:700;color:var(--tx3);margin-top:4px;text-align:center;transition:color 0.3s;}
+.pipe-step.active .pipe-lbl{color:var(--neon);}
+.pipe-step.done .pipe-lbl{color:var(--neon2);}
 
-    /* Online toggle */
-    .online-toggle {
-      display: flex; align-items: center; gap: 8px;
-      background: var(--bg1); border: 1.5px solid var(--bdr);
-      border-radius: 30px; padding: 6px 12px 6px 8px; cursor: pointer;
-      transition: all 0.3s;
-    }
-    .online-toggle.active { border-color: rgba(0,255,136,0.3); background: rgba(0,255,136,0.06); }
-    .toggle-dot {
-      width: 10px; height: 10px; border-radius: 50%; background: var(--tx3);
-      transition: all 0.3s; flex-shrink: 0;
-    }
-    .online-toggle.active .toggle-dot { background: var(--neon); box-shadow: 0 0 8px var(--neon); animation: livePulse 1.5s infinite; }
-    .toggle-label { font-size: 11px; font-weight: 800; color: var(--tx2); transition: color 0.3s; }
-    .online-toggle.active .toggle-label { color: var(--neon); }
+/* ACTION BTN */
+.btn-action{width:100%;padding:16px;border:none;border-radius:14px;font-family:"Syne",sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:all 0.25s;margin-bottom:9px;position:relative;overflow:hidden;}
+.btn-action::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.08) 0%,transparent);pointer-events:none;}
+.btn-action.go{background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;box-shadow:0 5px 20px rgba(0,255,136,0.28);}
+.btn-action.amber{background:linear-gradient(135deg,#CC8A00,#7A5200);color:#fff;box-shadow:0 5px 20px rgba(255,184,0,0.22);}
+.btn-action.done{background:linear-gradient(135deg,#00A855,#005C30);color:#fff;box-shadow:0 5px 20px rgba(0,168,85,0.28);}
+.btn-action:active{transform:scale(0.98);}
 
-    @keyframes livePulse {
-      0%,100% { box-shadow: 0 0 6px var(--neon); }
-      50%      { box-shadow: 0 0 14px var(--neon), 0 0 24px rgba(0,255,136,0.3); }
-    }
+/* OTP + POD */
+#otpSection{display:none;margin-bottom:12px;}
+.otp-hint{font-size:11px;color:var(--tx2);margin-bottom:9px;text-align:center;}
+.otp-row{display:flex;gap:9px;}
+.otp-input{flex:1;background:var(--bg2);border:2px solid rgba(255,184,0,0.3);border-radius:13px;padding:13px;color:var(--amber);font-family:"Space Mono",monospace;font-size:26px;font-weight:700;text-align:center;letter-spacing:12px;outline:none;}
+.otp-input:focus{border-color:var(--amber);}
+.btn-verify{background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;border:none;border-radius:13px;padding:13px 20px;font-family:"Syne",sans-serif;font-size:13px;font-weight:800;cursor:pointer;}
+#podSection{display:none;margin-bottom:12px;}
+.pod-hint{font-size:11px;color:var(--tx2);margin-bottom:9px;text-align:center;}
+.pod-preview{width:100%;height:160px;border-radius:12px;background:var(--bg2);border:2px dashed rgba(0,255,136,0.2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;margin-bottom:8px;overflow:hidden;position:relative;}
+.pod-preview img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
+.pod-preview .pod-icon{font-size:32px;position:relative;z-index:1;}
+.pod-preview .pod-lbl{font-size:11px;color:var(--tx3);position:relative;z-index:1;}
+#podCanvas{display:none;}
+#podFileInput{display:none;}
 
-    /* Earnings ticker in header */
-    #earningsTicker {
-      display: flex; align-items: center; gap: 8px; margin-top: 12px;
-      background: var(--bg1); border: 1px solid var(--bdrAmt);
-      border-radius: 12px; padding: 10px 14px;
-    }
-    .ticker-item { flex: 1; text-align: center; }
-    .ticker-val  { font-family: "Space Mono", monospace; font-size: 18px; font-weight: 700; color: var(--amber); line-height: 1; }
-    .ticker-lbl  { font-size: 9px; color: var(--tx2); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.06em; }
-    .ticker-div  { width: 1px; height: 32px; background: var(--bdrAmt); }
+/* CONTACT ROW */
+.contact-row{display:flex;gap:8px;margin-top:5px;}
+.btn-contact{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:13px;border:1.5px solid var(--bdr);background:var(--bg2);cursor:pointer;text-decoration:none;font-size:12px;font-weight:800;color:var(--tx2);transition:all 0.2s;font-family:"Nunito",sans-serif;}
+.btn-contact.call{border-color:rgba(0,255,136,0.2);color:var(--neon);}
+.btn-contact.chat{border-color:rgba(255,184,0,0.2);color:var(--amber);}
+.btn-contact.kitchen{border-color:rgba(59,130,246,0.2);color:var(--blue);}
+.btn-contact:active{transform:scale(0.97);}
 
-    /* ══ CARDS ═══════════════════════════════════════════════════════ */
-    .card {
-      background: var(--bg1); border: 1px solid var(--bdr);
-      border-radius: 20px; padding: 18px; margin: 0 16px 14px;
-      position: relative; overflow: hidden;
-    }
-    .card::before {
-      content: ""; position: absolute; inset: 0; border-radius: 20px;
-      background: radial-gradient(ellipse at top left, rgba(0,255,136,0.03) 0%, transparent 60%);
-      pointer-events: none;
-    }
+/* GPS BTN */
+#gpsBtn{width:calc(100% - 28px);margin:0 14px 12px;padding:17px;border:none;border-radius:16px;font-family:"Syne",sans-serif;font-size:16px;font-weight:800;cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;background:linear-gradient(135deg,var(--neon2),#003D1E);color:#000;box-shadow:0 7px 26px rgba(0,255,136,0.22);}
+#gpsBtn.stop{background:linear-gradient(135deg,#CC1122,#5A0008);color:#fff;box-shadow:0 7px 26px rgba(255,68,85,0.22);}
+#gpsBtn:disabled{opacity:0.38;cursor:not-allowed;}
+#gpsBtn::before{content:"";position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent);animation:shimmer 2.5s infinite;}
+#gpsBtn.stop::before{animation:none;}
+@keyframes shimmer{to{left:150%;}}
 
-    .card-label {
-      font-size: 10px; font-weight: 700; color: var(--tx3);
-      text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 14px;
-      display: flex; align-items: center; gap: 6px;
-    }
-    .card-label::before { content: ""; width: 16px; height: 2px; background: var(--neon); border-radius: 1px; }
+/* STATS */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.stat-box{background:var(--bg2);border-radius:12px;padding:11px;border:1px solid var(--bdr);}
+.stat-lbl{font-size:8.5px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;}
+.stat-val{font-family:"Space Mono",monospace;font-size:15px;font-weight:700;color:var(--neon);line-height:1;}
+.stat-val.amber{color:var(--amber);}
+.signal-bars{display:flex;align-items:flex-end;gap:2px;height:17px;}
+.bar{width:4px;border-radius:2px;background:var(--tx3);transition:background 0.3s;}
+.bar.lit{background:var(--neon);}
+.bar:nth-child(1){height:5px;}.bar:nth-child(2){height:9px;}.bar:nth-child(3){height:13px;}.bar:nth-child(4){height:17px;}
 
-    /* ══ ORDER LOADER ════════════════════════════════════════════════ */
-    .load-row { display: flex; gap: 10px; }
-    .load-input {
-      flex: 1; background: var(--bg2); border: 1.5px solid var(--bdr);
-      border-radius: 13px; padding: 13px 16px; color: var(--tx);
-      font-size: 16px; font-weight: 700; outline: none;
-      font-family: "Space Mono", monospace; transition: border-color 0.2s;
-    }
-    .load-input:focus { border-color: rgba(0,255,136,0.4); }
-    .load-input::placeholder { color: var(--tx3); font-size: 13px; }
+/* LOG */
+.log-wrap{max-height:110px;overflow-y:auto;}
+.log-wrap::-webkit-scrollbar{display:none;}
+.log-line{font-family:"Space Mono",monospace;font-size:10px;color:var(--tx3);padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;gap:7px;}
+.log-line .lt{color:var(--tx3);flex-shrink:0;}
+.log-line.ok .lm{color:var(--neon);}
+.log-line.warn .lm{color:var(--amber);}
+.log-line.err .lm{color:var(--red);}
+.log-line .lm{flex:1;}
 
-    .btn-load {
-      background: linear-gradient(135deg, var(--neon2), #005C30);
-      color: #000; border: none; border-radius: 13px; padding: 13px 20px;
-      font-size: 13px; font-weight: 800; cursor: pointer; font-family: "Syne", sans-serif;
-      transition: all 0.2s; white-space: nowrap;
-      box-shadow: 0 4px 16px rgba(0,255,136,0.25);
-    }
-    .btn-load:active { transform: scale(0.97); }
+/* PING FLASH */
+#pingFlash{position:fixed;top:0;right:0;left:0;height:2px;background:var(--neon);transform:scaleX(0);transform-origin:left;transition:transform 0.1s;z-index:9999;pointer-events:none;}
+#pingFlash.active{transform:scaleX(1);}
 
-    /* ══ ORDER DETAILS ═══════════════════════════════════════════════ */
-    #orderPanel { display: none; }
+/* BOTTOM NAV */
+#bottomNav{position:fixed;bottom:0;left:0;right:0;max-width:430px;margin:0 auto;background:rgba(10,15,13,0.97);backdrop-filter:blur(20px);border-top:1px solid var(--bdr);padding:7px 0 18px;display:flex;z-index:200;}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:pointer;padding:5px 2px;position:relative;}
+.nav-icon{font-size:19px;transition:filter 0.2s;}
+.nav-lbl{font-size:9px;font-weight:700;color:var(--tx3);transition:color 0.2s;}
+.nav-btn.active .nav-icon{filter:drop-shadow(0 0 6px var(--neon));}
+.nav-btn.active .nav-lbl{color:var(--neon);}
+.nav-ind{position:absolute;bottom:-7px;width:18px;height:2.5px;background:var(--neon);border-radius:2px;transform:scaleX(0);transition:transform 0.3s cubic-bezier(.34,1.56,.64,1);}
+.nav-btn.active .nav-ind{transform:scaleX(1);}
+.nav-badge{position:absolute;top:2px;right:calc(50% - 17px);width:8px;height:8px;background:var(--red);border-radius:50%;border:1.5px solid var(--bg);}
 
-    .order-hero {
-      background: linear-gradient(135deg, var(--bg2), var(--bg3));
-      border-radius: 16px; padding: 16px; margin-bottom: 14px;
-      border: 1px solid var(--bdrAmt);
-    }
-    .order-id-badge {
-      font-family: "Space Mono", monospace; font-size: 11px; font-weight: 700;
-      color: var(--amber); background: var(--amberDim); border: 1px solid var(--bdrAmt);
-      border-radius: 8px; padding: 3px 10px; display: inline-block; margin-bottom: 10px;
-    }
-    .order-customer { font-family: "Syne", sans-serif; font-size: 20px; font-weight: 800; color: var(--tx); line-height: 1.1; }
-    .order-addr { font-size: 12px; color: var(--tx2); margin-top: 5px; line-height: 1.4; }
+/* SCREENS */
+.screen{display:none;}.screen.active{display:block;}
+.screen-title{font-family:"Syne",sans-serif;font-size:19px;font-weight:800;color:var(--tx);margin:16px 14px 12px;}
 
-    .order-meta-row { display: flex; gap: 8px; margin-top: 12px; }
-    .meta-chip {
-      flex: 1; background: var(--bg); border-radius: 10px; padding: 8px;
-      text-align: center; border: 1px solid var(--bdr);
-    }
-    .meta-chip .mc-val { font-family: "Space Mono", monospace; font-size: 15px; font-weight: 700; color: var(--neon); }
-    .meta-chip .mc-lbl { font-size: 9px; color: var(--tx3); margin-top: 2px; }
+/* WALLET SCREEN */
+.wallet-hero{margin:0 14px 12px;padding:22px;background:linear-gradient(135deg,#0D2A18,#0A1A10);border-radius:20px;border:1px solid rgba(255,184,0,0.2);text-align:center;position:relative;overflow:hidden;}
+.wallet-hero::before{content:"";position:absolute;top:-30px;right:-30px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(255,184,0,0.08),transparent);}
+.wallet-bal{font-family:"Space Mono",monospace;font-size:40px;font-weight:700;color:var(--amber);line-height:1;margin-bottom:3px;}
+.wallet-sub{font-size:12px;color:var(--tx2);}
+.wallet-chips{display:flex;gap:7px;margin-top:14px;}
+.w-chip{flex:1;background:rgba(255,255,255,0.04);border-radius:11px;padding:9px 5px;text-align:center;border:1px solid var(--bdr);}
+.w-chip .wv{font-family:"Space Mono",monospace;font-size:14px;font-weight:700;color:var(--neon);}
+.w-chip .wl{font-size:8px;color:var(--tx3);margin-top:2px;}
+.btn-withdraw{width:calc(100% - 28px);margin:0 14px 12px;padding:16px;border:none;border-radius:14px;font-family:"Syne",sans-serif;font-size:15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;box-shadow:0 5px 20px rgba(255,184,0,0.28);transition:all 0.2s;}
+.btn-withdraw:active{transform:scale(0.98);}
+.btn-withdraw:disabled{opacity:0.4;cursor:not-allowed;}
 
-    /* Items list */
-    .items-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-    .item-row {
-      display: flex; align-items: center; gap: 10px;
-      background: var(--bg2); border-radius: 10px; padding: 10px 12px;
-      border: 1px solid var(--bdr);
-    }
-    .item-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--neon); flex-shrink: 0; }
-    .item-name { flex: 1; font-size: 13px; font-weight: 700; color: var(--tx); }
-    .item-qty  { font-family: "Space Mono", monospace; font-size: 12px; color: var(--tx2); }
+/* REWARDS */
+.reward-tiers{display:flex;flex-direction:column;gap:8px;}
+.tier-row{display:flex;align-items:center;gap:12px;background:var(--bg2);border-radius:11px;padding:11px;border:1px solid var(--bdr);}
+.tier-icon{font-size:22px;flex-shrink:0;}
+.tier-info{flex:1;}
+.tier-name{font-size:13px;font-weight:800;color:var(--tx);}
+.tier-desc{font-size:10px;color:var(--tx2);margin-top:2px;}
+.tier-prog-wrap{height:5px;background:var(--bg3);border-radius:3px;margin-top:5px;overflow:hidden;}
+.tier-prog-bar{height:100%;background:linear-gradient(90deg,var(--neon2),var(--neon));border-radius:3px;transition:width 0.8s cubic-bezier(.34,1.56,.64,1);}
+.tier-badge{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;flex-shrink:0;}
+.tier-badge.gold{color:#000;background:var(--amber);}
+.tier-badge.silver{color:#000;background:#C0C0C0;}
+.tier-badge.bronze{color:#fff;background:#CD7F32;}
 
-    /* ══ DELIVERY PIPELINE ═══════════════════════════════════════════ */
-    .pipeline { display: flex; align-items: center; gap: 0; margin: 16px 0; }
-    .pipe-step {
-      flex: 1; display: flex; flex-direction: column; align-items: center;
-      position: relative;
-    }
-    .pipe-step::after {
-      content: ""; position: absolute; top: 14px; left: 50%; width: 100%;
-      height: 2px; background: var(--bg2); z-index: 0; transition: background 0.5s;
-    }
-    .pipe-step:last-child::after { display: none; }
-    .pipe-step.done::after { background: var(--neon2); }
+/* BAR CHART */
+.chart-row{display:flex;align-items:flex-end;gap:4px;height:80px;margin-bottom:6px;}
+.cb-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end;}
+.cb{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--neon2),#003D1E);position:relative;overflow:hidden;}
+.cb::before{content:"";position:absolute;top:0;left:0;right:0;height:30%;background:rgba(255,255,255,0.08);}
+.cb.today{background:linear-gradient(180deg,var(--amber),#7A5200);}
+.cd{font-size:8.5px;font-weight:700;color:var(--tx3);}
 
-    .pipe-dot {
-      width: 28px; height: 28px; border-radius: 50%;
-      background: var(--bg2); border: 2px solid var(--bg3);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 11px; position: relative; z-index: 1; transition: all 0.4s;
-    }
-    .pipe-step.done   .pipe-dot { background: var(--neon2); border-color: var(--neon2); }
-    .pipe-step.active .pipe-dot {
-      background: var(--bg); border-color: var(--neon);
-      box-shadow: 0 0 0 4px rgba(0,255,136,0.15), 0 0 16px rgba(0,255,136,0.3);
-      animation: pipePulse 1.5s infinite;
-    }
-    @keyframes pipePulse {
-      0%,100% { box-shadow: 0 0 0 4px rgba(0,255,136,0.15); }
-      50%      { box-shadow: 0 0 0 8px rgba(0,255,136,0.08), 0 0 20px rgba(0,255,136,0.25); }
-    }
+/* DOCUMENTS SCREEN */
+.doc-card{display:flex;align-items:center;gap:12px;background:var(--bg2);border-radius:13px;padding:13px;border:1px solid var(--bdr);margin-bottom:8px;cursor:pointer;}
+.doc-icon{font-size:24px;flex-shrink:0;}
+.doc-info{flex:1;}
+.doc-name{font-size:13px;font-weight:800;color:var(--tx);}
+.doc-exp{font-size:10px;color:var(--tx2);margin-top:2px;}
+.doc-status{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0;}
+.doc-status.ok{background:rgba(0,255,136,0.12);color:var(--neon);}
+.doc-status.warn{background:var(--amberDim);color:var(--amber);}
+.doc-status.expired{background:var(--redDim);color:var(--red);}
 
-    .pipe-lbl {
-      font-size: 8.5px; font-weight: 700; color: var(--tx3); margin-top: 5px;
-      text-align: center; transition: color 0.3s;
-    }
-    .pipe-step.active .pipe-lbl { color: var(--neon); }
-    .pipe-step.done   .pipe-lbl { color: var(--neon2); }
+/* COOL-DOWN STATIONS */
+.station-list{display:flex;flex-direction:column;gap:7px;}
+.station-row{display:flex;align-items:center;gap:11px;background:var(--bg2);border-radius:11px;padding:11px 12px;border:1px solid var(--bdr);}
+.station-icon{font-size:20px;flex-shrink:0;}
+.station-info{flex:1;}
+.station-name{font-size:12px;font-weight:800;color:var(--tx);}
+.station-dist{font-size:10px;color:var(--tx2);margin-top:1px;}
+.station-tags{display:flex;gap:4px;margin-top:4px;}
+.s-tag{font-size:9px;padding:2px 7px;border-radius:6px;font-weight:700;}
+.s-tag.water{background:rgba(59,130,246,0.15);color:var(--blue);}
+.s-tag.shade{background:rgba(168,85,247,0.15);color:var(--purple);}
+.s-tag.rta{background:rgba(0,255,136,0.1);color:var(--neon);}
 
-    /* ══ ACTION BUTTON ═══════════════════════════════════════════════ */
-    .btn-action {
-      width: 100%; padding: 17px; border: none; border-radius: 16px;
-      font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800;
-      cursor: pointer; transition: all 0.25s; letter-spacing: 0.3px;
-      margin-bottom: 10px; position: relative; overflow: hidden;
-    }
-    .btn-action::after {
-      content: ""; position: absolute; inset: 0;
-      background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
-      pointer-events: none;
-    }
-    .btn-action.go    { background: linear-gradient(135deg, var(--neon2), #005C30); color: #000; box-shadow: 0 6px 24px rgba(0,255,136,0.3); }
-    .btn-action.amber { background: linear-gradient(135deg, #CC8A00, #7A5200); color: #fff; box-shadow: 0 6px 24px rgba(255,184,0,0.25); }
-    .btn-action.done  { background: linear-gradient(135deg, #00A855, #005C30); color: #fff; box-shadow: 0 6px 24px rgba(0,168,85,0.3); }
-    .btn-action:active { transform: scale(0.98); }
+/* PARKING TIPS */
+.parking-list{display:flex;flex-direction:column;gap:7px;}
+.park-row{background:var(--bg2);border-radius:11px;padding:11px 12px;border:1px solid var(--bdr);}
+.park-loc{font-size:12px;font-weight:800;color:var(--tx);display:flex;align-items:center;gap:6px;}
+.park-tip{font-size:10px;color:var(--tx2);margin-top:3px;line-height:1.4;}
+.park-fine{font-size:9px;color:var(--red);margin-top:3px;font-weight:700;}
 
-    /* ══ OTP BOX ═════════════════════════════════════════════════════ */
-    #otpSection { display: none; margin-bottom: 14px; }
-    .otp-hint { font-size: 12px; color: var(--tx2); margin-bottom: 10px; text-align: center; }
-    .otp-row { display: flex; gap: 10px; }
-    .otp-input {
-      flex: 1; background: var(--bg2); border: 2px solid rgba(255,184,0,0.3);
-      border-radius: 14px; padding: 14px; color: var(--amber);
-      font-family: "Space Mono", monospace; font-size: 28px; font-weight: 700;
-      text-align: center; letter-spacing: 14px; outline: none; transition: border-color 0.2s;
-    }
-    .otp-input:focus { border-color: var(--amber); }
-    .btn-verify {
-      background: linear-gradient(135deg, var(--amber), #CC8A00);
-      color: #000; border: none; border-radius: 14px; padding: 14px 22px;
-      font-family: "Syne", sans-serif; font-size: 14px; font-weight: 800; cursor: pointer;
-      box-shadow: 0 4px 16px rgba(255,184,0,0.3); transition: all 0.2s;
-    }
-    .btn-verify:active { transform: scale(0.97); }
+/* SOS */
+#sosPanel{display:none;position:fixed;inset:0;z-index:9998;background:rgba(255,68,85,0.08);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
+#sosPanel.open{display:flex;}
+.sos-box{background:var(--bg1);border:1px solid var(--red);border-radius:22px;padding:28px;max-width:340px;width:90%;text-align:center;}
+.sos-icon{font-size:56px;margin-bottom:14px;animation:sosPulse 0.8s ease-in-out infinite;}
+@keyframes sosPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
+.sos-title{font-family:"Syne",sans-serif;font-size:22px;font-weight:800;color:var(--red);margin-bottom:6px;}
+.sos-sub{font-size:12px;color:var(--tx2);margin-bottom:20px;line-height:1.5;}
+.sos-btns{display:flex;flex-direction:column;gap:9px;}
+.sos-btn{padding:14px;border:none;border-radius:13px;font-family:"Syne",sans-serif;font-size:14px;font-weight:800;cursor:pointer;}
+.sos-btn.red{background:linear-gradient(135deg,#CC1122,#7F0010);color:#fff;}
+.sos-btn.amber{background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;}
+.sos-btn.cancel{background:var(--bg2);color:var(--tx2);border:1px solid var(--bdr);}
 
-    /* ══ CONTACT BUTTONS ═════════════════════════════════════════════ */
-    .contact-row { display: flex; gap: 10px; margin-top: 6px; }
-    .btn-contact {
-      flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
-      padding: 12px; border-radius: 14px; border: 1.5px solid var(--bdr);
-      background: var(--bg2); cursor: pointer; text-decoration: none;
-      font-size: 13px; font-weight: 800; color: var(--tx2); transition: all 0.2s;
-      font-family: "Nunito", sans-serif;
-    }
-    .btn-contact.call { border-color: rgba(0,255,136,0.2); color: var(--neon); }
-    .btn-contact.chat { border-color: rgba(255,184,0,0.2); color: var(--amber); }
-    .btn-contact:active { transform: scale(0.97); }
+/* ORDER TRANSFER */
+#transferPanel{display:none;position:fixed;inset:0;z-index:9997;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;}
+#transferPanel.open{display:flex;}
+.transfer-box{background:var(--bg1);border-radius:22px 22px 0 0;width:100%;max-width:430px;padding:24px;border:1px solid var(--bdrAmt);}
+.transfer-title{font-family:"Syne",sans-serif;font-size:17px;font-weight:800;color:var(--amber);margin-bottom:14px;}
+.nearby-riders{display:flex;flex-direction:column;gap:9px;margin-bottom:16px;}
+.nr-row{display:flex;align-items:center;gap:11px;background:var(--bg2);border-radius:12px;padding:12px;border:1px solid var(--bdr);}
+.nr-av{width:36px;height:36px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.nr-info{flex:1;}
+.nr-name{font-size:13px;font-weight:800;color:var(--tx);}
+.nr-dist{font-size:10px;color:var(--tx2);}
+.btn-transfer{padding:9px 16px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;font-family:"Syne",sans-serif;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;}
 
-    /* ══ GPS BUTTON ══════════════════════════════════════════════════ */
-    #gpsBtn {
-      width: calc(100% - 32px); margin: 0 16px 14px;
-      padding: 18px; border: none; border-radius: 18px;
-      font-family: "Syne", sans-serif; font-size: 17px; font-weight: 800;
-      cursor: pointer; transition: all 0.3s; position: relative; overflow: hidden;
-      background: linear-gradient(135deg, var(--neon2), #003D1E);
-      color: #000; box-shadow: 0 8px 28px rgba(0,255,136,0.25);
-    }
-    #gpsBtn.stop { background: linear-gradient(135deg, #CC1122, #5A0008); color: #fff; box-shadow: 0 8px 28px rgba(255,68,85,0.25); }
-    #gpsBtn:disabled { opacity: 0.4; cursor: not-allowed; }
-    #gpsBtn::before {
-      content: ""; position: absolute; top: 0; left: -100%;
-      width: 60%; height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
-      animation: shimmer 2.5s infinite;
-    }
-    #gpsBtn.stop::before { animation: none; }
-    @keyframes shimmer { to { left: 150%; } }
+/* CHAT SHEETS */
+.chat-sheet{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;}
+.chat-sheet.open{display:flex;}
+.chat-panel{background:var(--bg1);border:1px solid var(--bdr);border-radius:22px 22px 0 0;width:100%;max-width:430px;max-height:76vh;display:flex;flex-direction:column;animation:slideUp 0.3s cubic-bezier(.34,1.56,.64,1);}
+@keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.chat-hdr{display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid var(--bdr);}
+.chat-ttl{font-family:"Syne",sans-serif;font-size:15px;font-weight:800;flex:1;}
+.btn-close-chat{width:28px;height:28px;background:var(--bg2);border:none;border-radius:9px;color:var(--tx2);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.chat-msgs{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:7px;}
+.chat-msgs::-webkit-scrollbar{display:none;}
+.msg{max-width:78%;}
+.msg.rider{align-self:flex-end;}.msg.customer{align-self:flex-start;}.msg.kitchen{align-self:flex-start;}
+.msg-bubble{padding:9px 13px;border-radius:14px;font-size:12px;line-height:1.5;}
+.msg.rider .msg-bubble{background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;border-radius:14px 14px 3px 14px;}
+.msg.customer .msg-bubble,.msg.kitchen .msg-bubble{background:var(--bg2);color:var(--tx);border-radius:14px 14px 14px 3px;border:1px solid var(--bdr);}
+.msg.kitchen .msg-bubble{border-color:rgba(59,130,246,0.2);}
+.msg-time{font-size:9px;color:var(--tx3);margin-top:2px;text-align:right;}
+.qr-row{display:flex;gap:5px;flex-wrap:wrap;padding:9px 16px 0;}
+.qr-btn{background:var(--bg2);border:1px solid var(--bdr);border-radius:18px;padding:4px 10px;font-size:10px;font-weight:700;color:var(--tx2);cursor:pointer;font-family:"Nunito",sans-serif;}
+.chat-inp-row{display:flex;gap:8px;padding:10px 16px 18px;}
+.chat-inp{flex:1;background:var(--bg2);border:1.5px solid var(--bdr);border-radius:12px;padding:10px 13px;font-size:12px;color:var(--tx);outline:none;font-family:"Nunito",sans-serif;}
+.chat-inp:focus{border-color:rgba(0,255,136,0.3);}
+.btn-send{width:40px;height:40px;background:linear-gradient(135deg,var(--neon2),#005C30);border:none;border-radius:11px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 
-    /* ══ LIVE STATS GRID ═════════════════════════════════════════════ */
-    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .stat-box {
-      background: var(--bg2); border-radius: 14px; padding: 13px;
-      border: 1px solid var(--bdr); position: relative; overflow: hidden;
-    }
-    .stat-box::before {
-      content: ""; position: absolute; bottom: -10px; right: -10px;
-      width: 50px; height: 50px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(0,255,136,0.06), transparent);
-      pointer-events: none;
-    }
-    .stat-lbl { font-size: 9px; font-weight: 700; color: var(--tx3); text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 5px; }
-    .stat-val  { font-family: "Space Mono", monospace; font-size: 16px; font-weight: 700; color: var(--neon); line-height: 1; }
-    .stat-val.amber { color: var(--amber); }
-    .stat-val.red   { color: var(--red); }
+/* DELIVERY DONE */
+#deliveryDone{display:none;position:fixed;inset:0;z-index:9999;background:rgba(6,10,8,0.97);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;}
+#deliveryDone.show{display:flex;}
+.done-icon{font-size:68px;margin-bottom:18px;animation:bounceIn 0.6s cubic-bezier(.34,1.56,.64,1);}
+@keyframes bounceIn{from{transform:scale(0);}to{transform:scale(1);}}
+.done-title{font-family:"Syne",sans-serif;font-size:26px;font-weight:800;color:var(--neon);margin-bottom:6px;}
+.done-sub{font-size:13px;color:var(--tx2);margin-bottom:8px;line-height:1.5;}
+.done-earn{font-family:"Space Mono",monospace;font-size:34px;font-weight:700;color:var(--amber);margin-bottom:4px;}
+.done-lbl{font-size:11px;color:var(--tx2);margin-bottom:8px;}
+.done-achievement{background:var(--amberDim);border:1px solid var(--bdrAmt);border-radius:12px;padding:10px 20px;margin-bottom:24px;font-size:12px;font-weight:700;color:var(--amber);}
+.btn-done{background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;border:none;border-radius:14px;padding:15px 38px;font-family:"Syne",sans-serif;font-size:15px;font-weight:800;cursor:pointer;}
 
-    /* Signal bars */
-    .signal-bars { display: flex; align-items: flex-end; gap: 2px; height: 18px; }
-    .bar { width: 4px; border-radius: 2px; background: var(--tx3); transition: background 0.3s; }
-    .bar.lit { background: var(--neon); }
-    .bar:nth-child(1) { height: 5px; }
-    .bar:nth-child(2) { height: 9px; }
-    .bar:nth-child(3) { height: 13px; }
-    .bar:nth-child(4) { height: 18px; }
-
-    /* GPS radar animation */
-    .radar-wrap { position: relative; width: 36px; height: 36px; margin: 0 auto 4px; }
-    .radar-ring {
-      position: absolute; inset: 0; border-radius: 50%;
-      border: 1.5px solid rgba(0,255,136,0.3);
-      animation: radarExpand 2s ease-out infinite;
-    }
-    .radar-ring:nth-child(2) { animation-delay: 0.6s; }
-    .radar-ring:nth-child(3) { animation-delay: 1.2s; }
-    .radar-dot {
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%,-50%);
-      width: 10px; height: 10px; border-radius: 50%;
-      background: var(--neon); box-shadow: 0 0 10px var(--neon);
-    }
-    @keyframes radarExpand {
-      0%   { transform: scale(0.3); opacity: 1; }
-      100% { transform: scale(1.8); opacity: 0; }
-    }
-
-    /* ══ PING FLASH ══════════════════════════════════════════════════ */
-    #pingFlash {
-      position: fixed; top: 0; right: 0; left: 0;
-      height: 2px; background: var(--neon);
-      transform: scaleX(0); transform-origin: left;
-      transition: transform 0.1s; z-index: 9999; pointer-events: none;
-    }
-    #pingFlash.active { transform: scaleX(1); }
-
-    /* ══ LOG ═════════════════════════════════════════════════════════ */
-    .log-wrap { max-height: 120px; overflow-y: auto; }
-    .log-wrap::-webkit-scrollbar { display: none; }
-    .log-line {
-      font-family: "Space Mono", monospace; font-size: 10px;
-      color: var(--tx3); padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
-      display: flex; gap: 8px;
-    }
-    .log-line .log-time { color: var(--tx3); flex-shrink: 0; }
-    .log-line.ok   .log-msg { color: var(--neon); }
-    .log-line.warn .log-msg { color: var(--amber); }
-    .log-line.err  .log-msg { color: var(--red); }
-    .log-line .log-msg { flex: 1; }
-
-    /* ══ BOTTOM NAV ══════════════════════════════════════════════════ */
-    #bottomNav {
-      position: fixed; bottom: 0; left: 0; right: 0; max-width: 430px; margin: 0 auto;
-      background: rgba(13,21,16,0.95); backdrop-filter: blur(20px);
-      border-top: 1px solid var(--bdr); padding: 8px 0 20px;
-      display: flex; z-index: 200;
-    }
-    .nav-btn {
-      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
-      background: none; border: none; cursor: pointer; padding: 6px 4px;
-      position: relative; transition: all 0.2s;
-    }
-    .nav-icon { font-size: 20px; transition: filter 0.2s; }
-    .nav-lbl  { font-size: 9.5px; font-weight: 700; color: var(--tx3); transition: color 0.2s; }
-    .nav-btn.active .nav-icon { filter: drop-shadow(0 0 6px var(--neon)); }
-    .nav-btn.active .nav-lbl  { color: var(--neon); }
-    .nav-indicator {
-      position: absolute; bottom: -8px; width: 20px; height: 2.5px;
-      background: var(--neon); border-radius: 2px;
-      transform: scaleX(0); transition: transform 0.3s cubic-bezier(.34,1.56,.64,1);
-    }
-    .nav-btn.active .nav-indicator { transform: scaleX(1); }
-    .nav-badge {
-      position: absolute; top: 3px; right: calc(50% - 18px);
-      width: 8px; height: 8px; background: var(--red);
-      border-radius: 50%; border: 1.5px solid var(--bg);
-    }
-
-    /* ══ SCREENS ═════════════════════════════════════════════════════ */
-    .screen { display: none; }
-    .screen.active { display: block; }
-
-    /* ══ EARNINGS SCREEN ═════════════════════════════════════════════ */
-    .earn-hero {
-      margin: 0 16px 14px; padding: 24px;
-      background: linear-gradient(135deg, #0D2A18, #0A1A10);
-      border-radius: 22px; border: 1px solid rgba(255,184,0,0.2);
-      text-align: center; position: relative; overflow: hidden;
-    }
-    .earn-hero::before {
-      content: ""; position: absolute; top: -30px; right: -30px;
-      width: 120px; height: 120px; border-radius: 50%;
-      background: radial-gradient(circle, rgba(255,184,0,0.08), transparent);
-    }
-    .earn-amount {
-      font-family: "Space Mono", monospace; font-size: 44px; font-weight: 700;
-      color: var(--amber); line-height: 1; margin-bottom: 4px;
-    }
-    .earn-sub { font-size: 13px; color: var(--tx2); }
-    .earn-chips { display: flex; gap: 8px; margin-top: 16px; }
-    .earn-chip {
-      flex: 1; background: rgba(255,255,255,0.04); border-radius: 12px;
-      padding: 10px 6px; text-align: center; border: 1px solid var(--bdr);
-    }
-    .earn-chip .ec-v { font-family: "Space Mono", monospace; font-size: 16px; font-weight: 700; color: var(--neon); }
-    .earn-chip .ec-l { font-size: 9px; color: var(--tx3); margin-top: 3px; }
-
-    /* Bar chart */
-    .chart-wrap { margin: 0 16px 14px; }
-    .chart-row { display: flex; align-items: flex-end; gap: 5px; height: 90px; margin-bottom: 8px; padding: 0 2px; }
-    .chart-bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
-    .chart-bar {
-      width: 100%; border-radius: 5px 5px 0 0;
-      background: linear-gradient(180deg, var(--neon2), #003D1E);
-      transition: height 1s cubic-bezier(.34,1.56,.64,1);
-      position: relative; overflow: hidden;
-    }
-    .chart-bar::before {
-      content: ""; position: absolute; top: 0; left: 0; right: 0;
-      height: 30%; background: rgba(255,255,255,0.08); border-radius: inherit;
-    }
-    .chart-bar.today { background: linear-gradient(180deg, var(--amber), #7A5200); }
-    .chart-day { font-size: 9px; font-weight: 700; color: var(--tx3); }
-
-    /* ══ PROFILE SCREEN ══════════════════════════════════════════════ */
-    .profile-card {
-      margin: 0 16px 14px; padding: 22px;
-      background: linear-gradient(135deg, var(--bg1), var(--bg2));
-      border-radius: 22px; border: 1px solid var(--bdr); text-align: center;
-    }
-    .profile-avatar {
-      width: 72px; height: 72px; border-radius: 22px; margin: 0 auto 14px;
-      background: linear-gradient(135deg, var(--neon2), #005C30);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 34px; box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px rgba(0,255,136,0.2);
-    }
-    .profile-name { font-family: "Syne", sans-serif; font-size: 22px; font-weight: 800; color: var(--tx); }
-    .profile-vehicle { font-size: 12px; color: var(--tx2); margin-top: 5px; }
-    .stars-row { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 10px; }
-    .rating-num { font-family: "Space Mono", monospace; font-size: 16px; color: var(--amber); font-weight: 700; }
-
-    .stats-row { display: flex; gap: 10px; margin: 14px 16px; }
-    .stat-pill {
-      flex: 1; background: var(--bg1); border-radius: 16px; padding: 14px;
-      text-align: center; border: 1px solid var(--bdr);
-    }
-    .stat-pill .sp-v { font-family: "Space Mono", monospace; font-size: 20px; font-weight: 700; color: var(--neon); }
-    .stat-pill .sp-l { font-size: 10px; color: var(--tx3); margin-top: 4px; }
-
-    /* ══ TOAST ═══════════════════════════════════════════════════════ */
-    #toast {
-      position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%) translateY(20px);
-      background: var(--bg1); border: 1px solid var(--bdr); border-radius: 22px;
-      padding: 10px 22px; font-size: 13px; font-weight: 700; color: var(--neon);
-      white-space: nowrap; box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-      z-index: 9000; opacity: 0; transition: all 0.3s cubic-bezier(.34,1.56,.64,1);
-      pointer-events: none;
-    }
-    #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    #toast.warn { color: var(--amber); border-color: var(--bdrAmt); }
-    #toast.err  { color: var(--red); border-color: rgba(255,68,85,0.2); }
-
-    /* ══ CHAT SHEET ══════════════════════════════════════════════════ */
-    #chatSheet {
-      display: none; position: fixed; inset: 0; z-index: 9000;
-      background: rgba(0,0,0,0.8); backdrop-filter: blur(6px);
-      align-items: flex-end; justify-content: center;
-    }
-    #chatSheet.open { display: flex; }
-    .chat-panel {
-      background: var(--bg1); border: 1px solid var(--bdr);
-      border-radius: 24px 24px 0 0; width: 100%; max-width: 430px;
-      max-height: 75vh; display: flex; flex-direction: column;
-      animation: slideUp 0.3s cubic-bezier(.34,1.56,.64,1);
-    }
-    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    .chat-hdr {
-      display: flex; align-items: center; gap: 12px; padding: 18px 20px;
-      border-bottom: 1px solid var(--bdr);
-    }
-    .chat-title { font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; flex: 1; }
-    .btn-close-chat {
-      width: 30px; height: 30px; background: var(--bg2); border: none; border-radius: 10px;
-      color: var(--tx2); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
-    }
-    .chat-msgs { flex: 1; overflow-y: auto; padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
-    .chat-msgs::-webkit-scrollbar { display: none; }
-    .msg { max-width: 78%; }
-    .msg.rider { align-self: flex-end; }
-    .msg.customer { align-self: flex-start; }
-    .msg-bubble {
-      padding: 10px 14px; border-radius: 16px; font-size: 13px; line-height: 1.5;
-    }
-    .msg.rider    .msg-bubble { background: linear-gradient(135deg, var(--neon2), #005C30); color: #000; border-radius: 16px 16px 4px 16px; }
-    .msg.customer .msg-bubble { background: var(--bg2); color: var(--tx); border-radius: 16px 16px 16px 4px; border: 1px solid var(--bdr); }
-    .msg-time { font-size: 9px; color: var(--tx3); margin-top: 3px; text-align: right; }
-    .quick-replies { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 18px 0; }
-    .qr-btn {
-      background: var(--bg2); border: 1px solid var(--bdr); border-radius: 20px;
-      padding: 5px 12px; font-size: 11px; font-weight: 700; color: var(--tx2);
-      cursor: pointer; font-family: "Nunito", sans-serif; transition: all 0.2s;
-    }
-    .qr-btn:active { background: var(--neonDim); color: var(--neon); border-color: rgba(0,255,136,0.3); }
-    .chat-input-row { display: flex; gap: 10px; padding: 12px 18px 20px; }
-    .chat-input {
-      flex: 1; background: var(--bg2); border: 1.5px solid var(--bdr); border-radius: 13px;
-      padding: 11px 14px; font-size: 13px; color: var(--tx); outline: none;
-      font-family: "Nunito", sans-serif; transition: border-color 0.2s;
-    }
-    .chat-input:focus { border-color: rgba(0,255,136,0.3); }
-    .btn-send {
-      width: 44px; height: 44px; background: linear-gradient(135deg, var(--neon2), #005C30);
-      border: none; border-radius: 12px; font-size: 17px; cursor: pointer;
-      display: flex; align-items: center; justify-content: center;
-    }
-
-    /* ══ DELIVERY DONE OVERLAY ═══════════════════════════════════════ */
-    #deliveryDone {
-      display: none; position: fixed; inset: 0; z-index: 9999;
-      background: rgba(6,10,8,0.96); flex-direction: column;
-      align-items: center; justify-content: center; text-align: center; padding: 32px;
-    }
-    #deliveryDone.show { display: flex; }
-    .done-icon { font-size: 72px; margin-bottom: 20px; animation: bounceIn 0.6s cubic-bezier(.34,1.56,.64,1); }
-    @keyframes bounceIn { from { transform: scale(0); } to { transform: scale(1); } }
-    .done-title { font-family: "Syne", sans-serif; font-size: 28px; font-weight: 800; color: var(--neon); margin-bottom: 8px; }
-    .done-sub { font-size: 14px; color: var(--tx2); margin-bottom: 32px; line-height: 1.5; }
-    .done-earn { font-family: "Space Mono", monospace; font-size: 36px; font-weight: 700; color: var(--amber); margin-bottom: 6px; }
-    .done-earn-lbl { font-size: 12px; color: var(--tx2); margin-bottom: 28px; }
-    .btn-done { background: linear-gradient(135deg, var(--neon2), #005C30); color: #000; border: none; border-radius: 16px; padding: 16px 40px; font-family: "Syne", sans-serif; font-size: 16px; font-weight: 800; cursor: pointer; box-shadow: 0 8px 28px rgba(0,255,136,0.3); }
-  </style>
+/* TOAST */
+#toast{position:fixed;bottom:86px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg1);border:1px solid var(--bdr);border-radius:20px;padding:9px 20px;font-size:12px;font-weight:700;color:var(--neon);white-space:nowrap;box-shadow:0 7px 28px rgba(0,0,0,0.6);z-index:9000;opacity:0;transition:all 0.3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+#toast.warn{color:var(--amber);border-color:var(--bdrAmt);}
+#toast.err{color:var(--red);border-color:rgba(255,68,85,0.2);}
+#toast.blue{color:var(--blue);border-color:rgba(59,130,246,0.2);}
+</style>
 </head>
 <body>
-
 <div id="pingFlash"></div>
 <div id="toast"></div>
 
 <div id="app">
-  <!-- ══ HEADER ══════════════════════════════════════════════════════ -->
-  <div id="header">
-    <div class="hdr-row">
-      <div class="rider-avatar">🏍</div>
-      <div class="rider-info">
-        <div class="rider-name syne" id="hdrName">Magizham Rider</div>
-        <div class="rider-sub" id="hdrVehicle">Loading...</div>
-      </div>
-      <div class="online-toggle" id="onlineToggle" onclick="toggleOnline()">
-        <div class="toggle-dot"></div>
-        <span class="toggle-label" id="onlineLbl">Go Online</span>
-      </div>
+<!-- HEADER -->
+<div id="header">
+  <div class="hdr-row">
+    <div class="rider-av">🏍</div>
+    <div class="rider-info">
+      <div class="rider-nm syne" id="hdrName">Magizham Rider</div>
+      <div class="rider-sub" id="hdrVehicle">Honda Activa · Ready</div>
     </div>
-    <div id="earningsTicker">
-      <div class="ticker-item">
-        <div class="ticker-val mono" id="todayEarn">AED 0</div>
-        <div class="ticker-lbl">Today</div>
+    <div class="online-tog" id="onlineTog" onclick="toggleOnline()">
+      <div class="tog-dot"></div>
+      <span class="tog-lbl" id="togLbl">Go Online</span>
+    </div>
+  </div>
+  <div id="ticker">
+    <div class="tick-item"><div class="tick-val mono" id="todayEarn">AED 0</div><div class="tick-lbl" id="lbl_today">Today</div></div>
+    <div class="tick-div"></div>
+    <div class="tick-item"><div class="tick-val mono" id="todayDel">0</div><div class="tick-lbl" id="lbl_deliveries">Deliveries</div></div>
+    <div class="tick-div"></div>
+    <div class="tick-item"><div class="tick-val mono" id="connStatus" style="font-size:11px;color:var(--tx3)">⬤ Offline</div><div class="tick-lbl">Socket</div></div>
+  </div>
+  <div id="voiceBar">
+    <div class="voice-waves"><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div></div>
+    <div class="voice-text" id="voiceText">Listening...</div>
+    <div class="voice-cancel" onclick="stopVoice()">✕</div>
+  </div>
+  <!-- Language Switcher -->
+  <div class="lang-row">
+    <button class="lang-btn active" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('ar')">عربي</button>
+    <button class="lang-btn" onclick="setLang('hi')">हिंदी</button>
+    <button class="lang-btn" onclick="setLang('ur')">اردو</button>
+  </div>
+</div>
+
+<div id="scrollArea">
+
+<!-- HOME SCREEN -->
+<div id="screenHome" class="screen active">
+  <!-- Quick action row: Voice + SOS + Transfer -->
+  <div style="display:flex;gap:8px;margin:4px 14px 8px;">
+    <button onclick="startVoice()" style="flex:1;padding:11px;background:var(--bg1);border:1.5px solid rgba(0,255,136,0.15);border-radius:12px;color:var(--neon);font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">🎙 <span id="lbl_voice">Voice</span></button>
+    <button onclick="openSOS()" style="flex:1;padding:11px;background:var(--redDim);border:1.5px solid rgba(255,68,85,0.2);border-radius:12px;color:var(--red);font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">🆘 <span id="lbl_sos">SOS</span></button>
+    <button onclick="openTransfer()" style="flex:1;padding:11px;background:var(--amberDim);border:1.5px solid rgba(255,184,0,0.2);border-radius:12px;color:var(--amber);font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">🔄 <span id="lbl_transfer">Transfer</span></button>
+  </div>
+
+  <!-- Order Loader -->
+  <div class="card">
+    <div class="card-lbl" id="lbl_loadOrder">📦 Load Order</div>
+    <div class="load-row">
+      <input class="load-input mono" type="text" id="orderInput" inputmode="numeric" onkeydown="if(event.key==='Enter')loadOrder()">
+      <button class="btn-load syne" onclick="loadOrder()" id="lbl_load">LOAD</button>
+    </div>
+  </div>
+
+  <!-- Order Panel -->
+  <div id="orderPanel">
+    <div class="card">
+      <div class="order-hero">
+        <div class="ord-badge mono" id="orderBadge">ORD-—</div>
+        <div class="ord-cust syne" id="orderCust">—</div>
+        <div class="ord-addr" id="orderAddr">—</div>
+        <div class="ord-floor" id="orderFloor" style="display:none">—</div>
+        <div class="meta-row">
+          <div class="meta-c"><div class="mv mono" id="metaDist">—</div><div class="ml" id="lbl_km">km</div></div>
+          <div class="meta-c"><div class="mv mono" id="metaAmt">—</div><div class="ml">AED</div></div>
+          <div class="meta-c"><div class="mv mono" id="metaStat">—</div><div class="ml" id="lbl_status">status</div></div>
+        </div>
       </div>
-      <div class="ticker-div"></div>
-      <div class="ticker-item">
-        <div class="ticker-val mono" id="todayDeliveries">0</div>
-        <div class="ticker-lbl">Deliveries</div>
+
+      <!-- Last-meter navigation -->
+      <div id="lastMeterNav">
+        <div class="lmn-title">🗺️ Last-Meter Guidance</div>
+        <div id="lmnSteps"></div>
       </div>
-      <div class="ticker-div"></div>
-      <div class="ticker-item">
-        <div class="ticker-val mono" id="connectionStatus" style="font-size:12px;color:var(--tx3)">⬤ Offline</div>
-        <div class="ticker-lbl">Socket</div>
+
+      <div class="card-lbl" id="lbl_items">🧺 Items</div>
+      <div class="items-list" id="itemsList"></div>
+
+      <div class="card-lbl" id="lbl_progress">📍 Progress</div>
+      <div class="pipeline">
+        <div class="pipe-step done" id="pipe0"><div class="pipe-dot">✓</div><div class="pipe-lbl" id="plbl0">Confirmed</div></div>
+        <div class="pipe-step" id="pipe1"><div class="pipe-dot">🏍</div><div class="pipe-lbl" id="plbl1">Picked Up</div></div>
+        <div class="pipe-step" id="pipe2"><div class="pipe-dot">📍</div><div class="pipe-lbl" id="plbl2">En Route</div></div>
+        <div class="pipe-step" id="pipe3"><div class="pipe-dot">🔑</div><div class="pipe-lbl" id="plbl3">OTP</div></div>
+        <div class="pipe-step" id="pipe4"><div class="pipe-dot">✅</div><div class="pipe-lbl" id="plbl4">Done</div></div>
+      </div>
+
+      <!-- OTP Section -->
+      <div id="otpSection">
+        <div class="otp-hint" id="lbl_askOtp">Ask customer for their 4-digit OTP</div>
+        <div class="otp-row">
+          <input class="otp-input" type="text" id="otpInput" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
+          <button class="btn-verify syne" onclick="verifyOTP()" id="lbl_verify">Verify</button>
+        </div>
+      </div>
+
+      <!-- PoD Section -->
+      <div id="podSection">
+        <div class="pod-hint" id="lbl_podHint">📸 Take proof of delivery photo</div>
+        <div class="pod-preview" onclick="capturePhoto()" id="podPreview">
+          <div class="pod-icon">📷</div>
+          <div class="pod-lbl" id="lbl_tapCamera">Tap to capture</div>
+        </div>
+        <canvas id="podCanvas"></canvas>
+        <input type="file" id="podFileInput" accept="image/*" capture="environment" onchange="handlePhotoFile(this)">
+        <button class="btn-action done syne" id="podSubmitBtn" onclick="submitPoD()" style="display:none" id="lbl_submitPoD">✅ Submit Delivery Proof</button>
+      </div>
+
+      <button class="btn-action go syne" id="actionBtn" onclick="advanceStage()">▶ Picked Up — Start Delivery</button>
+
+      <div class="contact-row">
+        <a class="btn-contact call" id="callBtn" href="#">📞 <span id="lbl_call">Call</span></a>
+        <button class="btn-contact chat" onclick="openChat('customer')" id="lbl_msg">💬 Message</button>
+        <button class="btn-contact kitchen" onclick="openChat('kitchen')">🍳 <span id="lbl_kitchen">Kitchen</span></button>
       </div>
     </div>
   </div>
 
-  <!-- ══ SCROLL AREA ═════════════════════════════════════════════════ -->
-  <div id="scrollArea">
+  <button id="gpsBtn" onclick="toggleGPS()" disabled>📡 <span id="lbl_startGps">Start GPS Sharing</span></button>
 
-    <!-- ─── HOME SCREEN ──────────────────────────────────────────── -->
-    <div id="screenHome" class="screen active">
-
-      <!-- Order Loader -->
-      <div class="card">
-        <div class="card-label">📦 Load Order</div>
-        <div class="load-row">
-          <input class="load-input mono" type="text" id="orderInput"
-            placeholder="Order ID (e.g. 1)" inputmode="numeric"
-            onkeydown="if(event.key==='Enter')loadOrder()">
-          <button class="btn-load syne" onclick="loadOrder()">LOAD</button>
-        </div>
-      </div>
-
-      <!-- Order Panel (hidden until loaded) -->
-      <div id="orderPanel">
-
-        <!-- Order Hero -->
-        <div class="card">
-          <div class="order-hero">
-            <div class="order-id-badge mono" id="orderBadge">ORD-—</div>
-            <div class="order-customer syne" id="orderCustomer">—</div>
-            <div class="order-addr" id="orderAddr">—</div>
-            <div class="order-meta-row">
-              <div class="meta-chip"><div class="mc-val mono" id="metaDist">—</div><div class="mc-lbl">km away</div></div>
-              <div class="meta-chip"><div class="mc-val mono" id="metaAmt">—</div><div class="mc-lbl">AED total</div></div>
-              <div class="meta-chip"><div class="mc-val mono" id="metaStatus">—</div><div class="mc-lbl">status</div></div>
-            </div>
-          </div>
-
-          <!-- Items -->
-          <div class="card-label">🧺 Items</div>
-          <div class="items-list" id="itemsList"></div>
-
-          <!-- Delivery pipeline -->
-          <div class="card-label">📍 Progress</div>
-          <div class="pipeline">
-            <div class="pipe-step done" id="pipe0">
-              <div class="pipe-dot">✓</div>
-              <div class="pipe-lbl">Confirmed</div>
-            </div>
-            <div class="pipe-step" id="pipe1">
-              <div class="pipe-dot">🏍</div>
-              <div class="pipe-lbl">Picked Up</div>
-            </div>
-            <div class="pipe-step" id="pipe2">
-              <div class="pipe-dot">📍</div>
-              <div class="pipe-lbl">En Route</div>
-            </div>
-            <div class="pipe-step" id="pipe3">
-              <div class="pipe-dot">🔑</div>
-              <div class="pipe-lbl">OTP</div>
-            </div>
-            <div class="pipe-step" id="pipe4">
-              <div class="pipe-dot">✅</div>
-              <div class="pipe-lbl">Done</div>
-            </div>
-          </div>
-
-          <!-- OTP Box -->
-          <div id="otpSection">
-            <div class="otp-hint">Ask customer for their 4-digit OTP</div>
-            <div class="otp-row">
-              <input class="otp-input" type="text" id="otpInput"
-                placeholder="——" maxlength="4" inputmode="numeric"
-                oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
-              <button class="btn-verify syne" onclick="verifyOTP()">Verify</button>
-            </div>
-          </div>
-
-          <!-- Action button -->
-          <button class="btn-action go syne" id="actionBtn" onclick="advanceStage()">
-            ▶ Picked Up — Start Delivery
-          </button>
-
-          <!-- Call / Chat -->
-          <div class="contact-row">
-            <a class="btn-contact call" id="callBtn" href="#">📞 Call Customer</a>
-            <button class="btn-contact chat" onclick="openChat()">💬 Message</button>
-          </div>
-        </div>
-
-      </div>
-
-      <!-- GPS Button -->
-      <button id="gpsBtn" onclick="toggleGPS()" disabled>📡 Start GPS Sharing</button>
-
-      <!-- Live Stats -->
-      <div class="card">
-        <div class="card-label">📡 Live Telemetry</div>
-        <div class="stats-grid">
-          <div class="stat-box">
-            <div class="stat-lbl">Latitude</div>
-            <div class="stat-val mono" id="dispLat">——</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-lbl">Longitude</div>
-            <div class="stat-val mono" id="dispLng">——</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-lbl">Speed</div>
-            <div class="stat-val mono amber" id="dispSpeed">——</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-lbl">GPS Accuracy</div>
-            <div class="stat-val mono" id="dispAcc">——</div>
-          </div>
-          <div class="stat-box">
-            <div class="stat-lbl">Pings Sent</div>
-            <div class="stat-val mono" id="pingCount">0</div>
-          </div>
-          <div class="stat-box" style="display:flex;flex-direction:column;justify-content:space-between;">
-            <div class="stat-lbl">Signal</div>
-            <div class="signal-bars" id="signalBars">
-              <div class="bar" id="b1"></div>
-              <div class="bar" id="b2"></div>
-              <div class="bar" id="b3"></div>
-              <div class="bar" id="b4"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Activity Log -->
-      <div class="card">
-        <div class="card-label">🗂 Activity Log</div>
-        <div class="log-wrap" id="logWrap"></div>
+  <div class="card">
+    <div class="card-lbl">📡 Live Telemetry</div>
+    <div class="stats-grid">
+      <div class="stat-box"><div class="stat-lbl" id="lbl_lat">Latitude</div><div class="stat-val mono" id="dispLat">——</div></div>
+      <div class="stat-box"><div class="stat-lbl" id="lbl_lng">Longitude</div><div class="stat-val mono" id="dispLng">——</div></div>
+      <div class="stat-box"><div class="stat-lbl" id="lbl_speed">Speed</div><div class="stat-val mono amber" id="dispSpeed">——</div></div>
+      <div class="stat-box"><div class="stat-lbl" id="lbl_acc">Accuracy</div><div class="stat-val mono" id="dispAcc">——</div></div>
+      <div class="stat-box"><div class="stat-lbl" id="lbl_pings">Pings Sent</div><div class="stat-val mono" id="pingCount">0</div></div>
+      <div class="stat-box" style="display:flex;flex-direction:column;justify-content:space-between;">
+        <div class="stat-lbl" id="lbl_signal">Signal</div>
+        <div class="signal-bars"><div class="bar" id="b1"></div><div class="bar" id="b2"></div><div class="bar" id="b3"></div><div class="bar" id="b4"></div></div>
       </div>
     </div>
-
-    <!-- ─── EARNINGS SCREEN ───────────────────────────────────────── -->
-    <div id="screenEarnings" class="screen">
-      <div class="earn-hero">
-        <div class="earn-sub">Today's earnings</div>
-        <div class="earn-amount mono" id="earnHeroAmt">AED 0</div>
-        <div class="earn-sub" id="earnHeroSub">0 deliveries completed</div>
-        <div class="earn-chips">
-          <div class="earn-chip"><div class="ec-v mono" id="earnAvg">AED 0</div><div class="ec-l">Per delivery</div></div>
-          <div class="earn-chip"><div class="ec-v mono" id="earnWeek">AED 0</div><div class="ec-l">This week</div></div>
-          <div class="earn-chip"><div class="ec-v mono" style="color:var(--amber)">⭐ 4.9</div><div class="ec-l">Rating</div></div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-label">📊 Weekly Breakdown</div>
-        <div class="chart-wrap" style="margin:0;">
-          <div class="chart-row" id="chartRow"></div>
-          <div style="display:flex;gap:5px;" id="chartLabels"></div>
-        </div>
-      </div>
-
-      <div class="card" style="text-align:center;padding:24px;">
-        <div style="font-size:11px;color:var(--tx3);margin-bottom:6px;">TOTAL EARNINGS ALL TIME</div>
-        <div class="mono" style="font-size:32px;font-weight:700;color:var(--amber)">AED 4,820</div>
-        <div style="font-size:11px;color:var(--tx3);margin-top:4px;">312 deliveries · avg 4.9★</div>
-      </div>
-    </div>
-
-    <!-- ─── PROFILE SCREEN ────────────────────────────────────────── -->
-    <div id="screenProfile" class="screen">
-      <div class="profile-card">
-        <div class="profile-avatar">🏍</div>
-        <div class="profile-name syne" id="profileName">Rider</div>
-        <div class="profile-vehicle" id="profileVehicle">—</div>
-        <div class="stars-row">
-          <span>⭐⭐⭐⭐⭐</span>
-          <span class="rating-num mono">4.9</span>
-        </div>
-      </div>
-      <div class="stats-row">
-        <div class="stat-pill"><div class="sp-v mono" id="pToday">0</div><div class="sp-l">Today</div></div>
-        <div class="stat-pill"><div class="sp-v mono" id="pWeek">0</div><div class="sp-l">This Week</div></div>
-        <div class="stat-pill"><div class="sp-v mono">312</div><div class="sp-l">All Time</div></div>
-      </div>
-      <div class="card">
-        <div class="card-label">🔑 Quick Settings</div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);">
-            <span style="font-size:13px;color:var(--tx2)">High Accuracy GPS</span>
-            <span class="mono" style="font-size:12px;color:var(--neon)">ON</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);">
-            <span style="font-size:13px;color:var(--tx2)">Auto ping interval</span>
-            <span class="mono" style="font-size:12px;color:var(--neon)">Real-time</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;">
-            <span style="font-size:13px;color:var(--tx2)">Backend URL</span>
-            <span class="mono" style="font-size:10px;color:var(--tx3)">Railway ✓</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-  </div><!-- /scrollArea -->
-
-  <!-- ══ BOTTOM NAV ══════════════════════════════════════════════════ -->
-  <div id="bottomNav">
-    <button class="nav-btn active" id="nav-home" onclick="switchScreen('home')">
-      <span class="nav-icon">🏠</span>
-      <span class="nav-lbl">Home</span>
-      <div class="nav-indicator"></div>
-    </button>
-    <button class="nav-btn" id="nav-earnings" onclick="switchScreen('earnings')">
-      <span class="nav-icon">💰</span>
-      <span class="nav-lbl">Earnings</span>
-      <div class="nav-indicator"></div>
-    </button>
-    <button class="nav-btn" id="nav-profile" onclick="switchScreen('profile')">
-      <span class="nav-icon">👤</span>
-      <span class="nav-lbl">Profile</span>
-      <div class="nav-indicator"></div>
-    </button>
   </div>
-</div><!-- /app -->
 
-<!-- ══ CHAT SHEET ══════════════════════════════════════════════════ -->
-<div id="chatSheet">
+  <div class="card">
+    <div class="card-lbl" id="lbl_log">🗂 Activity Log</div>
+    <div class="log-wrap" id="logWrap"></div>
+  </div>
+</div>
+
+<!-- WALLET SCREEN -->
+<div id="screenWallet" class="screen">
+  <div class="wallet-hero">
+    <div class="wallet-sub" id="lbl_todayEarnings">Today's earnings</div>
+    <div class="wallet-bal mono" id="walletBal">AED 0</div>
+    <div class="wallet-sub" id="walletDelSub">0 deliveries</div>
+    <div class="wallet-chips">
+      <div class="w-chip"><div class="wv mono" id="wAvg">AED 0</div><div class="wl" id="lbl_perDel">Per delivery</div></div>
+      <div class="w-chip"><div class="wv mono" id="wWeek">AED 790</div><div class="wl" id="lbl_thisWeek">This week</div></div>
+      <div class="w-chip"><div class="wv mono" style="color:var(--amber)">4,820</div><div class="wl" id="lbl_allTime">All time</div></div>
+    </div>
+  </div>
+  <button class="btn-withdraw syne" id="withdrawBtn" onclick="doWithdraw()" id="lbl_withdraw">💸 Withdraw Today's Earnings</button>
+
+  <div class="card">
+    <div class="card-lbl" id="lbl_weekBreakdown">📊 Weekly Breakdown</div>
+    <div class="chart-row" id="chartRow"></div>
+    <div style="display:flex;gap:4px;" id="chartLabels"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-lbl">🏆 Performance Rewards</div>
+    <div class="reward-tiers" id="rewardTiers"></div>
+  </div>
+
+  <div class="card" style="text-align:center;padding:20px;">
+    <div style="font-size:10px;color:var(--tx3);margin-bottom:5px;" id="lbl_nextWithdraw">NEXT WITHDRAWAL AVAILABLE</div>
+    <div class="mono" style="font-size:22px;font-weight:700;color:var(--neon)" id="withdrawTimer">--:--:--</div>
+    <div style="font-size:10px;color:var(--tx3);margin-top:4px;" id="lbl_dailyCycle">Resets daily at midnight</div>
+  </div>
+</div>
+
+<!-- DOCUMENTS SCREEN -->
+<div id="screenDocs" class="screen">
+  <div class="screen-title" id="lbl_documents">📋 UAE Documents</div>
+  <div style="margin:0 14px 12px;">
+    <div class="doc-card" onclick="editDoc('rta')">
+      <div class="doc-icon">🪪</div>
+      <div class="doc-info">
+        <div class="doc-name" id="lbl_rtaPermit">RTA Delivery Permit</div>
+        <div class="doc-exp" id="rtaExp">Expires: --</div>
+      </div>
+      <div class="doc-status" id="rtaStatus">—</div>
+    </div>
+    <div class="doc-card" onclick="editDoc('medical')">
+      <div class="doc-icon">🏥</div>
+      <div class="doc-info">
+        <div class="doc-name" id="lbl_medFitness">Medical Fitness Certificate</div>
+        <div class="doc-exp" id="medExp">Expires: --</div>
+      </div>
+      <div class="doc-status" id="medStatus">—</div>
+    </div>
+    <div class="doc-card" onclick="editDoc('insurance')">
+      <div class="doc-icon">🛡️</div>
+      <div class="doc-info">
+        <div class="doc-name" id="lbl_vehicleIns">Vehicle Insurance</div>
+        <div class="doc-exp" id="insExp">Expires: --</div>
+      </div>
+      <div class="doc-status" id="insStatus">—</div>
+    </div>
+    <div class="doc-card" onclick="editDoc('emirates')">
+      <div class="doc-icon">🇦🇪</div>
+      <div class="doc-info">
+        <div class="doc-name" id="lbl_emiratesId">Emirates ID</div>
+        <div class="doc-exp" id="emiratesExp">Expires: --</div>
+      </div>
+      <div class="doc-status" id="emiratesStatus">—</div>
+    </div>
+    <div class="doc-card" onclick="editDoc('driving')">
+      <div class="doc-icon">🚗</div>
+      <div class="doc-info">
+        <div class="doc-name" id="lbl_drivingLic">Driving Licence</div>
+        <div class="doc-exp" id="drivingExp">Expires: --</div>
+      </div>
+      <div class="doc-status" id="drivingStatus">—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-lbl">🧊 Cool-Down Stations — Al Karama</div>
+    <div class="station-list">
+      <div class="station-row">
+        <div class="station-icon">🏛️</div>
+        <div class="station-info">
+          <div class="station-name">RTA Rest Point — Karama Complex</div>
+          <div class="station-dist">0.3 km · Open 24h</div>
+          <div class="station-tags"><span class="s-tag water">💧 Water</span><span class="s-tag shade">⛱ Shade</span><span class="s-tag rta">RTA</span></div>
+        </div>
+      </div>
+      <div class="station-row">
+        <div class="station-icon">☕</div>
+        <div class="station-info">
+          <div class="station-name">Café Magizham Partner — Al Karama St</div>
+          <div class="station-dist">0.5 km · Free water for riders</div>
+          <div class="station-tags"><span class="s-tag water">💧 Water</span><span class="s-tag shade">⛱ Shade</span></div>
+        </div>
+      </div>
+      <div class="station-row">
+        <div class="station-icon">⛽</div>
+        <div class="station-info">
+          <div class="station-name">ENOC Station — Dubai Frame Rd</div>
+          <div class="station-dist">0.8 km · AC waiting area</div>
+          <div class="station-tags"><span class="s-tag shade">⛱ Shade</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-lbl">🅿️ Parking Tips — Al Karama</div>
+    <div class="parking-list">
+      <div class="park-row">
+        <div class="park-loc">📍 Karama Centre Basement</div>
+        <div class="park-tip">Free bike parking near ramp entrance. Max 2 bikes per spot.</div>
+      </div>
+      <div class="park-row">
+        <div class="park-loc">📍 Al Karama Post Office Side</div>
+        <div class="park-tip">Unmarked area — usually safe for 30 min. Avoid peak 12–2 PM.</div>
+        <div class="park-fine">⚠️ AED 200 fine if ticketed on main road</div>
+      </div>
+      <div class="park-row">
+        <div class="park-loc">📍 Zabeel Park Gate 3</div>
+        <div class="park-tip">Designated two-wheeler bay. Free. Use for Oud Metha orders.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PROFILE SCREEN -->
+<div id="screenProfile" class="screen">
+  <div style="margin:0 14px 12px;padding:20px;background:linear-gradient(135deg,var(--bg1),var(--bg2));border-radius:20px;border:1px solid var(--bdr);text-align:center;">
+    <div style="width:68px;height:68px;border-radius:20px;margin:0 auto 12px;background:linear-gradient(135deg,var(--neon2),#005C30);display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 0 0 3px var(--bg),0 0 0 5px rgba(0,255,136,0.2);">🏍</div>
+    <div class="syne" style="font-size:20px;font-weight:800;color:var(--tx);" id="profileName">Magizham Rider</div>
+    <div style="font-size:11px;color:var(--tx2);margin-top:4px;" id="profileVehicle">Honda Activa</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:8px;">
+      <span>⭐⭐⭐⭐⭐</span>
+      <span class="mono" style="font-size:15px;color:var(--amber);font-weight:700;">4.9</span>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;margin:0 14px 12px;">
+    <div style="flex:1;background:var(--bg1);border-radius:14px;padding:13px;text-align:center;border:1px solid var(--bdr);">
+      <div class="mono" style="font-size:18px;font-weight:700;color:var(--neon);" id="pToday">0</div>
+      <div style="font-size:9px;color:var(--tx3);margin-top:3px;" id="lbl_todayDel">Today</div>
+    </div>
+    <div style="flex:1;background:var(--bg1);border-radius:14px;padding:13px;text-align:center;border:1px solid var(--bdr);">
+      <div class="mono" style="font-size:18px;font-weight:700;color:var(--neon);" id="pWeek">0</div>
+      <div style="font-size:9px;color:var(--tx3);margin-top:3px;" id="lbl_thisWeekDel">Week</div>
+    </div>
+    <div style="flex:1;background:var(--bg1);border-radius:14px;padding:13px;text-align:center;border:1px solid var(--bdr);">
+      <div class="mono" style="font-size:18px;font-weight:700;color:var(--neon);">312</div>
+      <div style="font-size:9px;color:var(--tx3);margin-top:3px;" id="lbl_allTimeDel">All Time</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-lbl" id="lbl_settings">⚙️ Settings</div>
+    <div style="display:flex;flex-direction:column;gap:0;">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bdr);">
+        <span style="font-size:12px;color:var(--tx2);" id="lbl_highGps">High Accuracy GPS</span>
+        <span class="mono" style="font-size:11px;color:var(--neon);">ON</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bdr);">
+        <span style="font-size:12px;color:var(--tx2);" id="lbl_voiceCmd">Voice Commands</span>
+        <span class="mono" style="font-size:11px;color:var(--neon);">Active</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bdr);">
+        <span style="font-size:12px;color:var(--tx2);" id="lbl_podRequired">Proof of Delivery</span>
+        <span class="mono" style="font-size:11px;color:var(--neon);">Required</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;">
+        <span style="font-size:12px;color:var(--tx2);" id="lbl_backend">Backend</span>
+        <span class="mono" style="font-size:9px;color:var(--tx3);">Railway ✓</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- scrollArea -->
+
+<!-- BOTTOM NAV -->
+<div id="bottomNav">
+  <button class="nav-btn active" id="nav-home" onclick="switchScreen('home')">
+    <span class="nav-icon">🏠</span><span class="nav-lbl" id="nav_lbl_home">Home</span><div class="nav-ind"></div>
+  </button>
+  <button class="nav-btn" id="nav-wallet" onclick="switchScreen('wallet')">
+    <span class="nav-icon">💰</span><span class="nav-lbl" id="nav_lbl_wallet">Wallet</span><div class="nav-ind"></div>
+  </button>
+  <button class="nav-btn" id="nav-docs" onclick="switchScreen('docs')">
+    <span class="nav-icon">📋</span><span class="nav-lbl" id="nav_lbl_docs">Docs</span><div class="nav-ind"></div>
+  </button>
+  <button class="nav-btn" id="nav-profile" onclick="switchScreen('profile')">
+    <span class="nav-icon">👤</span><span class="nav-lbl" id="nav_lbl_profile">Profile</span><div class="nav-ind"></div>
+  </button>
+</div>
+</div><!-- app -->
+
+<!-- CHAT SHEETS -->
+<div class="chat-sheet" id="chatCustomer">
   <div class="chat-panel">
     <div class="chat-hdr">
-      <div class="chat-title">💬 <span id="chatCustomerName">Customer</span></div>
-      <button class="btn-close-chat" onclick="closeChat()">✕</button>
+      <div class="chat-ttl">💬 <span id="chatCustName">Customer</span></div>
+      <button class="btn-close-chat" onclick="closeChat('customer')">✕</button>
     </div>
-    <div class="chat-msgs" id="chatMsgs"></div>
-    <div class="quick-replies">
-      <button class="qr-btn" onclick="quickReply('On my way! 🏍')">On my way!</button>
-      <button class="qr-btn" onclick="quickReply('2 minutes away ⏱')">2 mins away</button>
-      <button class="qr-btn" onclick="quickReply('I am at your door 🚪')">At your door</button>
-      <button class="qr-btn" onclick="quickReply('Please come downstairs')">Come down</button>
+    <div class="chat-msgs" id="chatCustMsgs"></div>
+    <div class="qr-row">
+      <button class="qr-btn" onclick="qr('customer','On my way! 🏍')">On my way!</button>
+      <button class="qr-btn" onclick="qr('customer','2 mins away ⏱')">2 mins</button>
+      <button class="qr-btn" onclick="qr('customer','At your door 🚪')">At door</button>
+      <button class="qr-btn" onclick="qr('customer','Please come downstairs')">Come down</button>
     </div>
-    <div class="chat-input-row">
-      <input class="chat-input" id="chatInput" placeholder="Type a message…"
-        onkeydown="if(event.key==='Enter')sendChat()">
-      <button class="btn-send" onclick="sendChat()">➤</button>
+    <div class="chat-inp-row">
+      <input class="chat-inp" id="chatCustInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat('customer')">
+      <button class="btn-send" onclick="sendChat('customer')">➤</button>
     </div>
   </div>
 </div>
 
-<!-- ══ DELIVERY DONE ══════════════════════════════════════════════ -->
-<div id="deliveryDone">
-  <div class="done-icon">🎉</div>
-  <div class="done-title syne">Delivered!</div>
-  <div class="done-sub">Great work! The customer<br>has received their order.</div>
-  <div class="done-earn mono" id="doneEarnAmt">+AED 15</div>
-  <div class="done-earn-lbl">Added to today's earnings</div>
-  <button class="btn-done syne" onclick="resetDelivery()">Back to Home</button>
+<div class="chat-sheet" id="chatKitchen">
+  <div class="chat-panel">
+    <div class="chat-hdr" style="border-color:rgba(59,130,246,0.2);">
+      <div class="chat-ttl" style="color:var(--blue);">🍳 Kitchen — Magizham</div>
+      <button class="btn-close-chat" onclick="closeChat('kitchen')">✕</button>
+    </div>
+    <div class="chat-msgs" id="chatKitMsgs"></div>
+    <div class="qr-row">
+      <button class="qr-btn" onclick="qr('kitchen','Order ready for pickup?')">Ready?</button>
+      <button class="qr-btn" onclick="qr('kitchen','At restaurant, waiting')">Waiting</button>
+      <button class="qr-btn" onclick="qr('kitchen','Running 5 mins late')">5 min late</button>
+      <button class="qr-btn" onclick="qr('kitchen','Any changes to order?')">Changes?</button>
+    </div>
+    <div class="chat-inp-row">
+      <input class="chat-inp" id="chatKitInput" placeholder="Message kitchen..." onkeydown="if(event.key==='Enter')sendChat('kitchen')" style="border-color:rgba(59,130,246,0.15);">
+      <button class="btn-send" style="background:linear-gradient(135deg,var(--blue),#1D4ED8);" onclick="sendChat('kitchen')">➤</button>
+    </div>
+  </div>
 </div>
 
-<!-- ══ SCRIPTS ════════════════════════════════════════════════════ -->
+<!-- SOS PANEL -->
+<div id="sosPanel">
+  <div class="sos-box">
+    <div class="sos-icon">🆘</div>
+    <div class="sos-title syne">Emergency SOS</div>
+    <div class="sos-sub">Alert nearby Magizham riders or call for help. Your location will be shared.</div>
+    <div class="sos-btns">
+      <button class="sos-btn red" onclick="sendSOS('accident')">🚑 Accident — Need Ambulance</button>
+      <button class="sos-btn amber" onclick="sendSOS('breakdown')">🔧 Vehicle Breakdown</button>
+      <button class="sos-btn amber" onclick="sendSOS('flat')">🛞 Flat Tyre — Need Help</button>
+      <button class="sos-btn cancel" onclick="closeSOS()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ORDER TRANSFER -->
+<div id="transferPanel">
+  <div class="transfer-box">
+    <div class="transfer-title syne">🔄 Transfer Active Order</div>
+    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px;">Nearby riders available to take your order:</div>
+    <div class="nearby-riders" id="nearbyRiders"></div>
+    <button onclick="closeTransfer()" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:12px;color:var(--tx2);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer;">Cancel</button>
+  </div>
+</div>
+
+<!-- DELIVERY DONE -->
+<div id="deliveryDone">
+  <div class="done-icon">🎉</div>
+  <div class="done-title syne" id="lbl_delivered">Delivered!</div>
+  <div class="done-sub" id="lbl_greatWork">Great work! Customer has received their order.</div>
+  <div class="done-earn mono" id="doneEarn">+AED 15</div>
+  <div class="done-lbl" id="lbl_addedToWallet">Added to wallet</div>
+  <div class="done-achievement" id="doneAchievement" style="display:none;"></div>
+  <button class="btn-done syne" onclick="resetDelivery()" id="lbl_backHome">Back to Home</button>
+</div>
+
+<!-- DOC EDITOR MODAL -->
+<div id="docModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;">
+  <div style="background:var(--bg1);border-radius:22px 22px 0 0;width:100%;max-width:430px;padding:24px;border:1px solid var(--bdrAmt);">
+    <div class="syne" style="font-size:16px;font-weight:800;color:var(--amber);margin-bottom:16px;" id="docModalTitle">Edit Document</div>
+    <div style="margin-bottom:12px;">
+      <div style="font-size:10px;color:var(--tx3);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.06em;">Expiry Date</div>
+      <input type="date" id="docDateInput" style="width:100%;background:var(--bg2);border:1.5px solid var(--bdrAmt);border-radius:12px;padding:12px 14px;color:var(--amber);font-family:'Space Mono',monospace;font-size:15px;outline:none;">
+    </div>
+    <div style="display:flex;gap:9px;">
+      <button onclick="saveDoc()" style="flex:1;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;">Save</button>
+      <button onclick="closeDocModal()" style="flex:1;padding:14px;border:none;border-radius:12px;background:var(--bg2);color:var(--tx2);font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;border:1px solid var(--bdr);">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 <script>
-/* ═══════════════════════════════════════════════════════════════════
-   MAGIZHAM RIDER APP — Full Production Logic
-═══════════════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   MAGIZHAM RIDER — ULTIMATE PRODUCTION APP
+   v3.0 · Multi-lang · Voice · SOS · PoD · Documents
+═══════════════════════════════════════════════════════ */
 
-/* ── STATE ─────────────────────────────────────────────────────── */
-let socket         = null;
-let isOnline       = false;
-let isTracking     = false;
-let watchId        = null;
-let currentOrderId = null;
-let currentOrder   = null;
-let stage          = 0;        // 0=pickUp 1=enRoute 2=arriving 3=otp 4=done
-let pingCount      = 0;
-let todayDeliveries = 0;
-let todayEarnings  = 0;
-let chatMessages   = [];
+/* ── TRANSLATIONS ─────────────────────────────────── */
+const LANGS = {
+  en: {
+    today:"Today",deliveries:"Deliveries",voice:"Voice",sos:"SOS",transfer:"Transfer",
+    loadOrder:"📦 Load Order",load:"LOAD",items:"🧺 Items",progress:"📍 Progress",
+    askOtp:"Ask customer for 4-digit OTP",verify:"Verify",
+    podHint:"📸 Take proof of delivery photo",tapCamera:"Tap to capture",submitPoD:"✅ Submit Delivery Proof",
+    call:"Call",msg:"💬 Message",kitchen:"Kitchen",startGps:"Start GPS Sharing",
+    lat:"Latitude",lng:"Longitude",speed:"Speed",acc:"Accuracy",pings:"Pings Sent",signal:"Signal",
+    log:"🗂 Activity Log",todayEarnings:"Today's earnings",perDel:"Per delivery",
+    thisWeek:"This week",allTime:"All time",withdraw:"💸 Withdraw Today's Earnings",
+    weekBreakdown:"📊 Weekly Breakdown",nextWithdraw:"NEXT WITHDRAWAL AVAILABLE",dailyCycle:"Resets daily at midnight",
+    documents:"📋 UAE Documents",rtaPermit:"RTA Delivery Permit",medFitness:"Medical Fitness Certificate",
+    vehicleIns:"Vehicle Insurance",emiratesId:"Emirates ID",drivingLic:"Driving Licence",
+    settings:"⚙️ Settings",highGps:"High Accuracy GPS",voiceCmd:"Voice Commands",
+    podRequired:"Proof of Delivery",backend:"Backend",
+    delivered:"Delivered!",greatWork:"Great work! Customer received their order.",addedToWallet:"Added to wallet",backHome:"Back to Home",
+    home:"Home",wallet:"Wallet",docs:"Docs",profile:"Profile",km:"km",status:"status",
+    todayDel:"Today",thisWeekDel:"Week",allTimeDel:"All Time",
+  },
+  ar: {
+    today:"اليوم",deliveries:"التوصيلات",voice:"صوت",sos:"طوارئ",transfer:"نقل",
+    loadOrder:"📦 تحميل الطلب",load:"تحميل",items:"🧺 الطلبات",progress:"📍 التقدم",
+    askOtp:"اطلب رمز OTP المكون من 4 أرقام",verify:"تحقق",
+    podHint:"📸 التقط صورة إثبات التسليم",tapCamera:"انقر للتقاط",submitPoD:"✅ تأكيد التسليم",
+    call:"اتصال",msg:"💬 رسالة",kitchen:"المطبخ",startGps:"بدء مشاركة GPS",
+    lat:"خط العرض",lng:"خط الطول",speed:"السرعة",acc:"الدقة",pings:"الإشارات",signal:"الإشارة",
+    log:"🗂 سجل النشاط",todayEarnings:"أرباح اليوم",perDel:"لكل توصيلة",
+    thisWeek:"هذا الأسبوع",allTime:"كل الأوقات",withdraw:"💸 سحب أرباح اليوم",
+    weekBreakdown:"📊 ملخص الأسبوع",nextWithdraw:"موعد السحب التالي",dailyCycle:"يتجدد يومياً عند منتصف الليل",
+    documents:"📋 وثائق الإمارات",rtaPermit:"تصريح توصيل RTA",medFitness:"شهادة اللياقة الطبية",
+    vehicleIns:"تأمين المركبة",emiratesId:"الهوية الإماراتية",drivingLic:"رخصة القيادة",
+    settings:"⚙️ الإعدادات",highGps:"GPS عالي الدقة",voiceCmd:"الأوامر الصوتية",
+    podRequired:"إثبات التسليم",backend:"الخادم",
+    delivered:"تم التسليم!",greatWork:"عمل رائع! استلم العميل طلبه.",addedToWallet:"أضيف إلى المحفظة",backHome:"العودة للرئيسية",
+    home:"الرئيسية",wallet:"المحفظة",docs:"الوثائق",profile:"الملف",km:"كم",status:"الحالة",
+    todayDel:"اليوم",thisWeekDel:"الأسبوع",allTimeDel:"الكل",
+  },
+  hi: {
+    today:"आज",deliveries:"डिलीवरी",voice:"आवाज",sos:"SOS",transfer:"ट्रांसफर",
+    loadOrder:"📦 ऑर्डर लोड करें",load:"लोड",items:"🧺 आइटम",progress:"📍 प्रगति",
+    askOtp:"ग्राहक से 4-अंकीय OTP मांगें",verify:"सत्यापित करें",
+    podHint:"📸 डिलीवरी प्रमाण फोटो लें",tapCamera:"कैप्चर करने के लिए टैप करें",submitPoD:"✅ डिलीवरी प्रमाण जमा करें",
+    call:"कॉल",msg:"💬 संदेश",kitchen:"किचन",startGps:"GPS शेयरिंग शुरू करें",
+    lat:"अक्षांश",lng:"देशांतर",speed:"गति",acc:"सटीकता",pings:"पिंग भेजे",signal:"सिग्नल",
+    log:"🗂 गतिविधि लॉग",todayEarnings:"आज की कमाई",perDel:"प्रति डिलीवरी",
+    thisWeek:"इस सप्ताह",allTime:"कुल",withdraw:"💸 आज की कमाई निकालें",
+    weekBreakdown:"📊 साप्ताहिक विवरण",nextWithdraw:"अगला निकासी समय",dailyCycle:"रोज़ाना आधी रात को रीसेट",
+    documents:"📋 UAE दस्तावेज़",rtaPermit:"RTA डिलीवरी परमिट",medFitness:"मेडिकल फिटनेस सर्टिफिकेट",
+    vehicleIns:"वाहन बीमा",emiratesId:"एमिरेट्स ID",drivingLic:"ड्राइविंग लाइसेंस",
+    settings:"⚙️ सेटिंग्स",highGps:"उच्च सटीकता GPS",voiceCmd:"वॉयस कमांड",
+    podRequired:"डिलीवरी प्रमाण",backend:"बैकएंड",
+    delivered:"डिलीवर हो गया!",greatWork:"बढ़िया! ग्राहक को ऑर्डर मिल गया।",addedToWallet:"वॉलेट में जोड़ा गया",backHome:"होम पर वापस",
+    home:"होम",wallet:"वॉलेट",docs:"दस्तावेज़",profile:"प्रोफाइल",km:"किमी",status:"स्थिति",
+    todayDel:"आज",thisWeekDel:"सप्ताह",allTimeDel:"कुल",
+  },
+  ur: {
+    today:"آج",deliveries:"ڈیلیوریز",voice:"آواز",sos:"ایس او ایس",transfer:"منتقل",
+    loadOrder:"📦 آرڈر لوڈ کریں",load:"لوڈ",items:"🧺 اشیاء",progress:"📍 پیش رفت",
+    askOtp:"گاہک سے 4 ہندسوں کا OTP مانگیں",verify:"تصدیق",
+    podHint:"📸 ڈیلیوری ثبوت کی تصویر لیں",tapCamera:"کیپچر کرنے کے لیے ٹیپ کریں",submitPoD:"✅ ڈیلیوری ثبوت جمع کریں",
+    call:"کال",msg:"💬 پیغام",kitchen:"کچن",startGps:"GPS شیئرنگ شروع کریں",
+    lat:"عرض بلد",lng:"طول بلد",speed:"رفتار",acc:"درستی",pings:"پنگ بھیجے",signal:"سگنل",
+    log:"🗂 سرگرمی لاگ",todayEarnings:"آج کی کمائی",perDel:"فی ڈیلیوری",
+    thisWeek:"اس ہفتے",allTime:"کل",withdraw:"💸 آج کی کمائی نکالیں",
+    weekBreakdown:"📊 ہفتہ وار خلاصہ",nextWithdraw:"اگلی نکاسی کا وقت",dailyCycle:"روزانہ آدھی رات کو ری سیٹ",
+    documents:"📋 UAE دستاویزات",rtaPermit:"RTA ڈیلیوری اجازت",medFitness:"میڈیکل فٹنس سرٹیفکیٹ",
+    vehicleIns:"گاڑی کی انشورنس",emiratesId:"امارات ID",drivingLic:"ڈرائیونگ لائسنس",
+    settings:"⚙️ ترتیبات",highGps:"اعلی درستی GPS",voiceCmd:"صوتی احکام",
+    podRequired:"ڈیلیوری ثبوت",backend:"بیک اینڈ",
+    delivered:"ڈیلیور ہو گیا!",greatWork:"شاباش! گاہک کو آرڈر مل گیا۔",addedToWallet:"والیٹ میں شامل",backHome:"ہوم واپس",
+    home:"ہوم",wallet:"والیٹ",docs:"دستاویز",profile:"پروفائل",km:"کلومیٹر",status:"حالت",
+    todayDel:"آج",thisWeekDel:"ہفتہ",allTimeDel:"کل",
+  }
+};
 
-const STAGE_CONFIG = [
-  { label: "▶ Picked Up — Start Delivery", cls: "go",    nextStage: 1 },
-  { label: "📍 Mark as En Route",          cls: "go",    nextStage: 2 },
-  { label: "🏁 Arriving — Request OTP",    cls: "amber", nextStage: 3 },
-  { label: null },   // OTP stage — handled separately
-  { label: "✅ Confirm Delivery",          cls: "done",  nextStage: 4 },
+let currentLang = localStorage.getItem("riderLang") || "en";
+
+function T(key) { return (LANGS[currentLang] || LANGS.en)[key] || key; }
+
+function setLang(lang) {
+  currentLang = lang;
+  localStorage.setItem("riderLang", lang);
+  document.querySelectorAll(".lang-btn").forEach(b => {
+    b.classList.toggle("active", b.textContent.trim() === ({en:"EN",ar:"عربي",hi:"हिंदी",ur:"اردو"}[lang]));
+  });
+  applyTranslations();
+  toast(({en:"English",ar:"عربي",hi:"हिंदी",ur:"اردو"}[lang]) + " ✓");
+}
+
+function applyTranslations() {
+  const map = {
+    lbl_today:"today",lbl_deliveries:"deliveries",lbl_voice:"voice",lbl_sos:"sos",lbl_transfer:"transfer",
+    lbl_loadOrder:"loadOrder",lbl_load:"load",lbl_items:"items",lbl_progress:"progress",
+    lbl_askOtp:"askOtp",lbl_verify:"verify",lbl_podHint:"podHint",lbl_tapCamera:"tapCamera",
+    lbl_submitPoD:"submitPoD",lbl_call:"call",lbl_msg:"msg",lbl_kitchen:"kitchen",lbl_startGps:"startGps",
+    lbl_lat:"lat",lbl_lng:"lng",lbl_speed:"speed",lbl_acc:"acc",lbl_pings:"pings",lbl_signal:"signal",
+    lbl_log:"log",lbl_todayEarnings:"todayEarnings",lbl_perDel:"perDel",lbl_thisWeek:"thisWeek",
+    lbl_allTime:"allTime",lbl_withdraw:"withdraw",lbl_weekBreakdown:"weekBreakdown",
+    lbl_nextWithdraw:"nextWithdraw",lbl_dailyCycle:"dailyCycle",lbl_documents:"documents",
+    lbl_rtaPermit:"rtaPermit",lbl_medFitness:"medFitness",lbl_vehicleIns:"vehicleIns",
+    lbl_emiratesId:"emiratesId",lbl_drivingLic:"drivingLic",lbl_settings:"settings",
+    lbl_highGps:"highGps",lbl_voiceCmd:"voiceCmd",lbl_podRequired:"podRequired",lbl_backend:"backend",
+    lbl_delivered:"delivered",lbl_greatWork:"greatWork",lbl_addedToWallet:"addedToWallet",lbl_backHome:"backHome",
+    nav_lbl_home:"home",nav_lbl_wallet:"wallet",nav_lbl_docs:"docs",nav_lbl_profile:"profile",
+    lbl_km:"km",lbl_status:"status",lbl_todayDel:"todayDel",lbl_thisWeekDel:"thisWeekDel",lbl_allTimeDel:"allTimeDel",
+  };
+  Object.entries(map).forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = T(key);
+  });
+  document.getElementById("orderInput").placeholder = T("loadOrder").replace("📦 ","") + "...";
+  document.documentElement.dir = currentLang === "ar" || currentLang === "ur" ? "rtl" : "ltr";
+}
+
+/* ── STATE ──────────────────────────────────────────── */
+let socket=null,isOnline=false,isTracking=false,watchId=null;
+let currentOrderId=null,currentOrder=null,stage=0;
+let pingCount=0,todayDeliveries=0,todayEarnings=0;
+let custMsgs=[],kitMsgs=[];
+let podPhotoData=null;
+let currentDocKey=null;
+let withdrawnToday=false;
+let voiceRecognition=null,voiceActive=false;
+
+const STAGE_CFG = [
+  {label:()=>`▶ ${T("load")} — Start Delivery`,cls:"go",next:1},
+  {label:()=>"📍 Mark as En Route",cls:"go",next:2},
+  {label:()=>"🏁 Arriving — Request OTP",cls:"amber",next:3},
+  {label:null},
+  {label:()=>"✅ Confirm Delivery + PoD",cls:"done",next:5},
+];
+const WEEK_DATA=[85,110,140,95,160,200,0];
+const WEEK_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Today"];
+
+/* ── DOCUMENTS ──────────────────────────────────────── */
+const DOCS={rta:{label:"rtaPermit"},medical:{label:"medFitness"},insurance:{label:"vehicleIns"},emirates:{label:"emiratesId"},driving:{label:"drivingLic"}};
+
+function loadDocDates() {
+  Object.keys(DOCS).forEach(key => {
+    const stored = localStorage.getItem("doc_" + key);
+    updateDocUI(key, stored);
+  });
+}
+
+function updateDocUI(key, dateStr) {
+  const expEl = document.getElementById(key==="rta"?"rtaExp":key==="medical"?"medExp":key==="insurance"?"insExp":key==="emirates"?"emiratesExp":"drivingExp");
+  const statEl = document.getElementById(key==="rta"?"rtaStatus":key==="medical"?"medStatus":key==="insurance"?"insStatus":key==="emirates"?"emiratesStatus":"drivingStatus");
+  if (!expEl || !statEl) return;
+  if (!dateStr) { expEl.textContent = "Expires: Not set"; statEl.textContent="?"; statEl.className="doc-status warn"; return; }
+  const exp = new Date(dateStr);
+  const today = new Date();
+  const daysLeft = Math.ceil((exp - today) / (1000*60*60*24));
+  expEl.textContent = "Expires: " + exp.toLocaleDateString("en-AE",{day:"2-digit",month:"short",year:"numeric"});
+  if (daysLeft < 0)       { statEl.textContent="Expired"; statEl.className="doc-status expired"; }
+  else if (daysLeft < 30) { statEl.textContent=daysLeft+"d left"; statEl.className="doc-status warn"; }
+  else                    { statEl.textContent="Valid"; statEl.className="doc-status ok"; }
+}
+
+function editDoc(key) {
+  currentDocKey = key;
+  const stored = localStorage.getItem("doc_" + key);
+  document.getElementById("docModalTitle").textContent = "📋 Update " + T(DOCS[key].label);
+  document.getElementById("docDateInput").value = stored || "";
+  document.getElementById("docModal").style.display = "flex";
+}
+
+function saveDoc() {
+  const val = document.getElementById("docDateInput").value;
+  if (!val) { toast("Pick a date", "warn"); return; }
+  localStorage.setItem("doc_" + currentDocKey, val);
+  updateDocUI(currentDocKey, val);
+  closeDocModal();
+  toast("Document updated ✅");
+}
+
+function closeDocModal() { document.getElementById("docModal").style.display="none"; }
+
+/* ── WALLET / REWARDS ───────────────────────────────── */
+const TIERS=[
+  {name:"Bronze Star",desc:"10 deliveries",target:10,color:"bronze",reward:"AED 5 bonus"},
+  {name:"Silver Ace",desc:"25 deliveries",target:25,color:"silver",reward:"AED 15 bonus"},
+  {name:"Gold Champion",desc:"50 deliveries",target:50,color:"gold",reward:"AED 35 bonus"},
 ];
 
-const WEEK_DATA = [85, 110, 140, 95, 160, 200, 0]; // Mon–Sun
-const WEEK_DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Today"];
+function renderRewards() {
+  const all = 312 + todayDeliveries;
+  const wrap = document.getElementById("rewardTiers");
+  wrap.innerHTML = TIERS.map(t => {
+    const pct = Math.min((all / t.target) * 100, 100);
+    const done = all >= t.target;
+    return `<div class="tier-row">
+      <div class="tier-icon">${done?"🏆":"🎯"}</div>
+      <div class="tier-info">
+        <div class="tier-name">${t.name}</div>
+        <div class="tier-desc">${t.desc} · ${t.reward}</div>
+        <div class="tier-prog-wrap"><div class="tier-prog-bar" style="width:${pct}%"></div></div>
+      </div>
+      <div class="tier-badge ${t.color}">${done?"✓":"${Math.min(all,t.target)}/${t.target}"}</div>
+    </div>`;
+  }).join("");
+}
 
-/* ── INIT ──────────────────────────────────────────────────────── */
-document.addEventListener("DOMContentLoaded", () => {
-  renderChart();
-  updateEarningsScreen();
-  document.getElementById("hdrName").textContent      = "Magizham Rider";
-  document.getElementById("hdrVehicle").textContent   = "Honda Activa · Ready to go";
-  document.getElementById("profileName").textContent  = "Magizham Rider";
-  document.getElementById("profileVehicle").textContent = "Honda Activa";
-});
+function doWithdraw() {
+  if (todayEarnings <= 0) { toast("No earnings to withdraw", "warn"); return; }
+  if (withdrawnToday) { toast("Already withdrawn today", "warn"); return; }
+  withdrawnToday = true;
+  document.getElementById("withdrawBtn").disabled = true;
+  toast(`AED ${todayEarnings} sent to your wallet! 💸`, "ok");
+  log(`Withdrawal: AED ${todayEarnings} processed ✅`, "ok");
+}
 
-/* ── SOCKET ────────────────────────────────────────────────────── */
+function startWithdrawTimer() {
+  function tick() {
+    const now = new Date();
+    const midnight = new Date(now); midnight.setHours(24,0,0,0);
+    const diff = midnight - now;
+    const h = String(Math.floor(diff/3600000)).padStart(2,"0");
+    const m = String(Math.floor((diff%3600000)/60000)).padStart(2,"0");
+    const s = String(Math.floor((diff%60000)/1000)).padStart(2,"0");
+    const el = document.getElementById("withdrawTimer");
+    if (el) el.textContent = `${h}:${m}:${s}`;
+  }
+  tick(); setInterval(tick, 1000);
+}
+
+/* ── VOICE COMMANDS ─────────────────────────────────── */
+function startVoice() {
+  if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+    toast("Voice not supported on this browser", "warn"); return;
+  }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  voiceRecognition = new SR();
+  voiceRecognition.lang = currentLang === "ar" ? "ar-AE" : currentLang === "hi" ? "hi-IN" : currentLang === "ur" ? "ur-PK" : "en-US";
+  voiceRecognition.continuous = false;
+  voiceRecognition.onresult = (e) => {
+    const cmd = e.results[0][0].transcript.toLowerCase();
+    document.getElementById("voiceText").textContent = '"' + cmd + '"';
+    processVoiceCommand(cmd);
+    setTimeout(stopVoice, 1200);
+  };
+  voiceRecognition.onerror = () => stopVoice();
+  voiceRecognition.onend = () => { voiceActive = false; document.getElementById("voiceBar").classList.remove("active"); };
+  voiceRecognition.start();
+  voiceActive = true;
+  document.getElementById("voiceBar").classList.add("active");
+  document.getElementById("voiceText").textContent = "Listening...";
+}
+
+function stopVoice() {
+  if (voiceRecognition) { try{ voiceRecognition.stop(); }catch(e){} }
+  voiceActive = false;
+  document.getElementById("voiceBar").classList.remove("active");
+}
+
+function processVoiceCommand(cmd) {
+  if (cmd.includes("arrived") || cmd.includes("location") || cmd.includes("door")) {
+    if (socket?.connected && currentOrderId) {
+      socket.emit("orderStatusUpdate", {orderId:currentOrderId, status:"on_the_way"});
+      toast("🎙 Arrived at location — updated", "ok");
+      log("Voice: arrived at location", "ok");
+    }
+  } else if (cmd.includes("picked") || cmd.includes("collected")) {
+    toast("🎙 Order picked up — confirmed", "ok");
+    if (stage === 0) { stage = 1; updatePipeline(); updateActionBtn(); }
+  } else if (cmd.includes("delivered") || cmd.includes("done")) {
+    toast("🎙 Delivered — marked complete", "ok");
+  } else if (cmd.includes("gps") || cmd.includes("start")) {
+    if (!isTracking && currentOrderId) startGPS();
+    toast("🎙 GPS started", "ok");
+  } else {
+    toast('🎙 "' + cmd + '" — not recognised', "warn");
+  }
+}
+
+/* ── PROOF OF DELIVERY ──────────────────────────────── */
+function capturePhoto() {
+  document.getElementById("podFileInput").click();
+}
+
+function handlePhotoFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    podPhotoData = e.target.result;
+    const preview = document.getElementById("podPreview");
+    let img = preview.querySelector("img");
+    if (!img) { img = document.createElement("img"); preview.appendChild(img); }
+    img.src = podPhotoData;
+    preview.querySelector(".pod-icon").style.display = "none";
+    preview.querySelector(".pod-lbl").style.display = "none";
+    document.getElementById("podSubmitBtn").style.display = "block";
+    toast("Photo captured ✅");
+  };
+  reader.readAsDataURL(file);
+}
+
+function submitPoD() {
+  if (!podPhotoData) { toast("Take a photo first", "warn"); return; }
+  toast("✅ Proof of delivery submitted!");
+  log("PoD photo submitted for order #" + currentOrderId, "ok");
+  document.getElementById("podSection").style.display = "none";
+  setTimeout(showDeliveryDone, 500);
+}
+
+/* ── SOS ────────────────────────────────────────────── */
+function openSOS() { document.getElementById("sosPanel").classList.add("open"); }
+function closeSOS() { document.getElementById("sosPanel").classList.remove("open"); }
+
+function sendSOS(type) {
+  closeSOS();
+  const msgs = { accident:"🚑 SOS sent! Ambulance alerted. Riders nearby notified.", breakdown:"🔧 Breakdown SOS sent. Nearest rider is coming!", flat:"🛞 Flat tyre SOS. Help is on the way!" };
+  if (socket?.connected) {
+    socket.emit("riderSOS", { type, orderId: currentOrderId, lat: lastLat, lng: lastLng });
+  }
+  toast(msgs[type] || "SOS sent!", "err");
+  log("🆘 SOS sent: " + type, "err");
+}
+
+let lastLat=null, lastLng=null;
+
+/* ── ORDER TRANSFER ─────────────────────────────────── */
+const MOCK_RIDERS=[{name:"Arun K.", dist:"0.4 km",id:"r2"},{name:"Mohammed S.",dist:"0.7 km",id:"r3"},{name:"Ravi P.",dist:"1.1 km",id:"r4"}];
+
+function openTransfer() {
+  if (!currentOrderId) { toast("No active order to transfer", "warn"); return; }
+  const wrap = document.getElementById("nearbyRiders");
+  wrap.innerHTML = MOCK_RIDERS.map(r => `
+    <div class="nr-row">
+      <div class="nr-av">🏍</div>
+      <div class="nr-info"><div class="nr-name">${r.name}</div><div class="nr-dist">${r.dist} away</div></div>
+      <button class="btn-transfer" onclick="confirmTransfer('${r.id}','${r.name}')">Transfer</button>
+    </div>`).join("");
+  document.getElementById("transferPanel").classList.add("open");
+}
+
+function closeTransfer() { document.getElementById("transferPanel").classList.remove("open"); }
+
+function confirmTransfer(riderId, riderName) {
+  closeTransfer();
+  if (socket?.connected) {
+    socket.emit("orderTransfer", { orderId: currentOrderId, toRider: riderId });
+  }
+  toast(`Order transferred to ${riderName} ✅`);
+  log(`Order #${currentOrderId} transferred to ${riderName}`, "warn");
+  resetDelivery();
+}
+
+/* ── LAST METER NAVIGATION ──────────────────────────── */
+function generateLastMeterSteps(address) {
+  const steps=[
+    {n:1,t:"Enter from " + (address.includes("Karama")?"Al Karama St":"main road")},
+    {n:2,t:"Take the stairs/lift to the floor noted"},
+    {n:3,t:"Delivery door is usually on the right side"},
+    {n:4,t:"Call customer if gate is locked"},
+  ];
+  const wrap = document.getElementById("lmnSteps");
+  wrap.innerHTML = steps.map(s=>`<div class="lmn-step"><div class="lmn-num">${s.n}</div><div class="lmn-txt">${s.t}</div></div>`).join("");
+  document.getElementById("lastMeterNav").style.display = "block";
+}
+
+/* ── SOCKET ─────────────────────────────────────────── */
 function initSocket() {
   if (socket?.connected) return;
-  socket = io("/", { query: { type: "rider", orderId: currentOrderId } });
-
-  socket.on("connect", () => {
-    setConnectionStatus(true);
-    log("Connected to server ✅", "ok");
-  });
-  socket.on("disconnect", () => {
-    setConnectionStatus(false);
-    log("Disconnected ⚠️", "warn");
-  });
-  socket.on("connect_error", e => {
-    setConnectionStatus(false);
-    log("Connection error: " + e.message, "err");
-  });
+  socket = io("/", { query: { type:"rider", orderId: currentOrderId } });
+  socket.on("connect", () => { setConnStatus(true); log("Connected ✅", "ok"); });
+  socket.on("disconnect", () => { setConnStatus(false); log("Disconnected ⚠️", "warn"); });
+  socket.on("connect_error", e => { setConnStatus(false); log("Error: " + e.message, "err"); });
 }
 
-function setConnectionStatus(connected) {
-  const el = document.getElementById("connectionStatus");
-  if (connected) {
-    el.textContent = "⬤ Live";
-    el.style.color = "var(--neon)";
-    setSignal(4);
-  } else {
-    el.textContent = "⬤ Offline";
-    el.style.color = "var(--tx3)";
-    setSignal(0);
-  }
+function setConnStatus(c) {
+  const el = document.getElementById("connStatus");
+  el.textContent = c ? "⬤ Live" : "⬤ Offline";
+  el.style.color = c ? "var(--neon)" : "var(--tx3)";
+  setSignal(c ? 4 : 0);
 }
 
-function setSignal(bars) {
-  for (let i = 1; i <= 4; i++) {
-    document.getElementById("b" + i).classList.toggle("lit", i <= bars);
-  }
+function setSignal(n) {
+  for (let i=1;i<=4;i++) document.getElementById("b"+i).classList.toggle("lit", i<=n);
 }
 
-/* ── ONLINE TOGGLE ─────────────────────────────────────────────── */
+/* ── ONLINE TOGGLE ──────────────────────────────────── */
 function toggleOnline() {
   isOnline = !isOnline;
-  const toggle = document.getElementById("onlineToggle");
-  const lbl    = document.getElementById("onlineLbl");
-  toggle.classList.toggle("active", isOnline);
-  lbl.textContent = isOnline ? "Online" : "Go Online";
-  if (isOnline) {
-    initSocket();
-    toast("You are now online 🟢");
-    log("Went online", "ok");
-  } else {
-    if (isTracking) stopGPS();
-    toast("You are now offline", "warn");
-    log("Went offline", "warn");
-  }
+  document.getElementById("onlineTog").classList.toggle("active", isOnline);
+  document.getElementById("togLbl").textContent = isOnline ? "Online" : T("today");
+  if (isOnline) { initSocket(); toast("You are now online 🟢"); log("Online", "ok"); }
+  else { if (isTracking) stopGPS(); toast("Offline", "warn"); log("Offline", "warn"); }
 }
 
-/* ── LOAD ORDER ────────────────────────────────────────────────── */
+/* ── LOAD ORDER ─────────────────────────────────────── */
 async function loadOrder() {
   const input = document.getElementById("orderInput").value.trim();
-  if (!input) { toast("Enter an Order ID first", "warn"); return; }
-
-  log("Loading order #" + input + "...");
+  if (!input) { toast("Enter an Order ID", "warn"); return; }
+  log("Loading order #" + input);
   try {
     const res = await fetch(`/api/orders/${input}/track`);
     if (!res.ok) throw new Error("Order not found (HTTP " + res.status + ")");
     const data = await res.json();
+    currentOrderId = input; currentOrder = data; stage = 0; podPhotoData = null;
 
-    currentOrderId = input;
-    currentOrder   = data;
-    stage          = 0;
+    document.getElementById("orderBadge").textContent = "ORD-" + (data.id || input);
+    document.getElementById("orderCust").textContent  = data.customer_name || "Customer";
+    document.getElementById("orderAddr").textContent  = data.customer_address || "Address not set";
+    document.getElementById("metaDist").textContent   = "—";
+    document.getElementById("metaAmt").textContent    = data.total_amount || data.total || "—";
+    document.getElementById("metaStat").textContent   = (data.status || "pending").toUpperCase();
+    document.getElementById("callBtn").href = `tel:${data.customer_phone || ""}`;
+    document.getElementById("chatCustName").textContent = data.customer_name || "Customer";
 
-    // Populate UI
-    document.getElementById("orderBadge").textContent    = "ORD-" + (data.id || input);
-    document.getElementById("orderCustomer").textContent = data.customer_name || "Customer";
-    document.getElementById("orderAddr").textContent     = data.customer_address || "Address not available";
-    document.getElementById("metaDist").textContent      = "—";
-    document.getElementById("metaAmt").textContent       = data.total_amount || "—";
-    document.getElementById("metaStatus").textContent    = (data.status || "pending").toUpperCase();
-    document.getElementById("callBtn").href              = `tel:${data.customer_phone || ""}`;
-    document.getElementById("chatCustomerName").textContent = data.customer_name || "Customer";
+    // Show floor guidance if address has flat/floor info
+    const addr = (data.customer_address || "");
+    if (addr.match(/flat|floor|villa|apt/i)) {
+      document.getElementById("orderFloor").textContent = "🏢 " + addr;
+      document.getElementById("orderFloor").style.display = "block";
+    }
+
+    // Last-meter navigation
+    generateLastMeterSteps(addr);
 
     // Items
-    const items = typeof data.items === "string" ? JSON.parse(data.items) : (data.items || []);
-    const list  = document.getElementById("itemsList");
-    list.innerHTML = items.length
-      ? items.map(it => `
-          <div class="item-row">
-            <div class="item-dot"></div>
-            <div class="item-name">${it.name || it}</div>
-            <div class="item-qty mono">×${it.qty || 1}</div>
-          </div>`).join("")
-      : `<div class="item-row"><div class="item-dot"></div><div class="item-name" style="color:var(--tx2)">Items not listed</div></div>`;
+    let items = data.items || [];
+    if (typeof items === "string") { try { items = JSON.parse(items); } catch(e) { items=[]; } }
+    document.getElementById("itemsList").innerHTML = items.length
+      ? items.map(it=>`<div class="item-row"><div class="item-dot"></div><div class="item-nm">${it.name||it}</div><div class="item-qty mono">×${it.qty||1}</div></div>`).join("")
+      : `<div class="item-row"><div class="item-dot"></div><div class="item-nm" style="color:var(--tx2)">Items not listed</div></div>`;
 
-    updatePipeline();
-    updateActionBtn();
-
+    updatePipeline(); updateActionBtn();
     document.getElementById("orderPanel").style.display = "block";
     document.getElementById("gpsBtn").disabled = false;
-    document.getElementById("gpsBtn").textContent = "📡 Start GPS Sharing";
+    document.getElementById("gpsBtn").innerHTML = `📡 <span id="lbl_startGps">${T("startGps")}</span>`;
 
-    // Reconnect socket with new orderId
     if (socket) { socket.disconnect(); socket = null; }
     if (isOnline) initSocket();
 
     toast("Order #" + input + " loaded ✅");
     log("Order #" + input + " — " + (data.customer_name || ""), "ok");
-
   } catch (err) {
     toast(err.message, "err");
     log("❌ " + err.message, "err");
   }
 }
 
-/* ── PIPELINE ──────────────────────────────────────────────────── */
+/* ── PIPELINE ───────────────────────────────────────── */
 function updatePipeline() {
-  for (let i = 0; i <= 4; i++) {
-    const el = document.getElementById("pipe" + i);
-    el.classList.remove("done", "active");
-    if (i < stage)  el.classList.add("done");
-    if (i === stage) el.classList.add("active");
+  for (let i=0;i<=4;i++) {
+    const el = document.getElementById("pipe"+i);
+    el.classList.remove("done","active");
+    if (i<stage) el.classList.add("done");
+    if (i===stage) el.classList.add("active");
   }
 }
 
 function updateActionBtn() {
-  const cfg  = STAGE_CONFIG[stage];
-  const btn  = document.getElementById("actionBtn");
-  const otpS = document.getElementById("otpSection");
+  const btn = document.getElementById("actionBtn");
+  const otp = document.getElementById("otpSection");
+  const pod = document.getElementById("podSection");
+  otp.style.display = "none"; pod.style.display = "none"; btn.style.display = "block";
 
-  if (stage === 3) {
-    // OTP stage
-    btn.style.display  = "none";
-    otpS.style.display = "block";
-  } else if (stage === 4) {
-    btn.style.display = "none";
-    otpS.style.display = "none";
-  } else {
-    btn.style.display  = "block";
-    otpS.style.display = "none";
-    btn.textContent    = cfg.label;
-    btn.className      = "btn-action syne " + cfg.cls;
+  if (stage === 3) { btn.style.display="none"; otp.style.display="block"; }
+  else if (stage === 4) {
+    pod.style.display = "block"; btn.style.display = "none";
+    // Reset pod state
+    document.getElementById("podPreview").querySelector(".pod-icon").style.display="block";
+    document.getElementById("podPreview").querySelector(".pod-lbl").style.display="block";
+    document.getElementById("podSubmitBtn").style.display="none";
+    const img = document.getElementById("podPreview").querySelector("img");
+    if (img) img.remove();
+  }
+  else if (stage >= 5) { btn.style.display="none"; otp.style.display="none"; }
+  else {
+    const cfg = STAGE_CFG[stage];
+    if (cfg && cfg.label) { btn.textContent=cfg.label(); btn.className="btn-action syne "+cfg.cls; }
   }
 }
 
 function advanceStage() {
   if (!currentOrderId) { toast("Load an order first", "warn"); return; }
-
-  const statusMap = { 1: "on_the_way", 2: "on_the_way", 3: "on_the_way" };
-  if (statusMap[stage + 1] && socket?.connected) {
-    socket.emit("orderStatusUpdate", { orderId: currentOrderId, status: statusMap[stage + 1] });
-  }
-
-  stage = STAGE_CONFIG[stage].nextStage;
-  updatePipeline();
-  updateActionBtn();
-
-  const msgs = ["", "GPS sharing — rider is on the way 🛵", "En route to customer 📍", "OTP requested 🔑"];
-  if (msgs[stage]) { toast(msgs[stage]); log(msgs[stage], "ok"); }
+  const map={1:"on_the_way",2:"on_the_way",3:"on_the_way"};
+  if (map[stage+1] && socket?.connected) socket.emit("orderStatusUpdate",{orderId:currentOrderId,status:map[stage+1]});
+  stage = STAGE_CFG[stage]?.next || stage+1;
+  updatePipeline(); updateActionBtn();
 }
 
-/* ── OTP ───────────────────────────────────────────────────────── */
+/* ── OTP ─────────────────────────────────────────────── */
 function verifyOTP() {
   const entered = document.getElementById("otpInput").value;
   if (entered.length !== 4) { toast("Enter 4-digit OTP", "warn"); return; }
-
-  // In production: verify against DB. For now, any 4 digits passes.
-  toast("OTP verified ✅ — delivering now!", "ok");
+  toast("OTP verified ✅ — take delivery photo");
   log("OTP " + entered + " verified", "ok");
-
-  if (socket?.connected) {
-    socket.emit("orderStatusUpdate", { orderId: currentOrderId, status: "delivered" });
-  }
-
-  stage = 4;
-  updatePipeline();
-  updateActionBtn();
-
-  // Show delivery done screen after brief delay
-  setTimeout(showDeliveryDone, 800);
+  stage = 4; updatePipeline(); updateActionBtn();
 }
 
-/* ── DELIVERY DONE ─────────────────────────────────────────────── */
+/* ── DELIVERY DONE ───────────────────────────────────── */
 function showDeliveryDone() {
-  todayDeliveries++;
-  todayEarnings += 15; // default per-delivery
-
-  document.getElementById("doneEarnAmt").textContent = "+AED 15";
+  if (socket?.connected) socket.emit("orderStatusUpdate",{orderId:currentOrderId,status:"delivered"});
+  todayDeliveries++; todayEarnings += 15;
+  document.getElementById("doneEarn").textContent = "+AED 15";
+  document.getElementById("lbl_delivered").textContent = T("delivered");
+  document.getElementById("lbl_greatWork").textContent = T("greatWork");
+  document.getElementById("lbl_addedToWallet").textContent = T("addedToWallet");
+  document.getElementById("lbl_backHome").textContent = T("backHome");
+  // Achievement check
+  const all = 312 + todayDeliveries;
+  const tier = TIERS.find(t => all >= t.target && all - 1 < t.target);
+  if (tier) {
+    document.getElementById("doneAchievement").textContent = "🏆 " + tier.name + " unlocked! " + tier.reward;
+    document.getElementById("doneAchievement").style.display = "block";
+  } else {
+    document.getElementById("doneAchievement").style.display = "none";
+  }
   document.getElementById("deliveryDone").classList.add("show");
-  updateHeaderStats();
-  updateEarningsScreen();
+  updateHeaderStats(); updateWalletScreen(); renderRewards();
 }
 
 function resetDelivery() {
   document.getElementById("deliveryDone").classList.remove("show");
   document.getElementById("orderPanel").style.display = "none";
   document.getElementById("orderInput").value = "";
-  document.getElementById("otpInput").value   = "";
-  document.getElementById("gpsBtn").disabled  = true;
-  currentOrderId = null;
-  currentOrder   = null;
-  stage = 0;
-  pingCount = 0;
-  document.getElementById("pingCount").textContent = "0";
+  document.getElementById("otpInput").value = "";
+  document.getElementById("gpsBtn").disabled = true;
+  document.getElementById("gpsBtn").innerHTML = `📡 <span id="lbl_startGps">${T("startGps")}</span>`;
+  currentOrderId=null; currentOrder=null; stage=0; pingCount=0; podPhotoData=null;
+  document.getElementById("pingCount").textContent="0";
   if (isTracking) stopGPS();
   toast("Ready for next delivery 🏍");
-  log("Delivery complete — ready for next", "ok");
+  log("Delivery complete — ready", "ok");
 }
 
-/* ── GPS ───────────────────────────────────────────────────────── */
-function toggleGPS() {
-  isTracking ? stopGPS() : startGPS();
-}
+/* ── GPS ─────────────────────────────────────────────── */
+function toggleGPS() { isTracking ? stopGPS() : startGPS(); }
 
 function startGPS() {
   if (!navigator.geolocation) { toast("GPS not available", "err"); return; }
   if (!currentOrderId) { toast("Load an order first", "warn"); return; }
-
   isTracking = true;
-  const btn  = document.getElementById("gpsBtn");
-  btn.textContent = "⏹ Stop GPS Broadcasting";
+  const btn = document.getElementById("gpsBtn");
+  btn.innerHTML = `⏹ Stop GPS Broadcasting`;
   btn.classList.add("stop");
-  log("GPS started — high accuracy mode", "ok");
-
-  watchId = navigator.geolocation.watchPosition(
-    onGPSPosition, onGPSError,
-    { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
-  );
+  log("GPS started — high accuracy", "ok");
+  watchId = navigator.geolocation.watchPosition(onGPSPos, onGPSErr, {enableHighAccuracy:true,maximumAge:2000,timeout:10000});
 }
 
 function stopGPS() {
   isTracking = false;
-  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
   const btn = document.getElementById("gpsBtn");
-  btn.textContent = "📡 Start GPS Sharing";
+  btn.innerHTML = `📡 <span id="lbl_startGps">${T("startGps")}</span>`;
   btn.classList.remove("stop");
   log("GPS stopped", "warn");
   setSignal(socket?.connected ? 2 : 0);
 }
 
-function onGPSPosition(pos) {
-  const lat      = pos.coords.latitude;
-  const lng      = pos.coords.longitude;
-  const speedMs  = pos.coords.speed;
-  const accuracy = pos.coords.accuracy;
-  const speedKmh = speedMs != null && speedMs >= 0 ? speedMs * 3.6 : null;
+function onGPSPos(pos) {
+  const lat=pos.coords.latitude, lng=pos.coords.longitude;
+  const speedMs=pos.coords.speed, accuracy=pos.coords.accuracy;
+  const speedKmh = speedMs!=null && speedMs>=0 ? speedMs*3.6 : null;
+  lastLat=lat; lastLng=lng;
 
-  // Update live stats
-  document.getElementById("dispLat").textContent   = lat.toFixed(6);
-  document.getElementById("dispLng").textContent   = lng.toFixed(6);
-  document.getElementById("dispSpeed").textContent = speedKmh != null ? speedKmh.toFixed(1) + " km/h" : "0.0 km/h";
-  document.getElementById("dispAcc").textContent   = accuracy != null ? Math.round(accuracy) + " m" : "—";
+  document.getElementById("dispLat").textContent = lat.toFixed(6);
+  document.getElementById("dispLng").textContent = lng.toFixed(6);
+  document.getElementById("dispSpeed").textContent = speedKmh!=null ? speedKmh.toFixed(1)+" km/h" : "0.0 km/h";
+  document.getElementById("dispAcc").textContent = accuracy!=null ? Math.round(accuracy)+" m" : "—";
 
-  // Emit via socket
   if (socket?.connected) {
-    socket.emit("riderLocationUpdate", {
-      orderId:  currentOrderId,
-      lat, lng,
-      speed:    speedKmh,
-      accuracy: accuracy || 40,
-    });
+    socket.emit("riderLocationUpdate", {orderId:currentOrderId, lat, lng, speed:speedKmh, accuracy:accuracy||40});
     pingCount++;
     document.getElementById("pingCount").textContent = pingCount;
     flashPing();
-    setSignal(accuracy < 10 ? 4 : accuracy < 25 ? 3 : accuracy < 50 ? 2 : 1);
+    setSignal(accuracy<10?4:accuracy<25?3:accuracy<50?2:1);
   } else {
     setSignal(1);
-    log("⚠️ Socket offline — GPS not sent", "warn");
   }
 }
 
-function onGPSError(err) {
-  const msgs = { 1: "Permission denied", 2: "Position unavailable", 3: "GPS timeout" };
-  toast(msgs[err.code] || err.message, "err");
-  log("GPS error: " + (msgs[err.code] || err.message), "err");
+function onGPSErr(err) {
+  const m={1:"Permission denied",2:"Position unavailable",3:"GPS timeout"};
+  toast(m[err.code]||err.message,"err");
+  log("GPS error: "+(m[err.code]||err.message),"err");
 }
 
 function flashPing() {
-  const el = document.getElementById("pingFlash");
-  el.classList.add("active");
-  setTimeout(() => el.classList.remove("active"), 200);
+  const el=document.getElementById("pingFlash");
+  el.classList.add("active"); setTimeout(()=>el.classList.remove("active"),200);
 }
 
-/* ── EARNINGS / CHART ──────────────────────────────────────────── */
+/* ── CHAT ────────────────────────────────────────────── */
+function openChat(type) {
+  if (type==="customer" && !currentOrder) { toast("No active order","warn"); return; }
+  document.getElementById("chat"+type.charAt(0).toUpperCase()+type.slice(1)).classList.add("open");
+  renderChat(type);
+}
+function closeChat(type) { document.getElementById("chat"+type.charAt(0).toUpperCase()+type.slice(1)).classList.remove("open"); }
+
+function renderChat(type) {
+  const msgs = type==="customer" ? custMsgs : kitMsgs;
+  const el = document.getElementById(type==="customer"?"chatCustMsgs":"chatKitMsgs");
+  el.innerHTML = msgs.map(m=>`<div class="msg ${m.from}"><div class="msg-bubble">${m.text}</div><div class="msg-time">${m.time}</div></div>`).join("");
+  el.scrollTop = el.scrollHeight;
+}
+
+function sendChat(type) {
+  const inp = document.getElementById(type==="customer"?"chatCustInput":"chatKitInput");
+  const text = inp.value.trim(); if (!text) return;
+  addMsg(type,"rider",text); inp.value="";
+}
+
+function qr(type, text) { addMsg(type,"rider",text); }
+
+function addMsg(type, from, text) {
+  const now=new Date();
+  const time=(now.getHours()%12||12)+":"+String(now.getMinutes()).padStart(2,"0")+" "+(now.getHours()>=12?"PM":"AM");
+  const arr = type==="customer" ? custMsgs : kitMsgs;
+  arr.push({from, text, time}); renderChat(type);
+}
+
+/* ── NAVIGATION ─────────────────────────────────────── */
+function switchScreen(name) {
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
+  document.getElementById("screen"+name.charAt(0).toUpperCase()+name.slice(1)).classList.add("active");
+  document.getElementById("nav-"+name).classList.add("active");
+}
+
+/* ── STATS ───────────────────────────────────────────── */
+function updateHeaderStats() {
+  document.getElementById("todayEarn").textContent = "AED "+todayEarnings;
+  document.getElementById("todayDel").textContent  = todayDeliveries;
+  document.getElementById("pToday").textContent    = todayDeliveries;
+  document.getElementById("pWeek").textContent     = todayDeliveries;
+}
+
+function updateWalletScreen() {
+  document.getElementById("walletBal").textContent   = "AED "+todayEarnings;
+  document.getElementById("walletDelSub").textContent = todayDeliveries+" deliveries";
+  document.getElementById("wAvg").textContent = todayDeliveries ? "AED "+Math.floor(todayEarnings/todayDeliveries) : "AED 0";
+  const weekTotal = WEEK_DATA.reduce((a,b)=>a+b,0)+todayEarnings;
+  document.getElementById("wWeek").textContent = "AED "+weekTotal;
+}
+
 function renderChart() {
-  const row    = document.getElementById("chartRow");
-  const labels = document.getElementById("chartLabels");
-  const max    = Math.max(...WEEK_DATA, 1);
-
-  row.innerHTML = WEEK_DATA.map((v, i) => {
-    const pct = (v / max) * 100;
-    const isToday = i === 6;
-    return `<div class="chart-bar-wrap">
-      <div class="chart-bar ${isToday ? "today" : ""}" style="height:${pct}%"></div>
-    </div>`;
-  }).join("");
-
-  labels.innerHTML = WEEK_DAYS.map((d, i) =>
-    `<div style="flex:1;text-align:center;font-size:9px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`
+  const max=Math.max(...WEEK_DATA,1);
+  document.getElementById("chartRow").innerHTML = WEEK_DATA.map((v,i)=>
+    `<div class="cb-wrap"><div class="cb ${i===6?"today":""}" style="height:${(v/max)*100}%"></div></div>`
+  ).join("");
+  document.getElementById("chartLabels").innerHTML = WEEK_DAYS.map((d,i)=>
+    `<div style="flex:1;text-align:center;font-size:8.5px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`
   ).join("");
 }
 
-function updateEarningsScreen() {
-  const total = WEEK_DATA.reduce((a, b) => a + b, 0) + todayEarnings;
-  document.getElementById("earnHeroAmt").textContent  = "AED " + (todayEarnings || 0);
-  document.getElementById("earnHeroSub").textContent  = todayDeliveries + " deliveries completed";
-  document.getElementById("earnAvg").textContent      = todayDeliveries ? "AED " + Math.floor(todayEarnings / todayDeliveries) : "AED 0";
-  document.getElementById("earnWeek").textContent     = "AED " + (total + todayEarnings);
-}
-
-function updateHeaderStats() {
-  document.getElementById("todayEarn").textContent       = "AED " + todayEarnings;
-  document.getElementById("todayDeliveries").textContent = todayDeliveries;
-  document.getElementById("pToday").textContent          = todayDeliveries;
-  document.getElementById("pWeek").textContent           = todayDeliveries;
-}
-
-/* ── CHAT ──────────────────────────────────────────────────────── */
-function openChat() {
-  if (!currentOrder) { toast("No active order", "warn"); return; }
-  document.getElementById("chatSheet").classList.add("open");
-  renderChat();
-}
-
-function closeChat() {
-  document.getElementById("chatSheet").classList.remove("open");
-}
-
-function renderChat() {
-  const container = document.getElementById("chatMsgs");
-  container.innerHTML = chatMessages.map(m => `
-    <div class="msg ${m.from}">
-      <div class="msg-bubble">${m.text}</div>
-      <div class="msg-time">${m.time}</div>
-    </div>`).join("");
-  container.scrollTop = container.scrollHeight;
-}
-
-function sendChat() {
-  const input = document.getElementById("chatInput");
-  const text  = input.value.trim();
-  if (!text) return;
-  addChatMsg("rider", text);
-  input.value = "";
-}
-
-function quickReply(text) {
-  addChatMsg("rider", text);
-}
-
-function addChatMsg(from, text) {
-  const now  = new Date();
-  const time = now.getHours() % 12 || 12 + ":" +
-    String(now.getMinutes()).padStart(2,"0") + " " +
-    (now.getHours() >= 12 ? "PM" : "AM");
-  chatMessages.push({ from, text, time });
-  renderChat();
-}
-
-/* ── NAVIGATION ────────────────────────────────────────────────── */
-function switchScreen(name) {
-  document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
-  document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
-  document.getElementById("screen" + name.charAt(0).toUpperCase() + name.slice(1)).classList.add("active");
-  document.getElementById("nav-" + name).classList.add("active");
-}
-
-/* ── LOG ───────────────────────────────────────────────────────── */
-function log(msg, type = "") {
-  const wrap = document.getElementById("logWrap");
-  const now  = new Date();
-  const t    = String(now.getHours()).padStart(2,"0") + ":" +
-               String(now.getMinutes()).padStart(2,"0") + ":" +
-               String(now.getSeconds()).padStart(2,"0");
-  const div  = document.createElement("div");
-  div.className = "log-line " + type;
-  div.innerHTML = `<span class="log-time">${t}</span><span class="log-msg">${msg}</span>`;
+/* ── LOG ─────────────────────────────────────────────── */
+function log(msg, type="") {
+  const wrap=document.getElementById("logWrap");
+  const now=new Date();
+  const t=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0")+":"+String(now.getSeconds()).padStart(2,"0");
+  const div=document.createElement("div");
+  div.className="log-line "+type;
+  div.innerHTML=`<span class="lt">${t}</span><span class="lm">${msg}</span>`;
   wrap.prepend(div);
-  while (wrap.children.length > 60) wrap.removeChild(wrap.lastChild);
+  while(wrap.children.length>60) wrap.removeChild(wrap.lastChild);
 }
 
-/* ── TOAST ─────────────────────────────────────────────────────── */
-let toastTimer = null;
-function toast(msg, type = "") {
-  const el = document.getElementById("toast");
-  el.textContent = msg;
-  el.className   = "show " + type;
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = ""; }, 2800);
+/* ── TOAST ───────────────────────────────────────────── */
+let toastT=null;
+function toast(msg,type="") {
+  const el=document.getElementById("toast");
+  el.textContent=msg; el.className="show "+(type||"");
+  if(toastT) clearTimeout(toastT);
+  toastT=setTimeout(()=>{el.className="";},2800);
 }
+
+/* ── BOOT ────────────────────────────────────────────── */
+document.addEventListener("DOMContentLoaded", () => {
+  applyTranslations();
+  setLang(currentLang);
+  renderChart();
+  updateWalletScreen();
+  renderRewards();
+  loadDocDates();
+  startWithdrawTimer();
+  document.getElementById("orderInput").placeholder = "Order ID (e.g. 1)";
+  log("Magizham Rider App ready ✅", "ok");
+});
 </script>
 </body>
 </html>
