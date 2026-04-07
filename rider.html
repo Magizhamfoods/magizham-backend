@@ -10,760 +10,958 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
+/* ═══════════════════════════════════════════════════════════
+   MAGIZHAM RIDER v5.0
+   Design: Industrial precision + neon-on-dark
+   Fixes: CORS proxy, No Maps SDK, Simplified UX,
+          Auto GPS stages, FAB menu, Reduced animations,
+          GPS retry, Earnings popup, Navigation deep-links
+═══════════════════════════════════════════════════════════ */
 :root {
-  --bg:#060A08;--bg1:#0D1510;--bg2:#111D15;--bg3:#172420;
-  --neon:#00FF88;--neon2:#00CC6A;--neonDim:rgba(0,255,136,0.08);
-  --amber:#FFB800;--amberDim:rgba(255,184,0,0.1);
-  --red:#FF4455;--redDim:rgba(255,68,85,0.1);
-  --blue:#3B82F6;--blueDim:rgba(59,130,246,0.1);
-  --purple:#A855F7;--purpleDim:rgba(168,85,247,0.1);
-  --orange:#FF6B2C;--orangeDim:rgba(255,107,44,0.1);
-  --tx:#E8F5ED;--tx2:#7AA888;--tx3:#3A5545;
-  --bdr:rgba(0,255,136,0.08);--bdrAmt:rgba(255,184,0,0.15);
+  --bg:#060A08; --bg1:#0C1410; --bg2:#111C14; --bg3:#162019;
+  --neon:#00FF88; --neon2:#00CC6A; --neonDim:rgba(0,255,136,0.07);
+  --amber:#FFB800; --amberDim:rgba(255,184,0,0.09);
+  --red:#FF3347; --redDim:rgba(255,51,71,0.1);
+  --blue:#4A9EFF; --blueDim:rgba(74,158,255,0.09);
+  --orange:#FF6B2C; --tx:#E4F2EA; --tx2:#6E9E7C; --tx3:#2E4A39;
+  --bdr:rgba(0,255,136,0.07); --bdrAmt:rgba(255,184,0,0.13);
+  --r:18px; --r-sm:12px;
+  /* Animation toggle — set to 0 during active GPS to save CPU */
+  --anim-scale:1;
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
-body{font-family:"Nunito",sans-serif;background:var(--bg);color:var(--tx);min-height:100dvh;max-width:430px;margin:0 auto;overflow-x:hidden;}
-body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");opacity:0.4;}
-#app{display:flex;flex-direction:column;min-height:100dvh;position:relative;z-index:1;}
-#scrollArea{flex:1;overflow-y:auto;padding-bottom:90px;}
-#scrollArea::-webkit-scrollbar{display:none;}
-.syne{font-family:"Syne",sans-serif;}.mono{font-family:"Space Mono",monospace;}
+/* ── PERFORMANCE MODE: Kill heavy anims when GPS is tracking ── */
+body.gps-active { --anim-scale:0; }
+body.gps-active .glow-anim { animation:none !important; box-shadow:none !important; }
 
-/* HEADER */
-#header{position:sticky;top:0;z-index:100;background:linear-gradient(180deg,var(--bg) 80%,transparent);padding:16px 20px 10px;backdrop-filter:blur(12px);}
-.hdr-row{display:flex;align-items:center;gap:12px;}
-.rider-av{width:44px;height:44px;border-radius:13px;background:linear-gradient(135deg,var(--neon2),#005C30);display:flex;align-items:center;justify-content:center;font-size:21px;flex-shrink:0;box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px rgba(0,255,136,0.3);}
-.rider-info{flex:1;}
-.rider-nm{font-family:"Syne",sans-serif;font-size:16px;font-weight:800;color:var(--tx);line-height:1;}
-.rider-sub{font-size:11px;color:var(--tx2);margin-top:2px;}
-.online-tog{display:flex;align-items:center;gap:7px;background:var(--bg1);border:1.5px solid var(--bdr);border-radius:30px;padding:6px 12px 6px 8px;cursor:pointer;transition:all 0.3s;}
-.online-tog.active{border-color:rgba(0,255,136,0.3);background:rgba(0,255,136,0.06);}
-.tog-dot{width:9px;height:9px;border-radius:50%;background:var(--tx3);transition:all 0.3s;flex-shrink:0;}
-.online-tog.active .tog-dot{background:var(--neon);box-shadow:0 0 8px var(--neon);animation:livePulse 1.5s infinite;}
-.tog-lbl{font-size:11px;font-weight:800;color:var(--tx2);transition:color 0.3s;}
-.online-tog.active .tog-lbl{color:var(--neon);}
-@keyframes livePulse{0%,100%{box-shadow:0 0 6px var(--neon);}50%{box-shadow:0 0 14px var(--neon),0 0 24px rgba(0,255,136,0.3);}}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+html { font-size:16px; }
+body { font-family:"Nunito",sans-serif; background:var(--bg); color:var(--tx); min-height:100dvh; max-width:430px; margin:0 auto; overflow-x:hidden; }
+/* Subtle grain — pure CSS, zero JS cost */
+body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.028'/%3E%3C/svg%3E"); opacity:.35; }
+#app { display:flex; flex-direction:column; min-height:100dvh; position:relative; z-index:1; }
+#scrollArea { flex:1; overflow-y:auto; padding-bottom:86px; }
+#scrollArea::-webkit-scrollbar { display:none; }
+.syne { font-family:"Syne",sans-serif; }
+.mono { font-family:"Space Mono",monospace; }
 
-/* ── NEW: HEAT ALERT BANNER ── */
-#heatAlert{display:none;margin:8px 0 0;padding:10px 14px;background:linear-gradient(135deg,rgba(255,107,44,0.15),rgba(255,68,85,0.1));border:1.5px solid rgba(255,107,44,0.3);border-radius:12px;align-items:center;gap:10px;}
-#heatAlert.show{display:flex;}
-.heat-icon{font-size:22px;flex-shrink:0;animation:heatPulse 2s ease-in-out infinite;}
-@keyframes heatPulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.4);}}
-.heat-content{flex:1;}
-.heat-title{font-size:12px;font-weight:900;color:var(--orange);}
-.heat-sub{font-size:10px;color:var(--tx2);margin-top:1px;}
-.heat-action{background:var(--orange);color:#000;border:none;border-radius:10px;padding:5px 12px;font-size:10px;font-weight:800;cursor:pointer;font-family:"Nunito",sans-serif;white-space:nowrap;}
+/* ────── HEADER ────── */
+#hdr { position:sticky; top:0; z-index:100; background:linear-gradient(180deg,var(--bg) 75%,transparent);
+  padding:14px 18px 0; backdrop-filter:blur(14px); }
+.hdr-top { display:flex; align-items:center; gap:11px; }
+.av { width:42px; height:42px; border-radius:13px; background:linear-gradient(135deg,var(--neon2),#004A28);
+  display:flex; align-items:center; justify-content:center; font-size:20px; flex-shrink:0;
+  box-shadow:0 0 0 2px var(--bg),0 0 0 3.5px rgba(0,255,136,0.25); }
+.rider-info { flex:1; }
+.rider-name { font-family:"Syne",sans-serif; font-size:15px; font-weight:800; color:var(--tx); line-height:1; }
+.rider-sub  { font-size:10px; color:var(--tx2); margin-top:2px; }
+.tog { display:flex; align-items:center; gap:6px; background:var(--bg1); border:1.5px solid var(--bdr);
+  border-radius:28px; padding:5px 11px 5px 7px; cursor:pointer; transition:all .28s; }
+.tog.on { border-color:rgba(0,255,136,.28); background:rgba(0,255,136,.05); }
+.tog-dot { width:8px; height:8px; border-radius:50%; background:var(--tx3); transition:all .28s; flex-shrink:0; }
+.tog.on .tog-dot { background:var(--neon); animation:pulse 1.6s infinite; }
+.tog-lbl { font-size:10.5px; font-weight:800; color:var(--tx2); transition:color .28s; }
+.tog.on .tog-lbl { color:var(--neon); }
+@keyframes pulse { 0%,100%{box-shadow:0 0 5px var(--neon);}50%{box-shadow:0 0 12px var(--neon);} }
 
-/* ── NEW: WELFARE CHECK BANNER ── */
-#welfareAlert{display:none;position:fixed;inset:0;z-index:9999;background:rgba(255,68,85,0.12);backdrop-filter:blur(10px);align-items:center;justify-content:center;}
-#welfareAlert.open{display:flex;}
-.welfare-box{background:var(--bg1);border:2px solid var(--red);border-radius:22px;padding:28px;max-width:340px;width:90%;text-align:center;animation:welfareIn 0.4s cubic-bezier(.34,1.56,.64,1);}
-@keyframes welfareIn{from{transform:scale(0.8);opacity:0;}to{transform:scale(1);opacity:1;}}
-.welfare-icon{font-size:52px;margin-bottom:12px;animation:welfareIconPulse 0.8s ease-in-out infinite;}
-@keyframes welfareIconPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.08);}}
-.welfare-title{font-family:"Syne",sans-serif;font-size:20px;font-weight:800;color:var(--red);margin-bottom:6px;}
-.welfare-sub{font-size:12px;color:var(--tx2);margin-bottom:8px;line-height:1.5;}
-.welfare-timer{font-family:"Space Mono",monospace;font-size:36px;font-weight:700;color:var(--red);margin-bottom:20px;}
-.welfare-btns{display:flex;flex-direction:column;gap:9px;}
-.welfare-ok{padding:14px;border:none;border-radius:13px;background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;font-family:"Syne",sans-serif;font-size:14px;font-weight:800;cursor:pointer;}
-.welfare-sos{padding:14px;border:none;border-radius:13px;background:linear-gradient(135deg,var(--red),#7F0010);color:#fff;font-family:"Syne",sans-serif;font-size:14px;font-weight:800;cursor:pointer;}
+/* ── Heat banner ── */
+#heatBanner { display:none; margin:8px 0 0; padding:9px 13px; border-radius:var(--r-sm);
+  background:linear-gradient(135deg,rgba(255,107,44,.14),rgba(255,51,71,.08));
+  border:1.5px solid rgba(255,107,44,.32); align-items:center; gap:9px; }
+#heatBanner.show { display:flex; }
+.heat-lhs { font-size:10px; flex:1; }
+.heat-temp { font-family:"Space Mono",monospace; font-size:13px; font-weight:700; color:var(--orange); }
+.heat-msg  { font-size:9.5px; color:var(--tx2); margin-top:2px; }
+.heat-cta  { font-size:9.5px; font-weight:800; color:#000; background:var(--orange); border:none;
+  border-radius:8px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
 
-/* TICKER */
-#ticker{display:flex;align-items:center;gap:0;margin-top:10px;background:var(--bg1);border:1px solid var(--bdrAmt);border-radius:12px;overflow:hidden;}
-.tick-item{flex:1;text-align:center;padding:9px 6px;}
-.tick-val{font-family:"Space Mono",monospace;font-size:15px;font-weight:700;color:var(--amber);line-height:1;}
-.tick-lbl{font-size:8px;color:var(--tx2);margin-top:2px;text-transform:uppercase;letter-spacing:0.06em;}
-.tick-div{width:1px;height:32px;background:var(--bdrAmt);}
+/* ── Ticker ── */
+#ticker { display:flex; margin:8px 0 0; background:var(--bg1); border:1px solid var(--bdrAmt);
+  border-radius:var(--r-sm); overflow:hidden; }
+.ti { flex:1; text-align:center; padding:8px 4px; }
+.tv { font-family:"Space Mono",monospace; font-size:14px; font-weight:700; color:var(--amber); }
+.tl { font-size:7.5px; color:var(--tx2); margin-top:2px; text-transform:uppercase; letter-spacing:.06em; }
+.td { width:1px; background:var(--bdrAmt); }
 
-/* VOICE BAR */
-#voiceBar{display:none;background:rgba(0,255,136,0.08);border:1px solid rgba(0,255,136,0.2);border-radius:12px;margin:8px 0 0;padding:8px 14px;align-items:center;gap:10px;}
-#voiceBar.active{display:flex;}
-.voice-waves{display:flex;align-items:center;gap:3px;height:20px;}
-.wave-bar{width:3px;background:var(--neon);border-radius:2px;animation:waveAnim 0.8s ease-in-out infinite;}
-.wave-bar:nth-child(1){height:6px;animation-delay:0s;}.wave-bar:nth-child(2){height:14px;animation-delay:0.1s;}.wave-bar:nth-child(3){height:20px;animation-delay:0.2s;}.wave-bar:nth-child(4){height:14px;animation-delay:0.3s;}.wave-bar:nth-child(5){height:6px;animation-delay:0.4s;}
-@keyframes waveAnim{0%,100%{transform:scaleY(0.5);}50%{transform:scaleY(1);}}
-.voice-text{font-size:12px;font-weight:700;color:var(--neon);flex:1;}
-.voice-cancel{font-size:14px;cursor:pointer;color:var(--tx3);}
+/* ── Voice bar ── */
+#voiceBar { display:none; margin:7px 0 0; padding:7px 13px; background:rgba(0,255,136,.07);
+  border:1px solid rgba(0,255,136,.18); border-radius:var(--r-sm); align-items:center; gap:9px; }
+#voiceBar.on { display:flex; }
+.wv-row { display:flex; align-items:center; gap:2.5px; height:18px; }
+.wv { width:3px; border-radius:2px; background:var(--neon); animation:wa .75s ease-in-out infinite; }
+.wv:nth-child(1){height:5px;animation-delay:0s}.wv:nth-child(2){height:13px;animation-delay:.08s}
+.wv:nth-child(3){height:18px;animation-delay:.16s}.wv:nth-child(4){height:13px;animation-delay:.24s}
+.wv:nth-child(5){height:5px;animation-delay:.32s}
+@keyframes wa{0%,100%{transform:scaleY(.45);}50%{transform:scaleY(1);}}
+.vt { font-size:11px; font-weight:700; color:var(--neon); flex:1; }
+.vc { font-size:13px; cursor:pointer; color:var(--tx3); padding:2px 5px; }
 
-/* CARDS */
-.card{background:var(--bg1);border:1px solid var(--bdr);border-radius:18px;padding:16px;margin:0 14px 12px;position:relative;overflow:hidden;}
-.card::before{content:"";position:absolute;inset:0;border-radius:18px;background:radial-gradient(ellipse at top left,rgba(0,255,136,0.03) 0%,transparent 60%);pointer-events:none;}
-.card-lbl{font-size:9.5px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:12px;display:flex;align-items:center;gap:6px;}
-.card-lbl::before{content:"";width:14px;height:2px;background:var(--neon);border-radius:1px;}
+/* ── Offline bar ── */
+#offlineBar { display:none; margin:6px 0 0; padding:6px 12px; background:var(--amberDim);
+  border:1px solid var(--bdrAmt); border-radius:9px; font-size:10px; font-weight:800; color:var(--amber);
+  text-align:center; }
+#offlineBar.show { display:block; }
 
-/* LANG SWITCHER */
-.lang-row{display:flex;gap:6px;margin:8px 0 0;}
-.lang-btn{flex:1;padding:8px;border:1.5px solid var(--bdr);border-radius:10px;background:var(--bg2);color:var(--tx3);font-size:11px;font-weight:700;cursor:pointer;text-align:center;transition:all 0.2s;font-family:"Nunito",sans-serif;}
-.lang-btn.active{border-color:var(--neon);color:var(--neon);background:var(--neonDim);}
+/* ── Lang strip ── */
+.lang-strip { display:flex; gap:5px; margin:7px 0 10px; }
+.lb { flex:1; padding:7px; border:1.5px solid var(--bdr); border-radius:9px; background:var(--bg2);
+  color:var(--tx3); font-size:10.5px; font-weight:700; cursor:pointer; text-align:center;
+  transition:all .18s; font-family:"Nunito",sans-serif; }
+.lb.on { border-color:var(--neon); color:var(--neon); background:var(--neonDim); }
 
-/* ORDER LOADER */
-.load-row{display:flex;gap:8px;}
-.load-input{flex:1;background:var(--bg2);border:1.5px solid var(--bdr);border-radius:12px;padding:12px 14px;color:var(--tx);font-size:16px;font-weight:700;outline:none;font-family:"Space Mono",monospace;transition:border-color 0.2s;}
-.load-input:focus{border-color:rgba(0,255,136,0.4);}
-.load-input::placeholder{color:var(--tx3);font-size:12px;}
-.btn-load{background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;border:none;border-radius:12px;padding:12px 18px;font-size:13px;font-weight:800;cursor:pointer;font-family:"Syne",sans-serif;box-shadow:0 4px 14px rgba(0,255,136,0.25);}
-.btn-load:active{transform:scale(0.97);}
+/* ────── CARDS ────── */
+.card { background:var(--bg1); border:1px solid var(--bdr); border-radius:var(--r); padding:15px;
+  margin:0 13px 11px; position:relative; overflow:hidden; }
+.card::after { content:""; position:absolute; inset:0; border-radius:var(--r);
+  background:radial-gradient(ellipse at top left,rgba(0,255,136,.028) 0%,transparent 58%); pointer-events:none; }
+.clbl { font-size:9px; font-weight:700; color:var(--tx3); text-transform:uppercase; letter-spacing:.08em;
+  margin-bottom:11px; display:flex; align-items:center; gap:5px; }
+.clbl::before { content:""; width:13px; height:2px; background:var(--neon); border-radius:1px; }
 
-/* ── NEW: OFFLINE INDICATOR ── */
-#offlineIndicator{display:none;background:var(--amberDim);border:1px solid var(--bdrAmt);border-radius:10px;padding:6px 12px;margin:6px 14px 0;text-align:center;font-size:11px;font-weight:800;color:var(--amber);}
-#offlineIndicator.show{display:block;}
+/* ────── ORDER SECTION ────── */
+.order-hero { background:linear-gradient(135deg,var(--bg2),var(--bg3)); border-radius:13px;
+  padding:13px; margin-bottom:11px; border:1px solid var(--bdrAmt); }
+.ord-id { font-family:"Space Mono",monospace; font-size:9.5px; font-weight:700; color:var(--amber);
+  background:var(--amberDim); border:1px solid var(--bdrAmt); border-radius:6px; padding:2px 8px;
+  display:inline-block; margin-bottom:7px; }
+.ord-name { font-family:"Syne",sans-serif; font-size:18px; font-weight:800; color:var(--tx); line-height:1.1; }
+.ord-addr { font-size:10.5px; color:var(--tx2); margin-top:4px; line-height:1.5; }
+.ord-floor { font-size:10px; color:var(--neon); margin-top:2px; font-weight:700; display:none; }
+.meta-row { display:flex; gap:6px; margin-top:9px; }
+.mc { flex:1; background:var(--bg); border-radius:8px; padding:7px; text-align:center; border:1px solid var(--bdr); }
+.mv { font-family:"Space Mono",monospace; font-size:12.5px; font-weight:700; color:var(--neon); }
+.ml { font-size:7.5px; color:var(--tx3); margin-top:1px; }
 
-/* ORDER PANEL */
-#orderPanel{display:none;}
-.order-hero{background:linear-gradient(135deg,var(--bg2),var(--bg3));border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid var(--bdrAmt);}
-.ord-badge{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;color:var(--amber);background:var(--amberDim);border:1px solid var(--bdrAmt);border-radius:7px;padding:2px 9px;display:inline-block;margin-bottom:8px;}
-.ord-cust{font-family:"Syne",sans-serif;font-size:19px;font-weight:800;color:var(--tx);line-height:1.1;}
-.ord-addr{font-size:11px;color:var(--tx2);margin-top:4px;line-height:1.5;}
-.ord-floor{font-size:11px;color:var(--neon);margin-top:3px;font-weight:700;}
-.meta-row{display:flex;gap:7px;margin-top:10px;}
-.meta-c{flex:1;background:var(--bg);border-radius:9px;padding:7px;text-align:center;border:1px solid var(--bdr);}
-.meta-c .mv{font-family:"Space Mono",monospace;font-size:13px;font-weight:700;color:var(--neon);}
-.meta-c .ml{font-size:8px;color:var(--tx3);margin-top:1px;}
+/* ── Navigate button (BIG, prominent) ── */
+#navBtn { width:100%; padding:13px; border:none; border-radius:var(--r-sm); margin-bottom:10px;
+  background:linear-gradient(135deg,var(--blue),#1A5FBF); color:#fff; font-family:"Syne",sans-serif;
+  font-size:14px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  gap:8px; transition:transform .2s; }
+#navBtn:active { transform:scale(.97); }
+#navBtn.hide { display:none; }
 
-/* ── NEW: BUILDING ENTRY CARD ── */
-#buildingEntryCard{display:none;background:linear-gradient(135deg,var(--bg2),var(--bg3));border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid rgba(59,130,246,0.25);}
-.bld-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
-.bld-icon{font-size:20px;}
-.bld-title{font-family:"Syne",sans-serif;font-size:13px;font-weight:800;color:var(--blue);}
-.bld-name{font-size:10px;color:var(--tx2);margin-top:1px;}
-.entry-steps{display:flex;flex-direction:column;gap:6px;}
-.entry-step{display:flex;align-items:flex-start;gap:9px;padding:7px 9px;background:var(--bg);border-radius:9px;border:1px solid var(--bdr);}
-.entry-num{width:20px;height:20px;border-radius:50%;background:rgba(59,130,246,0.2);border:1.5px solid var(--blue);display:flex;align-items:center;justify-content:center;font-family:"Space Mono",monospace;font-size:9px;font-weight:700;color:var(--blue);flex-shrink:0;margin-top:1px;}
-.entry-txt{font-size:11px;color:var(--tx2);line-height:1.5;flex:1;}
-.entry-tip{font-size:10px;color:var(--neon);font-weight:700;margin-top:2px;}
-.proximity-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);border-radius:20px;padding:3px 9px;font-size:9px;font-weight:800;color:var(--neon);margin-bottom:8px;}
-.no-entry-found{font-size:11px;color:var(--tx3);text-align:center;padding:8px;font-style:italic;}
+/* ── Auto-stage hint ── */
+#autoStageHint { display:none; background:rgba(0,255,136,.08); border:1.5px solid rgba(0,255,136,.22);
+  border-radius:11px; padding:10px 13px; margin-bottom:10px; }
+#autoStageHint.show { display:flex; align-items:center; gap:9px; }
+.ash-icon { font-size:20px; flex-shrink:0; }
+.ash-body { flex:1; }
+.ash-title { font-size:12px; font-weight:800; color:var(--neon); }
+.ash-sub   { font-size:10px; color:var(--tx2); margin-top:2px; }
+.ash-btn   { background:var(--neon2); color:#000; border:none; border-radius:9px; padding:7px 13px;
+  font-family:"Syne",sans-serif; font-size:11px; font-weight:800; cursor:pointer; flex-shrink:0; }
 
-/* LAST METER NAV */
-#lastMeterNav{display:none;background:linear-gradient(135deg,var(--bg2),var(--bg3));border-radius:14px;padding:14px;margin-bottom:12px;border:1px solid rgba(59,130,246,0.2);}
-.lmn-title{font-family:"Syne",sans-serif;font-size:13px;font-weight:800;color:var(--blue);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
-.lmn-step{display:flex;align-items:flex-start;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,0.04);}
-.lmn-step:last-child{border:none;}
-.lmn-num{width:22px;height:22px;border-radius:50%;background:rgba(59,130,246,0.2);border:1.5px solid var(--blue);display:flex;align-items:center;justify-content:center;font-family:"Space Mono",monospace;font-size:10px;font-weight:700;color:var(--blue);flex-shrink:0;}
-.lmn-txt{font-size:12px;color:var(--tx2);line-height:1.4;}
+/* ── Building entry ── */
+#bldCard { display:none; background:linear-gradient(135deg,var(--bg2),var(--bg3));
+  border:1.5px solid rgba(74,158,255,.22); border-radius:13px; padding:13px; margin-bottom:11px; }
+#bldCard.show { display:block; }
+.bld-head { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+.bld-badge { font-size:8.5px; font-weight:800; color:var(--blue); background:rgba(74,158,255,.12);
+  border:1px solid rgba(74,158,255,.2); border-radius:5px; padding:2px 7px; }
+.bld-name  { font-family:"Syne",sans-serif; font-size:13px; font-weight:800; color:var(--blue); }
+.bld-steps { display:flex; flex-direction:column; gap:5px; }
+.bs { display:flex; align-items:flex-start; gap:9px; background:var(--bg); border-radius:8px;
+  padding:8px 10px; border:1px solid var(--bdr); }
+.bs-n { width:19px; height:19px; border-radius:50%; background:rgba(74,158,255,.15);
+  border:1.5px solid var(--blue); display:flex; align-items:center; justify-content:center;
+  font-family:"Space Mono",monospace; font-size:8.5px; font-weight:700; color:var(--blue); flex-shrink:0; margin-top:1px; }
+.bs-txt { font-size:11px; color:var(--tx2); line-height:1.45; }
+.bs-tip { font-size:9.5px; color:var(--neon); font-weight:700; margin-top:2px; }
 
-/* ITEMS */
-.items-list{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
-.item-row{display:flex;align-items:center;gap:9px;background:var(--bg2);border-radius:9px;padding:9px 11px;border:1px solid var(--bdr);}
-.item-dot{width:7px;height:7px;border-radius:50%;background:var(--neon);flex-shrink:0;}
-.item-nm{flex:1;font-size:12px;font-weight:700;color:var(--tx);}
-.item-qty{font-family:"Space Mono",monospace;font-size:11px;color:var(--tx2);}
+/* ── Items ── */
+.items-list { display:flex; flex-direction:column; gap:4px; margin-bottom:11px; }
+.item-row { display:flex; align-items:center; gap:8px; background:var(--bg2);
+  border-radius:8px; padding:8px 10px; border:1px solid var(--bdr); }
+.idot { width:6px; height:6px; border-radius:50%; background:var(--neon); flex-shrink:0; }
+.inm { flex:1; font-size:11.5px; font-weight:700; color:var(--tx); }
+.iqty { font-family:"Space Mono",monospace; font-size:10.5px; color:var(--tx2); }
 
-/* PIPELINE */
-.pipeline{display:flex;align-items:center;margin:14px 0;}
-.pipe-step{flex:1;display:flex;flex-direction:column;align-items:center;position:relative;}
-.pipe-step::after{content:"";position:absolute;top:13px;left:50%;width:100%;height:2px;background:var(--bg2);z-index:0;transition:background 0.5s;}
-.pipe-step:last-child::after{display:none;}
-.pipe-step.done::after{background:var(--neon2);}
-.pipe-dot{width:26px;height:26px;border-radius:50%;background:var(--bg2);border:2px solid var(--bg3);display:flex;align-items:center;justify-content:center;font-size:10px;position:relative;z-index:1;transition:all 0.4s;}
-.pipe-step.done .pipe-dot{background:var(--neon2);border-color:var(--neon2);}
-.pipe-step.active .pipe-dot{background:var(--bg);border-color:var(--neon);box-shadow:0 0 0 4px rgba(0,255,136,0.15),0 0 14px rgba(0,255,136,0.3);animation:pipePulse 1.5s infinite;}
-@keyframes pipePulse{0%,100%{box-shadow:0 0 0 4px rgba(0,255,136,0.15);}50%{box-shadow:0 0 0 8px rgba(0,255,136,0.07),0 0 18px rgba(0,255,136,0.25);}}
-.pipe-lbl{font-size:8px;font-weight:700;color:var(--tx3);margin-top:4px;text-align:center;transition:color 0.3s;}
-.pipe-step.active .pipe-lbl{color:var(--neon);}
-.pipe-step.done .pipe-lbl{color:var(--neon2);}
+/* ── Pipeline ── */
+.pipeline { display:flex; align-items:center; margin:12px 0; }
+.ps { flex:1; display:flex; flex-direction:column; align-items:center; position:relative; }
+.ps::after { content:""; position:absolute; top:12px; left:50%; width:100%; height:2px;
+  background:var(--bg2); z-index:0; transition:background .45s; }
+.ps:last-child::after { display:none; }
+.ps.done::after { background:var(--neon2); }
+.pd { width:24px; height:24px; border-radius:50%; background:var(--bg2); border:2px solid var(--bg3);
+  display:flex; align-items:center; justify-content:center; font-size:9px;
+  position:relative; z-index:1; transition:all .35s; }
+.ps.done .pd { background:var(--neon2); border-color:var(--neon2); }
+.ps.active .pd { background:var(--bg); border-color:var(--neon); }
+/* Only pulse when not in GPS performance mode */
+body:not(.gps-active) .ps.active .pd { animation:ppulse 1.6s infinite; }
+@keyframes ppulse { 0%,100%{box-shadow:0 0 0 3px rgba(0,255,136,.14);}50%{box-shadow:0 0 0 7px rgba(0,255,136,.06),0 0 15px rgba(0,255,136,.22);} }
+.pl { font-size:7.5px; font-weight:700; color:var(--tx3); margin-top:3px; text-align:center; transition:color .28s; }
+.ps.active .pl { color:var(--neon); }
+.ps.done .pl   { color:var(--neon2); }
 
-/* ACTION BTN */
-.btn-action{width:100%;padding:16px;border:none;border-radius:14px;font-family:"Syne",sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:all 0.25s;margin-bottom:9px;position:relative;overflow:hidden;}
-.btn-action::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,0.08) 0%,transparent);pointer-events:none;}
-.btn-action.go{background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;box-shadow:0 5px 20px rgba(0,255,136,0.28);}
-.btn-action.amber{background:linear-gradient(135deg,#CC8A00,#7A5200);color:#fff;box-shadow:0 5px 20px rgba(255,184,0,0.22);}
-.btn-action.done{background:linear-gradient(135deg,#00A855,#005C30);color:#fff;box-shadow:0 5px 20px rgba(0,168,85,0.28);}
-.btn-action:active{transform:scale(0.98);}
+/* ── Action button ── */
+.act-btn { width:100%; padding:15px; border:none; border-radius:13px;
+  font-family:"Syne",sans-serif; font-size:14.5px; font-weight:800;
+  cursor:pointer; transition:transform .2s; margin-bottom:8px; position:relative; overflow:hidden; }
+.act-btn::after { content:""; position:absolute; inset:0;
+  background:linear-gradient(180deg,rgba(255,255,255,.07) 0%,transparent); pointer-events:none; }
+.act-btn.go   { background:linear-gradient(135deg,var(--neon2),#004A25); color:#000; box-shadow:0 5px 18px rgba(0,255,136,.25); }
+.act-btn.warn { background:linear-gradient(135deg,#CC8A00,#7A4F00); color:#fff; box-shadow:0 5px 18px rgba(255,184,0,.2); }
+.act-btn.done { background:linear-gradient(135deg,#00A050,#005228); color:#fff; }
+.act-btn:active { transform:scale(.97); }
 
-/* OTP + POD */
-#otpSection{display:none;margin-bottom:12px;}
-.otp-hint{font-size:11px;color:var(--tx2);margin-bottom:9px;text-align:center;}
-.otp-row{display:flex;gap:9px;}
-.otp-input{flex:1;background:var(--bg2);border:2px solid rgba(255,184,0,0.3);border-radius:13px;padding:13px;color:var(--amber);font-family:"Space Mono",monospace;font-size:26px;font-weight:700;text-align:center;letter-spacing:12px;outline:none;}
-.otp-input:focus{border-color:var(--amber);}
-.btn-verify{background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;border:none;border-radius:13px;padding:13px 20px;font-family:"Syne",sans-serif;font-size:13px;font-weight:800;cursor:pointer;}
-#podSection{display:none;margin-bottom:12px;}
-.pod-hint{font-size:11px;color:var(--tx2);margin-bottom:9px;text-align:center;}
-.pod-preview{width:100%;height:160px;border-radius:12px;background:var(--bg2);border:2px dashed rgba(0,255,136,0.2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;margin-bottom:8px;overflow:hidden;position:relative;}
-.pod-preview img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;}
-.pod-preview .pod-icon{font-size:32px;position:relative;z-index:1;}
-.pod-preview .pod-lbl{font-size:11px;color:var(--tx3);position:relative;z-index:1;}
-#podFileInput{display:none;}
+/* ── OTP ── */
+#otpSec { display:none; margin-bottom:11px; }
+.otp-h { font-size:10.5px; color:var(--tx2); margin-bottom:8px; text-align:center; }
+.otp-row { display:flex; gap:8px; }
+.otp-in { flex:1; background:var(--bg2); border:2px solid rgba(255,184,0,.28);
+  border-radius:12px; padding:12px; color:var(--amber); font-family:"Space Mono",monospace;
+  font-size:26px; font-weight:700; text-align:center; letter-spacing:10px; outline:none; }
+.otp-in:focus { border-color:var(--amber); }
+.otp-btn { background:linear-gradient(135deg,var(--amber),#CC8A00); color:#000; border:none;
+  border-radius:12px; padding:12px 18px; font-family:"Syne",sans-serif; font-size:12px; font-weight:800; cursor:pointer; }
 
-/* CONTACT ROW */
-.contact-row{display:flex;gap:8px;margin-top:5px;}
-.btn-contact{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:11px;border-radius:13px;border:1.5px solid var(--bdr);background:var(--bg2);cursor:pointer;text-decoration:none;font-size:12px;font-weight:800;color:var(--tx2);transition:all 0.2s;font-family:"Nunito",sans-serif;}
-.btn-contact.call{border-color:rgba(0,255,136,0.2);color:var(--neon);}
-.btn-contact.chat{border-color:rgba(255,184,0,0.2);color:var(--amber);}
-.btn-contact.kitchen{border-color:rgba(59,130,246,0.2);color:var(--blue);}
-.btn-contact:active{transform:scale(0.97);}
+/* ── PoD ── */
+#podSec { display:none; margin-bottom:11px; }
+.pod-h { font-size:10.5px; color:var(--tx2); margin-bottom:8px; text-align:center; }
+.pod-prev { width:100%; height:150px; border-radius:11px; background:var(--bg2);
+  border:2px dashed rgba(0,255,136,.18); display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:5px; cursor:pointer; overflow:hidden; position:relative; margin-bottom:7px; }
+.pod-prev img { width:100%; height:100%; object-fit:cover; position:absolute; inset:0; }
+.pod-ico { font-size:30px; position:relative; z-index:1; }
+.pod-lbl { font-size:10px; color:var(--tx3); position:relative; z-index:1; }
+#podFile { display:none; }
+#podSubmit { display:none; }
 
-/* GPS BTN */
-#gpsBtn{width:calc(100% - 28px);margin:0 14px 12px;padding:17px;border:none;border-radius:16px;font-family:"Syne",sans-serif;font-size:16px;font-weight:800;cursor:pointer;transition:all 0.3s;position:relative;overflow:hidden;background:linear-gradient(135deg,var(--neon2),#003D1E);color:#000;box-shadow:0 7px 26px rgba(0,255,136,0.22);}
-#gpsBtn.stop{background:linear-gradient(135deg,#CC1122,#5A0008);color:#fff;box-shadow:0 7px 26px rgba(255,68,85,0.22);}
-#gpsBtn:disabled{opacity:0.38;cursor:not-allowed;}
-#gpsBtn::before{content:"";position:absolute;top:0;left:-100%;width:60%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent);animation:shimmer 2.5s infinite;}
-#gpsBtn.stop::before{animation:none;}
-@keyframes shimmer{to{left:150%;}}
+/* ── Contact row ── */
+.cta-row { display:flex; gap:7px; margin-top:5px; }
+.ctb { flex:1; display:flex; align-items:center; justify-content:center; gap:5px; padding:10px;
+  border-radius:12px; border:1.5px solid var(--bdr); background:var(--bg2); cursor:pointer;
+  text-decoration:none; font-size:11.5px; font-weight:800; color:var(--tx2); transition:transform .18s;
+  font-family:"Nunito",sans-serif; }
+.ctb.call    { border-color:rgba(0,255,136,.18); color:var(--neon); }
+.ctb.msg     { border-color:rgba(255,184,0,.18); color:var(--amber); }
+.ctb.kitchen { border-color:rgba(74,158,255,.18); color:var(--blue); }
+.ctb:active  { transform:scale(.96); }
 
-/* STATS */
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
-.stat-box{background:var(--bg2);border-radius:12px;padding:11px;border:1px solid var(--bdr);}
-.stat-lbl{font-size:8.5px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:4px;}
-.stat-val{font-family:"Space Mono",monospace;font-size:15px;font-weight:700;color:var(--neon);line-height:1;}
-.stat-val.amber{color:var(--amber);}
-.signal-bars{display:flex;align-items:flex-end;gap:2px;height:17px;}
-.bar{width:4px;border-radius:2px;background:var(--tx3);transition:background 0.3s;}
-.bar.lit{background:var(--neon);}
-.bar:nth-child(1){height:5px;}.bar:nth-child(2){height:9px;}.bar:nth-child(3){height:13px;}.bar:nth-child(4){height:17px;}
+/* ── GPS button ── */
+#gpsBtn { width:calc(100% - 26px); margin:0 13px 11px; padding:16px; border:none;
+  border-radius:15px; font-family:"Syne",sans-serif; font-size:15px; font-weight:800;
+  cursor:pointer; transition:all .28s; position:relative; overflow:hidden;
+  background:linear-gradient(135deg,var(--neon2),#003D1C); color:#000;
+  box-shadow:0 6px 22px rgba(0,255,136,.2); }
+#gpsBtn.stop { background:linear-gradient(135deg,#BB1020,#5A0008); color:#fff; box-shadow:0 6px 22px rgba(255,51,71,.2); }
+#gpsBtn:disabled { opacity:.35; cursor:not-allowed; }
+/* Shimmer only when not in GPS performance mode */
+body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; left:-100%; width:55%;
+  height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.11),transparent);
+  animation:shim 2.8s infinite; }
+@keyframes shim { to{left:160%;} }
 
-/* LOG */
-.log-wrap{max-height:110px;overflow-y:auto;}
-.log-wrap::-webkit-scrollbar{display:none;}
-.log-line{font-family:"Space Mono",monospace;font-size:10px;color:var(--tx3);padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;gap:7px;}
-.log-line .lt{color:var(--tx3);flex-shrink:0;}
-.log-line.ok .lm{color:var(--neon);}
-.log-line.warn .lm{color:var(--amber);}
-.log-line.err .lm{color:var(--red);}
-.log-line .lm{flex:1;}
+/* ── Stats grid ── */
+.sg { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.sb { background:var(--bg2); border-radius:11px; padding:10px; border:1px solid var(--bdr); }
+.sl { font-size:8px; font-weight:700; color:var(--tx3); text-transform:uppercase; letter-spacing:.07em; margin-bottom:3px; }
+.sv { font-family:"Space Mono",monospace; font-size:14.5px; font-weight:700; color:var(--neon); }
+.sv.a { color:var(--amber); }
+.sig-bars { display:flex; align-items:flex-end; gap:2px; height:16px; }
+.bar { width:4px; border-radius:2px; background:var(--tx3); transition:background .28s; }
+.bar.lit { background:var(--neon); }
+.bar:nth-child(1){height:4px}.bar:nth-child(2){height:8px}.bar:nth-child(3){height:12px}.bar:nth-child(4){height:16px}
 
-/* PING FLASH */
-#pingFlash{position:fixed;top:0;right:0;left:0;height:2px;background:var(--neon);transform:scaleX(0);transform-origin:left;transition:transform 0.1s;z-index:9999;pointer-events:none;}
-#pingFlash.active{transform:scaleX(1);}
+/* ── Log ── */
+.log-w { max-height:100px; overflow-y:auto; }
+.log-w::-webkit-scrollbar { display:none; }
+.ll { font-family:"Space Mono",monospace; font-size:9.5px; color:var(--tx3);
+  padding:2px 0; border-bottom:1px solid rgba(255,255,255,.028); display:flex; gap:6px; }
+.lt { color:var(--tx3); flex-shrink:0; }
+.lm { flex:1; }
+.ll.ok  .lm { color:var(--neon); }
+.ll.w   .lm { color:var(--amber); }
+.ll.err .lm { color:var(--red); }
 
-/* BOTTOM NAV */
-#bottomNav{position:fixed;bottom:0;left:0;right:0;max-width:430px;margin:0 auto;background:rgba(10,15,13,0.97);backdrop-filter:blur(20px);border-top:1px solid var(--bdr);padding:7px 0 18px;display:flex;z-index:200;}
-.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;cursor:pointer;padding:5px 2px;position:relative;}
-.nav-icon{font-size:19px;transition:filter 0.2s;}
-.nav-lbl{font-size:9px;font-weight:700;color:var(--tx3);transition:color 0.2s;}
-.nav-btn.active .nav-icon{filter:drop-shadow(0 0 6px var(--neon));}
-.nav-btn.active .nav-lbl{color:var(--neon);}
-.nav-ind{position:absolute;bottom:-7px;width:18px;height:2.5px;background:var(--neon);border-radius:2px;transform:scaleX(0);transition:transform 0.3s cubic-bezier(.34,1.56,.64,1);}
-.nav-btn.active .nav-ind{transform:scaleX(1);}
+/* ── Ping flash ── */
+#pf { position:fixed; top:0; left:0; right:0; height:2px; background:var(--neon);
+  transform:scaleX(0); transform-origin:left; transition:transform .08s; z-index:9999; pointer-events:none; }
+#pf.on { transform:scaleX(1); }
 
-/* SCREENS */
-.screen{display:none;}.screen.active{display:block;}
-.screen-title{font-family:"Syne",sans-serif;font-size:19px;font-weight:800;color:var(--tx);margin:16px 14px 12px;}
+/* ────── SCREENS ────── */
+.screen { display:none; } .screen.active { display:block; }
+.screen-title { font-family:"Syne",sans-serif; font-size:18px; font-weight:800;
+  color:var(--tx); margin:15px 13px 11px; }
 
-/* WALLET SCREEN */
-.wallet-hero{margin:0 14px 12px;padding:22px;background:linear-gradient(135deg,#0D2A18,#0A1A10);border-radius:20px;border:1px solid rgba(255,184,0,0.2);text-align:center;position:relative;overflow:hidden;}
-.wallet-hero::before{content:"";position:absolute;top:-30px;right:-30px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,rgba(255,184,0,0.08),transparent);}
-.wallet-bal{font-family:"Space Mono",monospace;font-size:40px;font-weight:700;color:var(--amber);line-height:1;margin-bottom:3px;}
-.wallet-sub{font-size:12px;color:var(--tx2);}
-.wallet-chips{display:flex;gap:7px;margin-top:14px;}
-.w-chip{flex:1;background:rgba(255,255,255,0.04);border-radius:11px;padding:9px 5px;text-align:center;border:1px solid var(--bdr);}
-.w-chip .wv{font-family:"Space Mono",monospace;font-size:14px;font-weight:700;color:var(--neon);}
-.w-chip .wl{font-size:8px;color:var(--tx3);margin-top:2px;}
-.btn-withdraw{width:calc(100% - 28px);margin:0 14px 12px;padding:16px;border:none;border-radius:14px;font-family:"Syne",sans-serif;font-size:15px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;box-shadow:0 5px 20px rgba(255,184,0,0.28);transition:all 0.2s;}
-.btn-withdraw:active{transform:scale(0.98);}
-.btn-withdraw:disabled{opacity:0.4;cursor:not-allowed;}
+/* ── Wallet ── */
+.w-hero { margin:0 13px 11px; padding:20px; background:linear-gradient(135deg,#0C2616,#090F0B);
+  border-radius:19px; border:1px solid rgba(255,184,0,.18); text-align:center; position:relative; overflow:hidden; }
+.w-hero::before { content:""; position:absolute; top:-28px; right:-28px; width:100px; height:100px;
+  border-radius:50%; background:radial-gradient(circle,rgba(255,184,0,.07),transparent); }
+.wbal { font-family:"Space Mono",monospace; font-size:38px; font-weight:700; color:var(--amber); }
+.wsub { font-size:11.5px; color:var(--tx2); }
+.wchips { display:flex; gap:6px; margin-top:12px; }
+.wc { flex:1; background:rgba(255,255,255,.035); border-radius:10px; padding:8px 4px;
+  text-align:center; border:1px solid var(--bdr); }
+.wv { font-family:"Space Mono",monospace; font-size:13px; font-weight:700; color:var(--neon); }
+.wl { font-size:7.5px; color:var(--tx3); margin-top:2px; }
+.wdraw { width:calc(100% - 26px); margin:0 13px 11px; padding:15px; border:none; border-radius:13px;
+  font-family:"Syne",sans-serif; font-size:14.5px; font-weight:800; cursor:pointer;
+  background:linear-gradient(135deg,var(--amber),#CC8A00); color:#000;
+  box-shadow:0 5px 18px rgba(255,184,0,.25); transition:transform .2s; }
+.wdraw:active { transform:scale(.97); }
+.wdraw:disabled { opacity:.38; cursor:not-allowed; }
 
-/* REWARDS */
-.reward-tiers{display:flex;flex-direction:column;gap:8px;}
-.tier-row{display:flex;align-items:center;gap:12px;background:var(--bg2);border-radius:11px;padding:11px;border:1px solid var(--bdr);}
-.tier-icon{font-size:22px;flex-shrink:0;}
-.tier-info{flex:1;}
-.tier-name{font-size:13px;font-weight:800;color:var(--tx);}
-.tier-desc{font-size:10px;color:var(--tx2);margin-top:2px;}
-.tier-prog-wrap{height:5px;background:var(--bg3);border-radius:3px;margin-top:5px;overflow:hidden;}
-.tier-prog-bar{height:100%;background:linear-gradient(90deg,var(--neon2),var(--neon));border-radius:3px;transition:width 0.8s cubic-bezier(.34,1.56,.64,1);}
-.tier-badge{font-family:"Space Mono",monospace;font-size:10px;font-weight:700;padding:3px 8px;border-radius:7px;flex-shrink:0;}
-.tier-badge.gold{color:#000;background:var(--amber);}
-.tier-badge.silver{color:#000;background:#C0C0C0;}
-.tier-badge.bronze{color:#fff;background:#CD7F32;}
+/* ── Chart ── */
+.chart-row { display:flex; align-items:flex-end; gap:3.5px; height:72px; margin-bottom:5px; }
+.cb-w { flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; }
+.cb { width:100%; border-radius:3px 3px 0 0; background:linear-gradient(180deg,var(--neon2),#003D1C); }
+.cb.today { background:linear-gradient(180deg,var(--amber),#7A4F00); }
+.cd { font-size:8px; font-weight:700; color:var(--tx3); margin-top:3px; }
 
-/* BAR CHART */
-.chart-row{display:flex;align-items:flex-end;gap:4px;height:80px;margin-bottom:6px;}
-.cb-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;height:100%;justify-content:flex-end;}
-.cb{width:100%;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--neon2),#003D1E);position:relative;overflow:hidden;}
-.cb::before{content:"";position:absolute;top:0;left:0;right:0;height:30%;background:rgba(255,255,255,0.08);}
-.cb.today{background:linear-gradient(180deg,var(--amber),#7A5200);}
-.cd{font-size:8.5px;font-weight:700;color:var(--tx3);}
+/* ── Rewards ── */
+.tiers { display:flex; flex-direction:column; gap:7px; }
+.tr { display:flex; align-items:center; gap:11px; background:var(--bg2);
+  border-radius:10px; padding:10px; border:1px solid var(--bdr); }
+.ti-icon { font-size:21px; flex-shrink:0; }
+.ti-info { flex:1; }
+.ti-name { font-size:12.5px; font-weight:800; color:var(--tx); }
+.ti-desc { font-size:9.5px; color:var(--tx2); margin-top:1.5px; }
+.tp-w { height:4.5px; background:var(--bg3); border-radius:3px; margin-top:5px; overflow:hidden; }
+.tp-b { height:100%; background:linear-gradient(90deg,var(--neon2),var(--neon)); border-radius:3px; transition:width .7s; }
+.tbadge { font-family:"Space Mono",monospace; font-size:9.5px; font-weight:700;
+  padding:3px 8px; border-radius:6px; flex-shrink:0; }
+.tbadge.gold   { color:#000; background:var(--amber); }
+.tbadge.silver { color:#000; background:#C0C0C0; }
+.tbadge.bronze { color:#fff; background:#CD7F32; }
 
-/* DOCUMENTS SCREEN */
-.doc-card{display:flex;align-items:center;gap:12px;background:var(--bg2);border-radius:13px;padding:13px;border:1px solid var(--bdr);margin-bottom:8px;cursor:pointer;}
-.doc-icon{font-size:24px;flex-shrink:0;}
-.doc-info{flex:1;}
-.doc-name{font-size:13px;font-weight:800;color:var(--tx);}
-.doc-exp{font-size:10px;color:var(--tx2);margin-top:2px;}
-.doc-status{font-size:10px;font-weight:700;padding:3px 10px;border-radius:20px;flex-shrink:0;}
-.doc-status.ok{background:rgba(0,255,136,0.12);color:var(--neon);}
-.doc-status.warn{background:var(--amberDim);color:var(--amber);}
-.doc-status.expired{background:var(--redDim);color:var(--red);}
+/* ── Docs ── */
+.doc-card { display:flex; align-items:center; gap:11px; background:var(--bg2);
+  border-radius:12px; padding:12px; border:1px solid var(--bdr); margin-bottom:7px; cursor:pointer; }
+.doc-icon { font-size:22px; flex-shrink:0; }
+.doc-info { flex:1; }
+.doc-nm   { font-size:12.5px; font-weight:800; color:var(--tx); }
+.doc-exp  { font-size:9.5px; color:var(--tx2); margin-top:2px; }
+.doc-cd   { font-size:9px; font-weight:700; margin-top:2px; }
+.doc-cd.ok  { color:var(--neon); }
+.doc-cd.w   { color:var(--amber); }
+.doc-cd.exp { color:var(--red); }
+.dstat { font-size:9.5px; font-weight:700; padding:3px 9px; border-radius:18px; flex-shrink:0; }
+.dstat.ok  { background:rgba(0,255,136,.1); color:var(--neon); }
+.dstat.w   { background:var(--amberDim); color:var(--amber); }
+.dstat.exp { background:var(--redDim); color:var(--red); }
 
-/* COOL-DOWN STATIONS */
-.station-list{display:flex;flex-direction:column;gap:7px;}
-.station-row{display:flex;align-items:center;gap:11px;background:var(--bg2);border-radius:11px;padding:11px 12px;border:1px solid var(--bdr);}
-.station-icon{font-size:20px;flex-shrink:0;}
-.station-info{flex:1;}
-.station-name{font-size:12px;font-weight:800;color:var(--tx);}
-.station-dist{font-size:10px;color:var(--tx2);margin-top:1px;}
-.station-tags{display:flex;gap:4px;margin-top:4px;}
-.s-tag{font-size:9px;padding:2px 7px;border-radius:6px;font-weight:700;}
-.s-tag.water{background:rgba(59,130,246,0.15);color:var(--blue);}
-.s-tag.shade{background:rgba(168,85,247,0.15);color:var(--purple);}
-.s-tag.rta{background:rgba(0,255,136,0.1);color:var(--neon);}
-.s-tag.hot{background:rgba(255,107,44,0.15);color:var(--orange);}
+/* ── Heat safety card (Docs screen) ── */
+#heatDocsCard { display:none; background:rgba(255,107,44,.08); border:1.5px solid rgba(255,107,44,.28);
+  border-radius:13px; padding:13px; margin:0 13px 11px; }
+#heatDocsCard.show { display:block; }
+.hd-title { font-family:"Syne",sans-serif; font-size:13px; font-weight:800; color:var(--orange);
+  display:flex; align-items:center; gap:7px; margin-bottom:8px; }
+.hd-body  { font-size:10.5px; color:var(--tx2); line-height:1.55; margin-bottom:9px; }
+.hd-station { background:rgba(255,107,44,.1); border:1px solid rgba(255,107,44,.22);
+  border-radius:9px; padding:9px 11px; }
+.hds-lbl  { font-size:8px; font-weight:800; color:var(--orange); text-transform:uppercase; letter-spacing:.07em; }
+.hds-name { font-size:12px; font-weight:800; color:var(--tx); margin-top:4px; }
+.hds-sub  { font-size:9.5px; color:var(--tx2); margin-top:2px; }
+
+/* ── Stations ── */
+.st-row { display:flex; align-items:center; gap:10px; background:var(--bg2);
+  border-radius:10px; padding:10px 11px; border:1px solid var(--bdr); margin-bottom:6px; }
+.st-row.hot-mode { border-color:rgba(255,107,44,.3); background:rgba(255,107,44,.04); }
+.sti { font-size:19px; flex-shrink:0; }
+.stn { font-size:11.5px; font-weight:800; color:var(--tx); }
+.std { font-size:9.5px; color:var(--tx2); margin-top:1px; }
+.stags { display:flex; gap:4px; margin-top:4px; flex-wrap:wrap; }
+.stag { font-size:8.5px; padding:2px 6px; border-radius:5px; font-weight:700; }
+.stag.w { background:rgba(74,158,255,.14); color:var(--blue); }
+.stag.s { background:rgba(168,85,247,.13); color:#A855F7; }
+.stag.r { background:rgba(0,255,136,.09); color:var(--neon); }
+.stag.h { background:rgba(255,107,44,.13); color:var(--orange); }
+
+/* ── Parking ── */
+.park { background:var(--bg2); border-radius:10px; padding:10px 11px;
+  border:1px solid var(--bdr); margin-bottom:6px; }
+.park-loc  { font-size:11.5px; font-weight:800; color:var(--tx); }
+.park-tip  { font-size:9.5px; color:var(--tx2); margin-top:2.5px; line-height:1.4; }
+.park-fine { font-size:8.5px; color:var(--red); margin-top:2.5px; font-weight:700; }
+
+/* ────── BOTTOM NAV ────── */
+#bnav { position:fixed; bottom:0; left:0; right:0; max-width:430px; margin:0 auto;
+  background:rgba(9,14,11,.97); backdrop-filter:blur(20px);
+  border-top:1px solid var(--bdr); padding:6px 0 17px; display:flex; z-index:200; }
+.nb { flex:1; display:flex; flex-direction:column; align-items:center; gap:2px;
+  background:none; border:none; cursor:pointer; padding:5px 2px; position:relative; }
+.ni { font-size:18px; transition:filter .2s; }
+.nl { font-size:8.5px; font-weight:700; color:var(--tx3); transition:color .2s; }
+.nb.on .ni { filter:drop-shadow(0 0 5px var(--neon)); }
+.nb.on .nl { color:var(--neon); }
+.n-ind { position:absolute; bottom:-6px; width:17px; height:2.5px; background:var(--neon);
+  border-radius:2px; transform:scaleX(0); transition:transform .28s cubic-bezier(.34,1.56,.64,1); }
+.nb.on .n-ind { transform:scaleX(1); }
+
+/* ────── FAB MENU (replaces top action row) ────── */
+#fab { position:fixed; right:16px; bottom:90px; z-index:300; display:flex; flex-direction:column;
+  align-items:flex-end; gap:9px; }
+.fab-main { width:52px; height:52px; border-radius:50%; border:none; cursor:pointer;
+  background:linear-gradient(135deg,#CC1122,#880010); color:#fff; font-size:22px;
+  box-shadow:0 4px 18px rgba(255,51,71,.32); transition:transform .2s; display:flex;
+  align-items:center; justify-content:center; }
+.fab-main:active { transform:scale(.92); }
+.fab-items { display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+.fab-items.hidden { display:none; }
+.fab-item { display:flex; align-items:center; gap:9px; }
+.fab-lbl { font-size:11px; font-weight:800; color:var(--tx); background:var(--bg1);
+  border:1px solid var(--bdr); border-radius:10px; padding:5px 11px; white-space:nowrap; }
+.fab-btn { width:42px; height:42px; border-radius:50%; border:none; cursor:pointer;
+  font-size:18px; display:flex; align-items:center; justify-content:center;
+  transition:transform .18s; box-shadow:0 3px 12px rgba(0,0,0,.4); }
+.fab-btn:active { transform:scale(.9); }
+.fab-voice { background:linear-gradient(135deg,var(--neon2),#004A25); }
+.fab-xfer  { background:linear-gradient(135deg,var(--amber),#CC8A00); }
+
+/* ────── OVERLAYS ────── */
+/* Welfare / Are you okay? */
+#welfarePanel { display:none; position:fixed; inset:0; z-index:9996;
+  background:rgba(255,51,71,.1); backdrop-filter:blur(10px);
+  align-items:center; justify-content:center; }
+#welfarePanel.open { display:flex; }
+.welfare-box { background:var(--bg1); border:2px solid var(--red); border-radius:21px;
+  padding:26px; max-width:330px; width:90%; text-align:center;
+  animation:wfIn .35s cubic-bezier(.34,1.56,.64,1); }
+@keyframes wfIn { from{transform:scale(.82);opacity:0;} to{transform:scale(1);opacity:1;} }
+.wf-icon  { font-size:50px; margin-bottom:11px; }
+.wf-title { font-family:"Syne",sans-serif; font-size:20px; font-weight:800; color:var(--red); margin-bottom:5px; }
+.wf-sub   { font-size:11px; color:var(--tx2); margin-bottom:7px; line-height:1.5; }
+.wf-cd    { font-family:"Space Mono",monospace; font-size:34px; font-weight:700; color:var(--red); margin-bottom:18px; }
+.wf-ok    { width:100%; padding:13px; border:none; border-radius:12px; margin-bottom:8px;
+  background:linear-gradient(135deg,var(--neon2),#004A25); color:#000;
+  font-family:"Syne",sans-serif; font-size:13.5px; font-weight:800; cursor:pointer; }
+.wf-sos   { width:100%; padding:13px; border:none; border-radius:12px;
+  background:linear-gradient(135deg,var(--red),#880010); color:#fff;
+  font-family:"Syne",sans-serif; font-size:13.5px; font-weight:800; cursor:pointer; }
 
 /* SOS */
-#sosPanel{display:none;position:fixed;inset:0;z-index:9998;background:rgba(255,68,85,0.08);backdrop-filter:blur(8px);align-items:center;justify-content:center;}
-#sosPanel.open{display:flex;}
-.sos-box{background:var(--bg1);border:1px solid var(--red);border-radius:22px;padding:28px;max-width:340px;width:90%;text-align:center;}
-.sos-icon{font-size:56px;margin-bottom:14px;animation:sosPulse 0.8s ease-in-out infinite;}
-@keyframes sosPulse{0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
-.sos-title{font-family:"Syne",sans-serif;font-size:22px;font-weight:800;color:var(--red);margin-bottom:6px;}
-.sos-sub{font-size:12px;color:var(--tx2);margin-bottom:20px;line-height:1.5;}
-.sos-btns{display:flex;flex-direction:column;gap:9px;}
-.sos-btn{padding:14px;border:none;border-radius:13px;font-family:"Syne",sans-serif;font-size:14px;font-weight:800;cursor:pointer;}
-.sos-btn.red{background:linear-gradient(135deg,#CC1122,#7F0010);color:#fff;}
-.sos-btn.amber{background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;}
-.sos-btn.cancel{background:var(--bg2);color:var(--tx2);border:1px solid var(--bdr);}
+#sosPanel { display:none; position:fixed; inset:0; z-index:9997;
+  background:rgba(255,51,71,.07); backdrop-filter:blur(9px); align-items:center; justify-content:center; }
+#sosPanel.open { display:flex; }
+.sos-box { background:var(--bg1); border:1px solid var(--red); border-radius:21px;
+  padding:26px; max-width:330px; width:90%; text-align:center; }
+.sos-ico  { font-size:52px; margin-bottom:13px; }
+.sos-title{ font-family:"Syne",sans-serif; font-size:21px; font-weight:800; color:var(--red); margin-bottom:5px; }
+.sos-sub  { font-size:11px; color:var(--tx2); margin-bottom:18px; line-height:1.5; }
+.sos-btns { display:flex; flex-direction:column; gap:8px; }
+.sb { padding:13px; border:none; border-radius:12px; font-family:"Syne",sans-serif; font-size:13px; font-weight:800; cursor:pointer; }
+.sb.r { background:linear-gradient(135deg,#BB1020,#770010); color:#fff; }
+.sb.a { background:linear-gradient(135deg,var(--amber),#CC8A00); color:#000; }
+.sb.c { background:var(--bg2); color:var(--tx2); border:1px solid var(--bdr); }
 
-/* ORDER TRANSFER */
-#transferPanel{display:none;position:fixed;inset:0;z-index:9997;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;}
-#transferPanel.open{display:flex;}
-.transfer-box{background:var(--bg1);border-radius:22px 22px 0 0;width:100%;max-width:430px;padding:24px;border:1px solid var(--bdrAmt);}
-.transfer-title{font-family:"Syne",sans-serif;font-size:17px;font-weight:800;color:var(--amber);margin-bottom:14px;}
-.nearby-riders{display:flex;flex-direction:column;gap:9px;margin-bottom:16px;}
-.nr-row{display:flex;align-items:center;gap:11px;background:var(--bg2);border-radius:12px;padding:12px;border:1px solid var(--bdr);}
-.nr-av{width:36px;height:36px;border-radius:10px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
-.nr-info{flex:1;}
-.nr-name{font-size:13px;font-weight:800;color:var(--tx);}
-.nr-dist{font-size:10px;color:var(--tx2);}
-.btn-transfer{padding:9px 16px;border:none;border-radius:10px;background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;font-family:"Syne",sans-serif;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;}
+/* Transfer */
+#xferPanel { display:none; position:fixed; inset:0; z-index:9995;
+  background:rgba(0,0,0,.82); backdrop-filter:blur(7px); align-items:flex-end; justify-content:center; }
+#xferPanel.open { display:flex; }
+.xfer-box { background:var(--bg1); border-radius:20px 20px 0 0; width:100%; max-width:430px;
+  padding:22px; border:1px solid var(--bdrAmt); }
+.xfer-title { font-family:"Syne",sans-serif; font-size:16px; font-weight:800; color:var(--amber); margin-bottom:13px; }
+.nr { display:flex; align-items:center; gap:10px; background:var(--bg2);
+  border-radius:11px; padding:11px; border:1px solid var(--bdr); margin-bottom:8px; }
+.nr-av { width:34px; height:34px; border-radius:9px; background:var(--bg3);
+  display:flex; align-items:center; justify-content:center; font-size:15px; }
+.nr-nm { font-size:12.5px; font-weight:800; color:var(--tx); }
+.nr-d  { font-size:9.5px; color:var(--tx2); }
+.xfr-btn { padding:8px 14px; border:none; border-radius:9px;
+  background:linear-gradient(135deg,var(--neon2),#004A25); color:#000;
+  font-family:"Syne",sans-serif; font-size:11px; font-weight:800; cursor:pointer; }
 
-/* CHAT SHEETS */
-.chat-sheet{display:none;position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;}
-.chat-sheet.open{display:flex;}
-.chat-panel{background:var(--bg1);border:1px solid var(--bdr);border-radius:22px 22px 0 0;width:100%;max-width:430px;max-height:76vh;display:flex;flex-direction:column;animation:slideUp 0.3s cubic-bezier(.34,1.56,.64,1);}
+/* Chat */
+.chat-sh { display:none; position:fixed; inset:0; z-index:9000;
+  background:rgba(0,0,0,.82); backdrop-filter:blur(7px); align-items:flex-end; justify-content:center; }
+.chat-sh.open { display:flex; }
+.chat-pan { background:var(--bg1); border:1px solid var(--bdr); border-radius:21px 21px 0 0;
+  width:100%; max-width:430px; max-height:76vh; display:flex; flex-direction:column;
+  animation:slideUp .28s cubic-bezier(.34,1.56,.64,1); }
 @keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
-.chat-hdr{display:flex;align-items:center;gap:11px;padding:16px 18px;border-bottom:1px solid var(--bdr);}
-.chat-ttl{font-family:"Syne",sans-serif;font-size:15px;font-weight:800;flex:1;}
-.btn-close-chat{width:28px;height:28px;background:var(--bg2);border:none;border-radius:9px;color:var(--tx2);font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
-.chat-msgs{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:7px;}
-.chat-msgs::-webkit-scrollbar{display:none;}
-.msg{max-width:78%;}
-.msg.rider{align-self:flex-end;}.msg.customer{align-self:flex-start;}.msg.kitchen{align-self:flex-start;}
-.msg-bubble{padding:9px 13px;border-radius:14px;font-size:12px;line-height:1.5;}
-.msg.rider .msg-bubble{background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;border-radius:14px 14px 3px 14px;}
-.msg.customer .msg-bubble,.msg.kitchen .msg-bubble{background:var(--bg2);color:var(--tx);border-radius:14px 14px 14px 3px;border:1px solid var(--bdr);}
-.msg-time{font-size:9px;color:var(--tx3);margin-top:2px;text-align:right;}
-.qr-row{display:flex;gap:5px;flex-wrap:wrap;padding:9px 16px 0;}
-.qr-btn{background:var(--bg2);border:1px solid var(--bdr);border-radius:18px;padding:4px 10px;font-size:10px;font-weight:700;color:var(--tx2);cursor:pointer;font-family:"Nunito",sans-serif;}
-.chat-inp-row{display:flex;gap:8px;padding:10px 16px 18px;}
-.chat-inp{flex:1;background:var(--bg2);border:1.5px solid var(--bdr);border-radius:12px;padding:10px 13px;font-size:12px;color:var(--tx);outline:none;font-family:"Nunito",sans-serif;}
-.btn-send{width:40px;height:40px;background:linear-gradient(135deg,var(--neon2),#005C30);border:none;border-radius:11px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.chat-hd { display:flex; align-items:center; gap:10px; padding:15px 17px; border-bottom:1px solid var(--bdr); }
+.chat-ttl { font-family:"Syne",sans-serif; font-size:14.5px; font-weight:800; flex:1; }
+.chat-cls { width:27px; height:27px; background:var(--bg2); border:none; border-radius:8px;
+  color:var(--tx2); font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.chat-msgs { flex:1; overflow-y:auto; padding:11px 15px; display:flex; flex-direction:column; gap:6px; }
+.chat-msgs::-webkit-scrollbar { display:none; }
+.msg { max-width:76%; }
+.msg.rider    { align-self:flex-end; }
+.msg.customer,.msg.kitchen { align-self:flex-start; }
+.mbub { padding:8px 12px; border-radius:13px; font-size:11.5px; line-height:1.5; }
+.msg.rider .mbub { background:linear-gradient(135deg,var(--neon2),#004A25); color:#000; border-radius:13px 13px 3px 13px; }
+.msg.customer .mbub,.msg.kitchen .mbub { background:var(--bg2); color:var(--tx); border-radius:13px 13px 13px 3px; border:1px solid var(--bdr); }
+.mt { font-size:8.5px; color:var(--tx3); margin-top:2px; text-align:right; }
+.qr-row { display:flex; gap:4px; flex-wrap:wrap; padding:8px 15px 0; }
+.qr-b { background:var(--bg2); border:1px solid var(--bdr); border-radius:16px; padding:4px 9px;
+  font-size:9.5px; font-weight:700; color:var(--tx2); cursor:pointer; }
+.ci-row { display:flex; gap:7px; padding:9px 15px 17px; }
+.ci { flex:1; background:var(--bg2); border:1.5px solid var(--bdr); border-radius:11px;
+  padding:9px 12px; font-size:11.5px; color:var(--tx); outline:none; font-family:"Nunito",sans-serif; }
+.ci:focus { border-color:rgba(0,255,136,.28); }
+.cs { width:38px; height:38px; background:linear-gradient(135deg,var(--neon2),#004A25);
+  border:none; border-radius:10px; font-size:15px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; }
 
-/* DELIVERY DONE */
-#deliveryDone{display:none;position:fixed;inset:0;z-index:9999;background:rgba(6,10,8,0.97);flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:28px;}
-#deliveryDone.show{display:flex;}
-.done-icon{font-size:68px;margin-bottom:18px;animation:bounceIn 0.6s cubic-bezier(.34,1.56,.64,1);}
-@keyframes bounceIn{from{transform:scale(0);}to{transform:scale(1);}}
-.done-title{font-family:"Syne",sans-serif;font-size:26px;font-weight:800;color:var(--neon);margin-bottom:6px;}
-.done-sub{font-size:13px;color:var(--tx2);margin-bottom:8px;line-height:1.5;}
-.done-earn{font-family:"Space Mono",monospace;font-size:34px;font-weight:700;color:var(--amber);margin-bottom:4px;}
-.done-lbl{font-size:11px;color:var(--tx2);margin-bottom:8px;}
-.done-achievement{background:var(--amberDim);border:1px solid var(--bdrAmt);border-radius:12px;padding:10px 20px;margin-bottom:24px;font-size:12px;font-weight:700;color:var(--amber);}
-.btn-done{background:linear-gradient(135deg,var(--neon2),#005C30);color:#000;border:none;border-radius:14px;padding:15px 38px;font-family:"Syne",sans-serif;font-size:15px;font-weight:800;cursor:pointer;}
+/* ── Delivery done ── */
+#delDone { display:none; position:fixed; inset:0; z-index:9999;
+  background:rgba(6,10,8,.97); flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:26px; }
+#delDone.show { display:flex; }
+.dd-ico  { font-size:64px; margin-bottom:16px; animation:bIn .55s cubic-bezier(.34,1.56,.64,1); }
+@keyframes bIn{from{transform:scale(0);}to{transform:scale(1);}}
+.dd-title { font-family:"Syne",sans-serif; font-size:25px; font-weight:800; color:var(--neon); margin-bottom:5px; }
+.dd-sub   { font-size:12.5px; color:var(--tx2); margin-bottom:10px; line-height:1.5; }
+/* Earnings breakdown card */
+.dd-earn-card { background:linear-gradient(135deg,#0C2616,#060A08); border:1px solid rgba(255,184,0,.22);
+  border-radius:15px; padding:16px 20px; margin-bottom:16px; width:100%; max-width:300px; }
+.dd-earn-main { font-family:"Space Mono",monospace; font-size:36px; font-weight:700; color:var(--amber); }
+.dd-earn-row  { display:flex; justify-content:space-between; align-items:center; margin-top:7px; }
+.dd-earn-lbl  { font-size:10px; color:var(--tx3); }
+.dd-earn-val  { font-family:"Space Mono",monospace; font-size:11px; font-weight:700; color:var(--tx2); }
+.dd-achieve { background:var(--amberDim); border:1px solid var(--bdrAmt); border-radius:11px;
+  padding:9px 18px; margin-bottom:20px; font-size:11.5px; font-weight:700; color:var(--amber); }
+.dd-btn { background:linear-gradient(135deg,var(--neon2),#004A25); color:#000; border:none;
+  border-radius:13px; padding:14px 36px; font-family:"Syne",sans-serif; font-size:14.5px; font-weight:800; cursor:pointer; }
 
-/* TOAST */
-#toast{position:fixed;bottom:86px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--bg1);border:1px solid var(--bdr);border-radius:20px;padding:9px 20px;font-size:12px;font-weight:700;color:var(--neon);white-space:nowrap;box-shadow:0 7px 28px rgba(0,0,0,0.6);z-index:9000;opacity:0;transition:all 0.3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-#toast.warn{color:var(--amber);border-color:var(--bdrAmt);}
-#toast.err{color:var(--red);border-color:rgba(255,68,85,0.2);}
-#toast.blue{color:var(--blue);border-color:rgba(59,130,246,0.2);}
-#toast.hot{color:var(--orange);border-color:rgba(255,107,44,0.2);}
+/* Doc modal */
+#docModal { display:none; position:fixed; inset:0; z-index:9998;
+  background:rgba(0,0,0,.82); backdrop-filter:blur(7px); align-items:flex-end; justify-content:center; }
+#docModal.open { display:flex; }
+.dm-box { background:var(--bg1); border-radius:20px 20px 0 0; width:100%; max-width:430px;
+  padding:22px; border:1px solid var(--bdrAmt); }
 
-/* PARKING TIPS */
-.park-row{background:var(--bg2);border-radius:11px;padding:11px 12px;border:1px solid var(--bdr);margin-bottom:7px;}
-.park-loc{font-size:12px;font-weight:800;color:var(--tx);display:flex;align-items:center;gap:6px;}
-.park-tip{font-size:10px;color:var(--tx2);margin-top:3px;line-height:1.4;}
-.park-fine{font-size:9px;color:var(--red);margin-top:3px;font-weight:700;}
-
-/* DOC MODAL */
-#docModal{display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;}
-#docModal.open{display:flex;}
+/* Toast */
+#toast { position:fixed; bottom:84px; left:50%; transform:translateX(-50%) translateY(18px);
+  background:var(--bg1); border:1px solid var(--bdr); border-radius:18px; padding:8px 18px;
+  font-size:11.5px; font-weight:700; color:var(--neon); white-space:nowrap;
+  box-shadow:0 6px 24px rgba(0,0,0,.6); z-index:8999; opacity:0;
+  transition:all .28s cubic-bezier(.34,1.56,.64,1); pointer-events:none; max-width:90%; overflow:hidden;
+  text-overflow:ellipsis; }
+#toast.on  { opacity:1; transform:translateX(-50%) translateY(0); }
+#toast.w   { color:var(--amber); border-color:var(--bdrAmt); }
+#toast.err { color:var(--red); border-color:rgba(255,51,71,.2); }
+#toast.b   { color:var(--blue); border-color:rgba(74,158,255,.2); }
+#toast.hot { color:var(--orange); border-color:rgba(255,107,44,.22); }
 </style>
 </head>
 <body>
-<div id="pingFlash"></div>
+<div id="pf"></div>
 <div id="toast"></div>
 
-<!-- ✅ NEW: WELFARE CHECK OVERLAY -->
-<div id="welfareAlert">
+<!-- ══ WELFARE OVERLAY ══ -->
+<div id="welfarePanel">
   <div class="welfare-box">
-    <div class="welfare-icon">🆘</div>
-    <div class="welfare-title syne">Are you okay?</div>
-    <div class="welfare-sub">Your GPS has been stationary for a while with an active order. Please confirm you're safe.</div>
-    <div class="welfare-timer" id="welfareCountdown">60</div>
-    <div class="welfare-btns">
-      <button class="welfare-ok" onclick="confirmWelfare()">✅ I'm fine — continue</button>
-      <button class="welfare-sos" onclick="sendSOS('welfare'); confirmWelfare()">🆘 I need help — SOS</button>
-    </div>
+    <div class="wf-icon">😰</div>
+    <div class="wf-title syne">Are you okay?</div>
+    <div class="wf-sub">GPS stationary for 5+ minutes with an active order.<br>Confirm you're safe or we'll alert nearby riders.</div>
+    <div class="wf-cd" id="wfCD">60</div>
+    <button class="wf-ok" onclick="confirmWelfare()">✅ I'm fine — continue delivery</button>
+    <button class="wf-sos" onclick="welfareSOSNow()">🆘 I need help — send SOS</button>
   </div>
 </div>
 
 <div id="app">
-<div id="header">
-  <div class="hdr-row">
-    <div class="rider-av">🏍</div>
+
+<!-- ══ HEADER ══ -->
+<div id="hdr">
+  <div class="hdr-top">
+    <div class="av">🏍</div>
     <div class="rider-info">
-      <div class="rider-nm syne" id="hdrName">Magizham Rider</div>
-      <div class="rider-sub" id="hdrVehicle">Honda Activa · Ready to go</div>
+      <div class="rider-name syne" id="riderName">Magizham Rider</div>
+      <div class="rider-sub" id="riderSub">Honda Activa · Ready</div>
     </div>
-    <div class="online-tog" id="onlineTog" onclick="toggleOnline()">
+    <div class="tog" id="onlineTog" onclick="toggleOnline()">
       <div class="tog-dot"></div>
       <span class="tog-lbl" id="togLbl">Go Online</span>
     </div>
   </div>
 
-  <div id="ticker">
-    <div class="tick-item"><div class="tick-val mono" id="todayEarn">AED 0</div><div class="tick-lbl">Today</div></div>
-    <div class="tick-div"></div>
-    <div class="tick-item"><div class="tick-val mono" id="todayDel">0</div><div class="tick-lbl">Deliveries</div></div>
-    <div class="tick-div"></div>
-    <div class="tick-item"><div class="tick-val mono" id="connStatus" style="font-size:11px;color:var(--tx3)">⬤ Offline</div><div class="tick-lbl">Socket</div></div>
-  </div>
-
-  <!-- ✅ NEW: HEAT SAFETY ALERT -->
-  <div id="heatAlert">
-    <div class="heat-icon">🌡️</div>
-    <div class="heat-content">
-      <div class="heat-title" id="heatTitle">Heat Alert — 42°C</div>
-      <div class="heat-sub" id="heatSub">Mandatory hydration break recommended</div>
+  <!-- Heat banner -->
+  <div id="heatBanner">
+    <div style="font-size:22px;flex-shrink:0">🌡️</div>
+    <div class="heat-lhs">
+      <div class="heat-temp" id="heatTemp">—°C</div>
+      <div class="heat-msg" id="heatMsg">Checking temperature...</div>
     </div>
-    <button class="heat-action" onclick="showHydrationStations()">Find Station</button>
+    <button class="heat-cta" onclick="goHydration()">Find Station</button>
   </div>
 
-  <!-- Voice Bar -->
+  <!-- Ticker -->
+  <div id="ticker">
+    <div class="ti"><div class="tv mono" id="tEarn">AED 0</div><div class="tl">Today</div></div>
+    <div class="td"></div>
+    <div class="ti"><div class="tv mono" id="tDel">0</div><div class="tl">Deliveries</div></div>
+    <div class="td"></div>
+    <div class="ti"><div class="tv mono" id="connStat" style="font-size:10.5px;color:var(--tx3)">⬤ Offline</div><div class="tl">Socket</div></div>
+  </div>
+
+  <!-- Voice bar -->
   <div id="voiceBar">
-    <div class="voice-waves"><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div></div>
-    <div class="voice-text" id="voiceText">Listening...</div>
-    <div class="voice-cancel" onclick="stopVoice()">✕</div>
+    <div class="wv-row"><div class="wv"></div><div class="wv"></div><div class="wv"></div><div class="wv"></div><div class="wv"></div></div>
+    <div class="vt" id="vText">Listening...</div>
+    <div class="vc" onclick="stopVoice()">✕</div>
   </div>
 
-  <!-- Language Switcher -->
-  <div class="lang-row">
-    <button class="lang-btn active" onclick="setLang('en')">EN</button>
-    <button class="lang-btn" onclick="setLang('ar')">عربي</button>
-    <button class="lang-btn" onclick="setLang('hi')">हिंदी</button>
-    <button class="lang-btn" onclick="setLang('ur')">اردو</button>
-  </div>
-</div>
+  <!-- Offline -->
+  <div id="offlineBar">📵 Offline — cached orders available</div>
 
-<!-- ✅ NEW: OFFLINE INDICATOR -->
-<div id="offlineIndicator">📵 Offline — Orders cached for when connection returns</div>
+  <!-- Lang -->
+  <div class="lang-strip">
+    <button class="lb on" onclick="setLang('en')">EN</button>
+    <button class="lb" onclick="setLang('ar')">عربي</button>
+    <button class="lb" onclick="setLang('hi')">हिंदी</button>
+    <button class="lb" onclick="setLang('ur')">اردو</button>
+  </div>
+</div><!-- /hdr -->
 
 <div id="scrollArea">
 
-<!-- HOME SCREEN -->
-<div id="screenHome" class="screen active">
-  <!-- Quick actions -->
-  <div style="display:flex;gap:8px;margin:4px 14px 8px;">
-    <button onclick="startVoice()" style="flex:1;padding:11px;background:var(--bg1);border:1.5px solid rgba(0,255,136,0.15);border-radius:12px;color:var(--neon);font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">🎙 Voice</button>
-    <button onclick="openSOS()" style="flex:1;padding:11px;background:var(--redDim);border:1.5px solid rgba(255,68,85,0.2);border-radius:12px;color:var(--red);font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">🆘 SOS</button>
-    <button onclick="openTransfer()" style="flex:1;padding:11px;background:var(--amberDim);border:1.5px solid rgba(255,184,0,0.2);border-radius:12px;color:var(--amber);font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">🔄 Transfer</button>
-  </div>
+<!-- ══ HOME SCREEN ══ -->
+<div id="scrHome" class="screen active">
 
-  <!-- Order Loader -->
+  <!-- Order loader -->
   <div class="card">
-    <div class="card-lbl">📦 Load Order</div>
-    <div class="load-row">
-      <input class="load-input mono" type="text" id="orderInput" inputmode="numeric" placeholder="Order ID (e.g. 1)" onkeydown="if(event.key==='Enter')loadOrder()">
-      <button class="btn-load syne" onclick="loadOrder()">LOAD</button>
+    <div class="clbl">📦 Load Order</div>
+    <div style="display:flex;gap:7px;">
+      <input class="otp-in" id="orderInput" style="letter-spacing:0;font-size:16px;border-color:var(--bdr);color:var(--tx);flex:1;"
+        type="text" inputmode="numeric" placeholder="Order ID..." onkeydown="if(event.key==='Enter')loadOrder()">
+      <button style="background:linear-gradient(135deg,var(--neon2),#004A25);color:#000;border:none;border-radius:11px;padding:12px 17px;font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer;"
+        onclick="loadOrder()">LOAD</button>
     </div>
+    <div id="cacheHint" style="display:none;font-size:9.5px;color:var(--amber);font-weight:700;margin-top:6px;">💾 Cached data available for this ID</div>
   </div>
 
-  <!-- Order Panel -->
-  <div id="orderPanel">
+  <!-- Order panel (hidden until loaded) -->
+  <div id="orderPanel" style="display:none;">
     <div class="card">
+
+      <!-- Order hero -->
       <div class="order-hero">
-        <div class="ord-badge mono" id="orderBadge">ORD-—</div>
-        <div class="ord-cust syne" id="orderCust">—</div>
-        <div class="ord-addr" id="orderAddr">—</div>
-        <div class="ord-floor" id="orderFloor" style="display:none">—</div>
+        <div class="ord-id mono" id="ordId">ORD-—</div>
+        <div class="ord-name syne" id="ordCust">—</div>
+        <div class="ord-addr" id="ordAddr">—</div>
+        <div class="ord-floor" id="ordFloor"></div>
         <div class="meta-row">
-          <div class="meta-c"><div class="mv mono" id="metaDist">—</div><div class="ml">km</div></div>
-          <div class="meta-c"><div class="mv mono" id="metaAmt">—</div><div class="ml">AED</div></div>
-          <div class="meta-c"><div class="mv mono" id="metaStat">—</div><div class="ml">status</div></div>
+          <div class="mc"><div class="mv mono" id="mDist">—</div><div class="ml">km</div></div>
+          <div class="mc"><div class="mv mono" id="mAmt">—</div><div class="ml">AED</div></div>
+          <div class="mc"><div class="mv mono" id="mStat">—</div><div class="ml">status</div></div>
         </div>
       </div>
 
-      <!-- ✅ NEW: BUILDING ENTRY CARD — shows when within 50m -->
-      <div id="buildingEntryCard">
-        <div class="bld-header">
-          <div class="bld-icon">🏢</div>
-          <div>
-            <div class="bld-title">Building Entry Guide</div>
-            <div class="bld-name" id="bldName">Detecting building...</div>
-          </div>
+      <!-- 🗺️ Navigate button — always visible once order loaded -->
+      <button id="navBtn" onclick="openNavigation()">🧭 Navigate to Customer</button>
+
+      <!-- ⚡ Auto-stage hint — appears when GPS detects proximity -->
+      <div id="autoHint">
+        <div class="ash-icon" id="ahIcon">📍</div>
+        <div class="ash-body">
+          <div class="ash-title" id="ahTitle">Near restaurant</div>
+          <div class="ash-sub"  id="ahSub">Confirm pickup?</div>
         </div>
-        <div class="proximity-badge">📍 Within 50m — Last-meter mode active</div>
-        <div class="entry-steps" id="entrySteps"></div>
+        <button class="ash-btn" id="ahBtn" onclick="acceptAutoStage()">Confirm</button>
       </div>
 
-      <!-- Last-meter nav (generic) -->
-      <div id="lastMeterNav">
-        <div class="lmn-title">🗺️ Last-Meter Guidance</div>
-        <div id="lmnSteps"></div>
+      <!-- 🏢 Building entry guide — shows within 50m -->
+      <div id="bldCard">
+        <div class="bld-head">
+          <span style="font-size:9px;font-weight:800;color:var(--blue);background:rgba(74,158,255,.12);border:1px solid rgba(74,158,255,.2);border-radius:5px;padding:2px 7px;">📍 WITHIN 50m</span>
+          <div class="bld-name" id="bldName">Building Entry Guide</div>
+        </div>
+        <div class="bld-steps" id="bldSteps"></div>
       </div>
 
-      <div class="card-lbl">🧺 Items</div>
+      <!-- Items -->
+      <div class="clbl">🧺 Items</div>
       <div class="items-list" id="itemsList"></div>
 
-      <div class="card-lbl">📍 Progress</div>
+      <!-- Pipeline -->
+      <div class="clbl">📍 Progress</div>
       <div class="pipeline">
-        <div class="pipe-step done" id="pipe0"><div class="pipe-dot">✓</div><div class="pipe-lbl">Confirmed</div></div>
-        <div class="pipe-step" id="pipe1"><div class="pipe-dot">🏍</div><div class="pipe-lbl">Picked Up</div></div>
-        <div class="pipe-step" id="pipe2"><div class="pipe-dot">📍</div><div class="pipe-lbl">En Route</div></div>
-        <div class="pipe-step" id="pipe3"><div class="pipe-dot">🔑</div><div class="pipe-lbl">OTP</div></div>
-        <div class="pipe-step" id="pipe4"><div class="pipe-dot">✅</div><div class="pipe-lbl">Done</div></div>
+        <div class="ps done" id="p0"><div class="pd">✓</div><div class="pl">Ready</div></div>
+        <div class="ps" id="p1"><div class="pd">🏍</div><div class="pl">Pickup</div></div>
+        <div class="ps" id="p2"><div class="pd">📍</div><div class="pl">Route</div></div>
+        <div class="ps" id="p3"><div class="pd">🔑</div><div class="pl">OTP</div></div>
+        <div class="ps" id="p4"><div class="pd">✅</div><div class="pl">Done</div></div>
       </div>
 
-      <div id="otpSection">
-        <div class="otp-hint">Ask customer for their 4-digit OTP</div>
+      <!-- OTP -->
+      <div id="otpSec">
+        <div class="otp-h">Ask customer for their 4-digit OTP</div>
         <div class="otp-row">
-          <input class="otp-input" type="text" id="otpInput" maxlength="4" inputmode="numeric" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
-          <button class="btn-verify syne" onclick="verifyOTP()">Verify</button>
+          <input class="otp-in" type="text" id="otpIn" maxlength="4" inputmode="numeric"
+            oninput="this.value=this.value.replace(/\D/g,'').slice(0,4)">
+          <button class="otp-btn syne" onclick="verifyOTP()">Verify</button>
         </div>
       </div>
 
-      <div id="podSection">
-        <div class="pod-hint">📸 Take proof of delivery photo</div>
-        <div class="pod-preview" onclick="capturePhoto()" id="podPreview">
-          <div class="pod-icon">📷</div>
+      <!-- PoD -->
+      <div id="podSec">
+        <div class="pod-h">📸 Capture proof of delivery</div>
+        <div class="pod-prev" onclick="capturePhoto()" id="podPrev">
+          <div class="pod-ico">📷</div>
           <div class="pod-lbl">Tap to capture</div>
         </div>
-        <input type="file" id="podFileInput" accept="image/*" capture="environment" onchange="handlePhotoFile(this)">
-        <button class="btn-action done syne" id="podSubmitBtn" onclick="submitPoD()" style="display:none">✅ Submit Delivery Proof</button>
+        <input type="file" id="podFile" accept="image/*" capture="environment" onchange="handlePhoto(this)">
+        <button class="act-btn done syne" id="podSubmit" onclick="submitPoD()">✅ Submit Delivery Proof</button>
       </div>
 
-      <button class="btn-action go syne" id="actionBtn" onclick="advanceStage()">▶ Picked Up — Start Delivery</button>
+      <!-- Action button -->
+      <button class="act-btn go syne" id="actBtn" onclick="advanceStage()">▶ Confirm Pickup</button>
 
-      <div class="contact-row">
-        <a class="btn-contact call" id="callBtn" href="#">📞 Call</a>
-        <button class="btn-contact chat" onclick="openChat('customer')">💬 Message</button>
-        <button class="btn-contact kitchen" onclick="openChat('kitchen')">🍳 Kitchen</button>
-      </div>
-    </div>
-  </div>
-
-  <button id="gpsBtn" onclick="toggleGPS()" disabled>📡 Start GPS Sharing</button>
-
-  <div class="card">
-    <div class="card-lbl">📡 Live Telemetry</div>
-    <div class="stats-grid">
-      <div class="stat-box"><div class="stat-lbl">Latitude</div><div class="stat-val mono" id="dispLat">——</div></div>
-      <div class="stat-box"><div class="stat-lbl">Longitude</div><div class="stat-val mono" id="dispLng">——</div></div>
-      <div class="stat-box"><div class="stat-lbl">Speed</div><div class="stat-val mono amber" id="dispSpeed">——</div></div>
-      <div class="stat-box"><div class="stat-lbl">GPS Accuracy</div><div class="stat-val mono" id="dispAcc">——</div></div>
-      <div class="stat-box"><div class="stat-lbl">Pings Sent</div><div class="stat-val mono" id="pingCount">0</div></div>
-      <div class="stat-box" style="display:flex;flex-direction:column;justify-content:space-between;">
-        <div class="stat-lbl">Signal</div>
-        <div class="signal-bars"><div class="bar" id="b1"></div><div class="bar" id="b2"></div><div class="bar" id="b3"></div><div class="bar" id="b4"></div></div>
+      <!-- Contact row -->
+      <div class="cta-row">
+        <a class="ctb call" id="callBtn" href="#">📞 Call</a>
+        <button class="ctb msg" onclick="openChat('customer')">💬 Message</button>
+        <button class="ctb kitchen" onclick="openChat('kitchen')">🍳 Kitchen</button>
       </div>
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-lbl">🗂 Activity Log</div>
-    <div class="log-wrap" id="logWrap"></div>
-  </div>
-</div>
+  <!-- GPS button -->
+  <button id="gpsBtn" onclick="toggleGPS()" disabled>📡 Start GPS Tracking</button>
 
-<!-- WALLET SCREEN -->
-<div id="screenWallet" class="screen">
-  <div class="wallet-hero">
-    <div class="wallet-sub">Today's earnings</div>
-    <div class="wallet-bal mono" id="walletBal">AED 0</div>
-    <div class="wallet-sub" id="walletDelSub">0 deliveries</div>
-    <div class="wallet-chips">
-      <div class="w-chip"><div class="wv mono" id="wAvg">AED 0</div><div class="wl">Per delivery</div></div>
-      <div class="w-chip"><div class="wv mono" id="wWeek">AED 790</div><div class="wl">This week</div></div>
-      <div class="w-chip"><div class="wv mono" style="color:var(--amber)">4,820</div><div class="wl">All time</div></div>
+  <!-- Telemetry -->
+  <div class="card">
+    <div class="clbl">📡 Live Telemetry</div>
+    <div class="sg">
+      <div class="sb"><div class="sl">Latitude</div><div class="sv mono" id="dLat">——</div></div>
+      <div class="sb"><div class="sl">Longitude</div><div class="sv mono" id="dLng">——</div></div>
+      <div class="sb"><div class="sl">Speed</div><div class="sv a mono" id="dSpeed">——</div></div>
+      <div class="sb"><div class="sl">Accuracy</div><div class="sv mono" id="dAcc">——</div></div>
+      <div class="sb"><div class="sl">Pings Sent</div><div class="sv mono" id="pingCnt">0</div></div>
+      <div class="sb" style="display:flex;flex-direction:column;justify-content:space-between;">
+        <div class="sl">Signal</div>
+        <div class="sig-bars"><div class="bar" id="b1"></div><div class="bar" id="b2"></div><div class="bar" id="b3"></div><div class="bar" id="b4"></div></div>
+      </div>
     </div>
   </div>
-  <button class="btn-withdraw syne" id="withdrawBtn" onclick="doWithdraw()">💸 Withdraw Today's Earnings</button>
+
+  <!-- Activity log -->
   <div class="card">
-    <div class="card-lbl">📊 Weekly Breakdown</div>
+    <div class="clbl">🗂 Activity Log</div>
+    <div class="log-w" id="logW"></div>
+  </div>
+</div><!-- /scrHome -->
+
+<!-- ══ WALLET SCREEN ══ -->
+<div id="scrWallet" class="screen">
+  <div class="w-hero">
+    <div class="wsub">Today's earnings</div>
+    <div class="wbal mono" id="wBal">AED 0</div>
+    <div class="wsub" id="wDelSub">0 deliveries</div>
+    <div class="wchips">
+      <div class="wc"><div class="wv mono" id="wAvg">AED 0</div><div class="wl">Per del</div></div>
+      <div class="wc"><div class="wv mono" id="wWeek">AED 790</div><div class="wl">This week</div></div>
+      <div class="wc"><div class="wv mono" style="color:var(--amber)">4,820</div><div class="wl">All time</div></div>
+    </div>
+  </div>
+  <button class="wdraw syne" id="wDrawBtn" onclick="doWithdraw()">💸 Withdraw Today's Earnings</button>
+  <div class="card">
+    <div class="clbl">📊 This Week</div>
     <div class="chart-row" id="chartRow"></div>
-    <div style="display:flex;gap:4px;" id="chartLabels"></div>
+    <div style="display:flex;gap:3px;" id="chartLbls"></div>
   </div>
   <div class="card">
-    <div class="card-lbl">🏆 Performance Rewards</div>
-    <div class="reward-tiers" id="rewardTiers"></div>
+    <div class="clbl">🏆 Rewards</div>
+    <div class="tiers" id="tiers"></div>
   </div>
-  <div class="card" style="text-align:center;padding:20px;">
-    <div style="font-size:10px;color:var(--tx3);margin-bottom:5px;">NEXT WITHDRAWAL AVAILABLE</div>
-    <div class="mono" style="font-size:22px;font-weight:700;color:var(--neon)" id="withdrawTimer">--:--:--</div>
-    <div style="font-size:10px;color:var(--tx3);margin-top:4px;">Resets daily at midnight</div>
+  <div class="card" style="text-align:center;padding:18px;">
+    <div style="font-size:9px;color:var(--tx3);margin-bottom:4px;">NEXT WITHDRAWAL</div>
+    <div class="mono" style="font-size:21px;font-weight:700;color:var(--neon)" id="wTimer">--:--:--</div>
+    <div style="font-size:9px;color:var(--tx3);margin-top:3px;">Resets at midnight</div>
   </div>
 </div>
 
-<!-- DOCUMENTS SCREEN -->
-<div id="screenDocs" class="screen">
+<!-- ══ DOCS SCREEN ══ -->
+<div id="scrDocs" class="screen">
   <div class="screen-title">📋 UAE Documents</div>
-  <div style="margin:0 14px 12px;">
-    <div class="doc-card" onclick="editDoc('rta')"><div class="doc-icon">🪪</div><div class="doc-info"><div class="doc-name">RTA Delivery Permit</div><div class="doc-exp" id="rtaExp">Expires: Not set</div></div><div class="doc-status warn" id="rtaStatus">?</div></div>
-    <div class="doc-card" onclick="editDoc('medical')"><div class="doc-icon">🏥</div><div class="doc-info"><div class="doc-name">Medical Fitness Certificate</div><div class="doc-exp" id="medExp">Expires: Not set</div></div><div class="doc-status warn" id="medStatus">?</div></div>
-    <div class="doc-card" onclick="editDoc('insurance')"><div class="doc-icon">🛡️</div><div class="doc-info"><div class="doc-name">Vehicle Insurance</div><div class="doc-exp" id="insExp">Expires: Not set</div></div><div class="doc-status warn" id="insStatus">?</div></div>
-    <div class="doc-card" onclick="editDoc('emirates')"><div class="doc-icon">🇦🇪</div><div class="doc-info"><div class="doc-name">Emirates ID</div><div class="doc-exp" id="emiratesExp">Expires: Not set</div></div><div class="doc-status warn" id="emiratesStatus">?</div></div>
-    <div class="doc-card" onclick="editDoc('driving')"><div class="doc-icon">🚗</div><div class="doc-info"><div class="doc-name">Driving Licence</div><div class="doc-exp" id="drivingExp">Expires: Not set</div></div><div class="doc-status warn" id="drivingStatus">?</div></div>
-  </div>
 
-  <!-- ✅ NEW: HEAT SAFETY with weather-triggered hydration station -->
-  <div class="card">
-    <div class="card-lbl">🧊 Cool-Down Stations — Al Karama</div>
-    <div id="heatWarningBox" style="display:none;background:rgba(255,107,44,0.1);border:1px solid rgba(255,107,44,0.3);border-radius:10px;padding:10px;margin-bottom:12px;font-size:11px;color:var(--orange);font-weight:700;text-align:center;">🌡️ <span id="heatWarningText">Temperature check in progress...</span></div>
-    <div class="station-list">
-      <div class="station-row" style="border-color:rgba(0,255,136,0.2);">
-        <div class="station-icon">🏛️</div>
-        <div class="station-info">
-          <div class="station-name">RTA Rest Point — Karama Complex</div>
-          <div class="station-dist">0.3 km · Open 24h</div>
-          <div class="station-tags"><span class="s-tag water">💧 Water</span><span class="s-tag shade">⛱ Shade</span><span class="s-tag rta">RTA</span></div>
-        </div>
-      </div>
-      <div class="station-row">
-        <div class="station-icon">☕</div>
-        <div class="station-info">
-          <div class="station-name">Magizham Partner Café — Al Karama St</div>
-          <div class="station-dist">0.5 km · Free water for Magizham riders</div>
-          <div class="station-tags"><span class="s-tag water">💧 Water</span><span class="s-tag shade">⛱ Shade</span></div>
-        </div>
-      </div>
-      <div class="station-row">
-        <div class="station-icon">⛽</div>
-        <div class="station-info">
-          <div class="station-name">ENOC Station — Dubai Frame Rd</div>
-          <div class="station-dist">0.8 km · AC waiting area</div>
-          <div class="station-tags"><span class="s-tag shade">⛱ Shade</span><span class="s-tag hot">❄️ AC</span></div>
-        </div>
-      </div>
+  <!-- Heat advisory card -->
+  <div id="heatDocsCard">
+    <div class="hd-title">🌡️ Heat Advisory — <span id="hdTemp">—</span></div>
+    <div class="hd-body" id="hdBody">Temperature is being checked...</div>
+    <div class="hd-station">
+      <div class="hds-lbl">🧊 Nearest Mandatory Hydration Point</div>
+      <div class="hds-name">RTA Rest Point — Karama Complex</div>
+      <div class="hds-sub">0.3 km · Open 24 hrs · Free water + shade</div>
     </div>
   </div>
 
+  <div style="margin:0 13px 11px;">
+    <div class="doc-card" onclick="editDoc('rta')">
+      <div class="doc-icon">🪪</div>
+      <div class="doc-info"><div class="doc-nm">RTA Delivery Permit</div><div class="doc-exp" id="rtaExp">Expires: Not set</div><div class="doc-cd" id="rtaCD"></div></div>
+      <div class="dstat w" id="rtaStat">?</div>
+    </div>
+    <div class="doc-card" onclick="editDoc('medical')">
+      <div class="doc-icon">🏥</div>
+      <div class="doc-info"><div class="doc-nm">Medical Fitness Certificate</div><div class="doc-exp" id="medExp">Expires: Not set</div><div class="doc-cd" id="medCD"></div></div>
+      <div class="dstat w" id="medStat">?</div>
+    </div>
+    <div class="doc-card" onclick="editDoc('insurance')">
+      <div class="doc-icon">🛡️</div>
+      <div class="doc-info"><div class="doc-nm">Vehicle Insurance</div><div class="doc-exp" id="insExp">Expires: Not set</div><div class="doc-cd" id="insCD"></div></div>
+      <div class="dstat w" id="insStat">?</div>
+    </div>
+    <div class="doc-card" onclick="editDoc('emirates')">
+      <div class="doc-icon">🇦🇪</div>
+      <div class="doc-info"><div class="doc-nm">Emirates ID</div><div class="doc-exp" id="emExp">Expires: Not set</div><div class="doc-cd" id="emCD"></div></div>
+      <div class="dstat w" id="emStat">?</div>
+    </div>
+    <div class="doc-card" onclick="editDoc('driving')">
+      <div class="doc-icon">🚗</div>
+      <div class="doc-info"><div class="doc-nm">Driving Licence</div><div class="doc-exp" id="drExp">Expires: Not set</div><div class="doc-cd" id="drCD"></div></div>
+      <div class="dstat w" id="drStat">?</div>
+    </div>
+  </div>
+
+  <div class="card" id="stationCard">
+    <div class="clbl">🧊 Cool-Down Stations</div>
+    <div class="st-row" id="st0"><div class="sti">🏛️</div><div><div class="stn">RTA Rest Point — Karama</div><div class="std">0.3 km · Open 24h</div><div class="stags"><span class="stag w">💧 Water</span><span class="stag s">⛱ Shade</span><span class="stag r">RTA</span></div></div></div>
+    <div class="st-row" id="st1"><div class="sti">☕</div><div><div class="stn">Magizham Café Partner</div><div class="std">0.5 km · Free water for riders</div><div class="stags"><span class="stag w">💧 Water</span><span class="stag s">⛱ Shade</span></div></div></div>
+    <div class="st-row" id="st2"><div class="sti">⛽</div><div><div class="stn">ENOC — Dubai Frame Rd</div><div class="std">0.8 km · AC area</div><div class="stags"><span class="stag s">⛱ Shade</span><span class="stag h">❄️ AC</span></div></div></div>
+  </div>
+
   <div class="card">
-    <div class="card-lbl">🅿️ Parking Tips — Al Karama</div>
-    <div class="park-row"><div class="park-loc">📍 Karama Centre Basement</div><div class="park-tip">Free bike parking near ramp entrance. Max 2 bikes per spot.</div></div>
-    <div class="park-row"><div class="park-loc">📍 Al Karama Post Office Side</div><div class="park-tip">Unmarked area — usually safe for 30 min. Avoid peak 12–2 PM.</div><div class="park-fine">⚠️ AED 200 fine if ticketed on main road</div></div>
-    <div class="park-row"><div class="park-loc">📍 Zabeel Park Gate 3</div><div class="park-tip">Designated two-wheeler bay. Free. Use for Oud Metha orders.</div></div>
+    <div class="clbl">🅿️ Parking Tips</div>
+    <div class="park"><div class="park-loc">📍 Karama Centre Basement</div><div class="park-tip">Free bike bay near ramp entrance. Max 2 bikes.</div></div>
+    <div class="park"><div class="park-loc">📍 Al Karama Post Office Side</div><div class="park-tip">Unmarked — safe for 30 min. Avoid 12–2 PM.</div><div class="park-fine">⚠️ AED 200 fine on main road</div></div>
+    <div class="park"><div class="park-loc">📍 Zabeel Park Gate 3</div><div class="park-tip">Designated 2-wheeler bay. Free. Oud Metha orders.</div></div>
   </div>
 </div>
 
-<!-- PROFILE SCREEN -->
-<div id="screenProfile" class="screen">
-  <div style="margin:0 14px 12px;padding:20px;background:linear-gradient(135deg,var(--bg1),var(--bg2));border-radius:20px;border:1px solid var(--bdr);text-align:center;">
-    <div style="width:68px;height:68px;border-radius:20px;margin:0 auto 12px;background:linear-gradient(135deg,var(--neon2),#005C30);display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 0 0 3px var(--bg),0 0 0 5px rgba(0,255,136,0.2);">🏍</div>
-    <div class="syne" style="font-size:20px;font-weight:800;color:var(--tx);">Magizham Rider</div>
-    <div style="font-size:11px;color:var(--tx2);margin-top:4px;">Honda Activa</div>
-    <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:8px;"><span>⭐⭐⭐⭐⭐</span><span class="mono" style="font-size:15px;color:var(--amber);font-weight:700;">4.9</span></div>
+<!-- ══ PROFILE SCREEN ══ -->
+<div id="scrProfile" class="screen">
+  <div style="margin:0 13px 11px;padding:18px;background:linear-gradient(135deg,var(--bg1),var(--bg2));border-radius:18px;border:1px solid var(--bdr);text-align:center;">
+    <div style="width:64px;height:64px;border-radius:18px;margin:0 auto 11px;background:linear-gradient(135deg,var(--neon2),#004A25);display:flex;align-items:center;justify-content:center;font-size:30px;">🏍</div>
+    <div class="syne" style="font-size:19px;font-weight:800;color:var(--tx);">Magizham Rider</div>
+    <div style="font-size:10.5px;color:var(--tx2);margin-top:3px;">Honda Activa</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:4px;margin-top:7px;">
+      <span>⭐⭐⭐⭐⭐</span><span class="mono" style="font-size:14px;color:var(--amber);font-weight:700;">4.9</span>
+    </div>
   </div>
-  <div style="display:flex;gap:8px;margin:0 14px 12px;">
-    <div style="flex:1;background:var(--bg1);border-radius:14px;padding:13px;text-align:center;border:1px solid var(--bdr);"><div class="mono" style="font-size:18px;font-weight:700;color:var(--neon);" id="pToday">0</div><div style="font-size:9px;color:var(--tx3);margin-top:3px;">Today</div></div>
-    <div style="flex:1;background:var(--bg1);border-radius:14px;padding:13px;text-align:center;border:1px solid var(--bdr);"><div class="mono" style="font-size:18px;font-weight:700;color:var(--neon);" id="pWeek">0</div><div style="font-size:9px;color:var(--tx3);margin-top:3px;">Week</div></div>
-    <div style="flex:1;background:var(--bg1);border-radius:14px;padding:13px;text-align:center;border:1px solid var(--bdr);"><div class="mono" style="font-size:18px;font-weight:700;color:var(--neon);">312</div><div style="font-size:9px;color:var(--tx3);margin-top:3px;">All Time</div></div>
+  <div style="display:flex;gap:7px;margin:0 13px 11px;">
+    <div style="flex:1;background:var(--bg1);border-radius:13px;padding:12px;text-align:center;border:1px solid var(--bdr);">
+      <div class="mono" style="font-size:17px;font-weight:700;color:var(--neon);" id="pToday">0</div>
+      <div style="font-size:8.5px;color:var(--tx3);margin-top:2px;">Today</div>
+    </div>
+    <div style="flex:1;background:var(--bg1);border-radius:13px;padding:12px;text-align:center;border:1px solid var(--bdr);">
+      <div class="mono" style="font-size:17px;font-weight:700;color:var(--neon);" id="pWeek">0</div>
+      <div style="font-size:8.5px;color:var(--tx3);margin-top:2px;">Week</div>
+    </div>
+    <div style="flex:1;background:var(--bg1);border-radius:13px;padding:12px;text-align:center;border:1px solid var(--bdr);">
+      <div class="mono" style="font-size:17px;font-weight:700;color:var(--neon);">312</div>
+      <div style="font-size:8.5px;color:var(--tx3);margin-top:2px;">All Time</div>
+    </div>
   </div>
   <div class="card">
-    <div class="card-lbl">⚙️ Settings</div>
-    <div style="display:flex;flex-direction:column;gap:0;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:12px;color:var(--tx2);">High Accuracy GPS</span><span class="mono" style="font-size:11px;color:var(--neon);">ON</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:12px;color:var(--tx2);">Voice Commands</span><span class="mono" style="font-size:11px;color:var(--neon);">Active</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:12px;color:var(--tx2);">Welfare Check</span><span class="mono" style="font-size:11px;color:var(--neon);">60s</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:12px;color:var(--tx2);">Heat Alerts</span><span class="mono" style="font-size:11px;color:var(--orange);">40°C trigger</span></div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:11px 0;"><span style="font-size:12px;color:var(--tx2);">Backend</span><span class="mono" style="font-size:9px;color:var(--tx3);">Railway ✓</span></div>
+    <div class="clbl">⚙️ Settings</div>
+    <div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:11.5px;color:var(--tx2);">High Accuracy GPS</span><span class="mono" style="font-size:10px;color:var(--neon);">ON</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:11.5px;color:var(--tx2);">Voice Commands</span><span class="mono" style="font-size:10px;color:var(--neon);">Active</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:11.5px;color:var(--tx2);">Welfare Check</span><span class="mono" style="font-size:10px;color:var(--neon);">60s</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:11.5px;color:var(--tx2);">Heat Alerts</span><span class="mono" style="font-size:10px;color:var(--orange);">40°C trigger</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--bdr);"><span style="font-size:11.5px;color:var(--tx2);">Auto-stage GPS</span><span class="mono" style="font-size:10px;color:var(--neon);">Active</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;"><span style="font-size:11.5px;color:var(--tx2);">Backend</span><span class="mono" style="font-size:9px;color:var(--tx3);">Railway ✓</span></div>
     </div>
   </div>
 </div>
 
-</div><!-- scrollArea -->
+</div><!-- /scrollArea -->
 
-<!-- BOTTOM NAV -->
-<div id="bottomNav">
-  <button class="nav-btn active" id="nav-home" onclick="switchScreen('home')"><span class="nav-icon">🏠</span><span class="nav-lbl">Home</span><div class="nav-ind"></div></button>
-  <button class="nav-btn" id="nav-wallet" onclick="switchScreen('wallet')"><span class="nav-icon">💰</span><span class="nav-lbl">Wallet</span><div class="nav-ind"></div></button>
-  <button class="nav-btn" id="nav-docs" onclick="switchScreen('docs')"><span class="nav-icon">📋</span><span class="nav-lbl">Docs</span><div class="nav-ind"></div></button>
-  <button class="nav-btn" id="nav-profile" onclick="switchScreen('profile')"><span class="nav-icon">👤</span><span class="nav-lbl">Profile</span><div class="nav-ind"></div></button>
+<!-- ══ BOTTOM NAV ══ -->
+<div id="bnav">
+  <button class="nb on" id="nb-home" onclick="switchScreen('Home')"><span class="ni">🏠</span><span class="nl">Home</span><div class="n-ind"></div></button>
+  <button class="nb" id="nb-wallet" onclick="switchScreen('Wallet')"><span class="ni">💰</span><span class="nl">Wallet</span><div class="n-ind"></div></button>
+  <button class="nb" id="nb-docs" onclick="switchScreen('Docs')"><span class="ni">📋</span><span class="nl">Docs</span><div class="n-ind"></div></button>
+  <button class="nb" id="nb-profile" onclick="switchScreen('Profile')"><span class="ni">👤</span><span class="nl">Profile</span><div class="n-ind"></div></button>
 </div>
-</div><!-- app -->
 
-<!-- CHAT SHEETS -->
-<div class="chat-sheet" id="chatCustomer">
-  <div class="chat-panel">
-    <div class="chat-hdr"><div class="chat-ttl">💬 <span id="chatCustName">Customer</span></div><button class="btn-close-chat" onclick="closeChat('customer')">✕</button></div>
-    <div class="chat-msgs" id="chatCustMsgs"></div>
+</div><!-- /app -->
+
+<!-- ══ FAB MENU (SOS, Voice, Transfer) ══ -->
+<div id="fab">
+  <div class="fab-items hidden" id="fabItems">
+    <div class="fab-item"><span class="fab-lbl">Voice command</span><button class="fab-btn fab-voice" onclick="closeFAB();startVoice()">🎙</button></div>
+    <div class="fab-item"><span class="fab-lbl">Transfer order</span><button class="fab-btn fab-xfer" onclick="closeFAB();openTransfer()">🔄</button></div>
+  </div>
+  <button class="fab-main" id="fabMain" onclick="toggleFAB()">🆘</button>
+</div>
+
+<!-- ══ CHAT SHEETS ══ -->
+<div class="chat-sh" id="chatCust">
+  <div class="chat-pan">
+    <div class="chat-hd"><div class="chat-ttl">💬 <span id="custChatName">Customer</span></div><button class="chat-cls" onclick="closeChat('cust')">✕</button></div>
+    <div class="chat-msgs" id="custMsgs"></div>
     <div class="qr-row">
-      <button class="qr-btn" onclick="qr('customer','On my way! 🏍')">On my way!</button>
-      <button class="qr-btn" onclick="qr('customer','2 mins away ⏱')">2 mins</button>
-      <button class="qr-btn" onclick="qr('customer','At your door 🚪')">At door</button>
-      <button class="qr-btn" onclick="qr('customer','Please come downstairs')">Come down</button>
+      <button class="qr-b" onclick="qr('cust','On my way! 🏍')">On my way</button>
+      <button class="qr-b" onclick="qr('cust','2 mins away ⏱')">2 mins</button>
+      <button class="qr-b" onclick="qr('cust','At your door 🚪')">At door</button>
+      <button class="qr-b" onclick="qr('cust','Please come downstairs')">Come down</button>
     </div>
-    <div class="chat-inp-row">
-      <input class="chat-inp" id="chatCustInput" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat('customer')">
-      <button class="btn-send" onclick="sendChat('customer')">➤</button>
-    </div>
+    <div class="ci-row"><input class="ci" id="custCI" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat('cust')"><button class="cs" onclick="sendChat('cust')">➤</button></div>
   </div>
 </div>
-
-<div class="chat-sheet" id="chatKitchen">
-  <div class="chat-panel">
-    <div class="chat-hdr" style="border-color:rgba(59,130,246,0.2);"><div class="chat-ttl" style="color:var(--blue);">🍳 Kitchen — Magizham</div><button class="btn-close-chat" onclick="closeChat('kitchen')">✕</button></div>
-    <div class="chat-msgs" id="chatKitMsgs"></div>
+<div class="chat-sh" id="chatKit">
+  <div class="chat-pan">
+    <div class="chat-hd" style="border-color:rgba(74,158,255,.2)"><div class="chat-ttl" style="color:var(--blue)">🍳 Kitchen — Magizham</div><button class="chat-cls" onclick="closeChat('kit')">✕</button></div>
+    <div class="chat-msgs" id="kitMsgs"></div>
     <div class="qr-row">
-      <button class="qr-btn" onclick="qr('kitchen','Order ready for pickup?')">Ready?</button>
-      <button class="qr-btn" onclick="qr('kitchen','At restaurant, waiting')">Waiting</button>
-      <button class="qr-btn" onclick="qr('kitchen','Running 5 mins late')">5 min late</button>
+      <button class="qr-b" onclick="qr('kit','Order ready for pickup?')">Ready?</button>
+      <button class="qr-b" onclick="qr('kit','At restaurant, waiting')">Waiting</button>
+      <button class="qr-b" onclick="qr('kit','Running 5 mins late')">5 min late</button>
     </div>
-    <div class="chat-inp-row">
-      <input class="chat-inp" id="chatKitInput" placeholder="Message kitchen..." onkeydown="if(event.key==='Enter')sendChat('kitchen')" style="border-color:rgba(59,130,246,0.15);">
-      <button class="btn-send" style="background:linear-gradient(135deg,var(--blue),#1D4ED8);" onclick="sendChat('kitchen')">➤</button>
-    </div>
+    <div class="ci-row"><input class="ci" id="kitCI" placeholder="Message kitchen..." onkeydown="if(event.key==='Enter')sendChat('kit')"><button class="cs" style="background:linear-gradient(135deg,var(--blue),#1A5FBF)" onclick="sendChat('kit')">➤</button></div>
   </div>
 </div>
 
-<!-- SOS PANEL -->
+<!-- ══ SOS PANEL ══ -->
 <div id="sosPanel">
   <div class="sos-box">
-    <div class="sos-icon">🆘</div>
+    <div class="sos-ico">🆘</div>
     <div class="sos-title syne">Emergency SOS</div>
-    <div class="sos-sub">Alert nearby Magizham riders or call for help. Your location will be shared.</div>
+    <div class="sos-sub">Your live location will be shared with nearest riders and Magizham dispatch.</div>
     <div class="sos-btns">
-      <button class="sos-btn red" onclick="sendSOS('accident')">🚑 Accident — Need Ambulance</button>
-      <button class="sos-btn amber" onclick="sendSOS('breakdown')">🔧 Vehicle Breakdown</button>
-      <button class="sos-btn amber" onclick="sendSOS('flat')">🛞 Flat Tyre — Need Help</button>
-      <button class="sos-btn cancel" onclick="closeSOS()">Cancel</button>
+      <button class="sb r" onclick="sendSOS('accident')">🚑 Accident — Need Ambulance</button>
+      <button class="sb a" onclick="sendSOS('breakdown')">🔧 Vehicle Breakdown</button>
+      <button class="sb a" onclick="sendSOS('flat')">🛞 Flat Tyre — Need Help</button>
+      <button class="sb c" onclick="closeSOS()">Cancel</button>
     </div>
   </div>
 </div>
 
-<!-- ORDER TRANSFER -->
-<div id="transferPanel">
-  <div class="transfer-box">
-    <div class="transfer-title syne">🔄 Transfer Active Order</div>
-    <div style="font-size:11px;color:var(--tx2);margin-bottom:14px;">Nearby riders available:</div>
-    <div class="nearby-riders" id="nearbyRiders"></div>
-    <button onclick="closeTransfer()" style="width:100%;padding:12px;background:var(--bg2);border:1px solid var(--bdr);border-radius:12px;color:var(--tx2);font-family:'Syne',sans-serif;font-size:13px;font-weight:800;cursor:pointer;">Cancel</button>
+<!-- ══ TRANSFER PANEL ══ -->
+<div id="xferPanel">
+  <div class="xfer-box">
+    <div class="xfer-title syne">🔄 Transfer Active Order</div>
+    <div style="font-size:10.5px;color:var(--tx2);margin-bottom:12px;">Riders within 1.5 km:</div>
+    <div id="nearbyRiders"></div>
+    <button onclick="closeTransfer()" style="width:100%;padding:11px;background:var(--bg2);border:1px solid var(--bdr);border-radius:11px;color:var(--tx2);font-family:'Syne',sans-serif;font-size:12.5px;font-weight:800;cursor:pointer;">Cancel</button>
   </div>
 </div>
 
-<!-- DELIVERY DONE -->
-<div id="deliveryDone">
-  <div class="done-icon">🎉</div>
-  <div class="done-title syne">Delivered!</div>
-  <div class="done-sub">Great work! Customer has received their order.</div>
-  <div class="done-earn mono" id="doneEarn">+AED 15</div>
-  <div class="done-lbl">Added to wallet</div>
-  <div class="done-achievement" id="doneAchievement" style="display:none;"></div>
-  <button class="btn-done syne" onclick="resetDelivery()">Back to Home</button>
+<!-- ══ DELIVERY DONE ══ -->
+<div id="delDone">
+  <div class="dd-ico">🎉</div>
+  <div class="dd-title syne">Delivered!</div>
+  <div class="dd-sub">Great work — customer received their order.</div>
+  <div class="dd-earn-card">
+    <div class="dd-earn-main" id="ddEarn">+AED 15</div>
+    <div style="height:1px;background:rgba(255,255,255,.06);margin:10px 0;"></div>
+    <div class="dd-earn-row"><span class="dd-earn-lbl">Distance</span><span class="dd-earn-val" id="ddDist">—</span></div>
+    <div class="dd-earn-row"><span class="dd-earn-lbl">Time taken</span><span class="dd-earn-val" id="ddTime">—</span></div>
+    <div class="dd-earn-row"><span class="dd-earn-lbl">Deliveries today</span><span class="dd-earn-val" id="ddCount">—</span></div>
+  </div>
+  <div class="dd-achieve" id="ddAchieve" style="display:none;"></div>
+  <button class="dd-btn syne" onclick="resetDelivery()">Next Delivery</button>
 </div>
 
-<!-- DOC MODAL -->
+<!-- ══ DOC MODAL ══ -->
 <div id="docModal">
-  <div style="background:var(--bg1);border-radius:22px 22px 0 0;width:100%;max-width:430px;padding:24px;border:1px solid var(--bdrAmt);">
-    <div class="syne" style="font-size:16px;font-weight:800;color:var(--amber);margin-bottom:16px;" id="docModalTitle">Edit Document</div>
-    <div style="margin-bottom:12px;">
-      <div style="font-size:10px;color:var(--tx3);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.06em;">Expiry Date</div>
-      <input type="date" id="docDateInput" style="width:100%;background:var(--bg2);border:1.5px solid var(--bdrAmt);border-radius:12px;padding:12px 14px;color:var(--amber);font-family:'Space Mono',monospace;font-size:15px;outline:none;">
+  <div class="dm-box">
+    <div class="syne" style="font-size:15px;font-weight:800;color:var(--amber);margin-bottom:14px;" id="docModalTitle">Edit Document</div>
+    <div style="margin-bottom:11px;">
+      <div style="font-size:9px;color:var(--tx3);margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;">Expiry Date</div>
+      <input type="date" id="docDate" style="width:100%;background:var(--bg2);border:1.5px solid var(--bdrAmt);border-radius:11px;padding:11px 13px;color:var(--amber);font-family:'Space Mono',monospace;font-size:14px;outline:none;">
     </div>
-    <div style="display:flex;gap:9px;">
-      <button onclick="saveDoc()" style="flex:1;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;">Save</button>
-      <button onclick="closeDocModal()" style="flex:1;padding:14px;border:none;border-radius:12px;background:var(--bg2);color:var(--tx2);font-family:'Syne',sans-serif;font-size:14px;font-weight:800;cursor:pointer;border:1px solid var(--bdr);">Cancel</button>
+    <div style="display:flex;gap:8px;">
+      <button onclick="saveDoc()" style="flex:1;padding:13px;border:none;border-radius:11px;background:linear-gradient(135deg,var(--amber),#CC8A00);color:#000;font-family:'Syne',sans-serif;font-size:13.5px;font-weight:800;cursor:pointer;">Save</button>
+      <button onclick="closeDocModal()" style="flex:1;padding:13px;border:none;border-radius:11px;background:var(--bg2);color:var(--tx2);font-family:'Syne',sans-serif;font-size:13.5px;font-weight:800;cursor:pointer;border:1px solid var(--bdr);">Cancel</button>
     </div>
   </div>
 </div>
@@ -771,925 +969,794 @@ body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;bac
 <script src="/socket.io/socket.io.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════
-   MAGIZHAM RIDER APP v4.0
-   New: Building Entry Guide · Multi-Lang Voice · Heat Safety
-        Smart Welfare Check · Offline Cache Mode
+   MAGIZHAM RIDER v5.0 — JavaScript
+   ✅ CORS fix: weather via backend proxy + free fallback
+   ✅ NO Google Maps SDK — pure deep-link navigation
+   ✅ Simplified UI — FAB menu, clean action flow
+   ✅ Auto GPS stage detection (restaurant + customer proximity)
+   ✅ Welfare check with auto-SOS fallback
+   ✅ Offline cache with queue flush
+   ✅ GPS performance mode (kills heavy animations)
+   ✅ GPS retry logic
+   ✅ Earnings breakdown popup
 ═══════════════════════════════════════════════════════════ */
 
-/* ── MULTI-LANGUAGE VOICE KEYWORDS ─────────────────────────
-   Each language maps keywords → action
-─────────────────────────────────────────────────────────── */
-const VOICE_COMMANDS = {
-  en: {
-    arrived:   ["arrived","at location","at the door","i'm here","reached"],
-    picked:    ["picked up","collected","got the order","picked"],
-    delivered: ["delivered","done","order done","complete","handed over"],
-    gps:       ["start gps","start tracking","begin gps"],
-    sos:       ["sos","help","emergency","accident"],
-    otp:       ["otp done","verified","entered otp"],
-  },
-  ar: {
-    arrived:   ["وصلت","أنا هنا","في الموقع","عند الباب"],
-    picked:    ["استلمت","أخذت الطلب","جاهز"],
-    delivered: ["تم التسليم","سلّمت","انتهيت"],
-    gps:       ["ابدأ gps","تتبع"],
-    sos:       ["نجدة","مساعدة","طوارئ"],
-    otp:       ["otp تم"],
-  },
-  hi: {
-    arrived:   ["pahunch gaya","pahuncha","aa gaya","location pe hoon","yahan hoon"],
-    picked:    ["le liya","pick up kiya","order liya","utha liya"],
-    delivered: ["de diya","deliver ho gaya","done","khatam"],
-    gps:       ["gps shuru","tracking shuru"],
-    sos:       ["madad","emergency","bachao"],
-    otp:       ["otp ho gaya","verify ho gaya"],
-  },
-  ur: {
-    arrived:   ["pohunch gaya","aa gaya","yahan hoon","darwazay par hoon"],
-    picked:    ["le liya","utha liya","order liya"],
-    delivered: ["de diya","deliver kar diya","khatam"],
-    gps:       ["gps shuru","tracking"],
-    sos:       ["madad","emergency","haadsa"],
-    otp:       ["otp ho gaya"],
-  }
-};
-
-/* ── BUILDING ENTRY DATABASE — Al Karama, Dubai ────────────
-   lat/lng of building centroid + specific entry instructions
-   triggered when rider GPS comes within 50m
-─────────────────────────────────────────────────────────── */
-const BUILDING_DB = [
-  {
-    name: "Wasl Hub — Al Karama",
-    lat: 25.2298, lng: 55.3089,
-    steps: [
-      { txt: "Main entry is from 18th Street side — NOT the Car Park entrance", tip: "Look for 'Wasl Hub' signage in green" },
-      { txt: "Security desk is on the right — sign in with order number", tip: "Takes ~30 seconds, have your phone ready" },
-      { txt: "Use Elevator B (left side) — reaches all residential floors", tip: "Elevator A is for parking only" },
-      { txt: "Ring bell, do NOT knock — most residents are inside with AC on", tip: "" },
-    ]
-  },
-  {
-    name: "Karama Shopping Complex",
-    lat: 25.2352, lng: 55.3063,
-    steps: [
-      { txt: "Ground floor shops — enter from main Al Karama St gate", tip: "Park bike at the designated 2-wheeler bay on left" },
-      { txt: "Upper floors via escalator near Gate 2 (south side)", tip: "" },
-      { txt: "Call customer if shop shutters are partially closed", tip: "Some shops have rear service entrance" },
-    ]
-  },
-  {
-    name: "Park Regis Kris Kin Hotel area",
-    lat: 25.2312, lng: 55.3105,
-    steps: [
-      { txt: "Hotel deliveries: use the service lane behind the property", tip: "Main entrance will redirect you — save time by going direct" },
-      { txt: "Residential towers: Entry from 22A St, security clearance required", tip: "" },
-      { txt: "Basement bike parking available — free for 30 min", tip: "" },
-    ]
-  },
-  {
-    name: "Al Karama Post Office Building",
-    lat: 25.2334, lng: 55.3071,
-    steps: [
-      { txt: "Enter from side lane (not main road) — direct access to lifts", tip: "Main road entrance has a 5-min wait queue" },
-      { txt: "Apartments 1-50: Tower A (left lift bank)", tip: "" },
-      { txt: "Apartments 51-100: Tower B (right lift bank)", tip: "" },
-    ]
-  },
-  {
-    name: "Zabeel District Residences",
-    lat: 25.2280, lng: 55.3045,
-    steps: [
-      { txt: "Gate opens automatically — wait 3 seconds for sensor", tip: "" },
-      { txt: "Visitor parking on P1 — mention 'food delivery' to guard", tip: "Guard speaks Arabic and Hindi" },
-      { txt: "Call customer from lobby — building intercom is on right wall", tip: "" },
-    ]
-  }
+/* ─── BUILDING DATABASE ─────────────────────────────────── */
+const BUILDINGS = [
+  { name:"Wasl Hub — Al Karama", lat:25.2298, lng:55.3089,
+    steps:[
+      {t:"Entry from 18th Street side (NOT the car park entrance)", tip:"Look for green 'Wasl Hub' signage"},
+      {t:"Sign in at security desk — show order number on your phone", tip:"Takes ~30s, have phone ready"},
+      {t:"Use Elevator B on the left — Elevator A is for parking only", tip:""},
+      {t:"Ring bell, don't knock — residents have AC on", tip:""},
+    ]},
+  { name:"Karama Shopping Complex", lat:25.2352, lng:55.3063,
+    steps:[
+      {t:"Ground floor: enter from main Al Karama St gate", tip:"Park at designated 2-wheeler bay on left"},
+      {t:"Upper floors via escalator near Gate 2 (south side)", tip:""},
+      {t:"Call customer if shop shutters are partially closed", tip:"Some shops have rear service entrance"},
+    ]},
+  { name:"Al Karama Post Office Bldg", lat:25.2334, lng:55.3071,
+    steps:[
+      {t:"Enter from side lane (not main road) — direct lift access", tip:"Main road entrance has a 5-min queue"},
+      {t:"Apts 1–50: Tower A (left lift bank). Apts 51–100: Tower B", tip:""},
+      {t:"Intercom is at the main gate right side if no answer", tip:""},
+    ]},
+  { name:"Zabeel District Residences", lat:25.2280, lng:55.3045,
+    steps:[
+      {t:"Gate opens automatically — wait 3 seconds for sensor", tip:""},
+      {t:"Visitor parking on P1 — say 'food delivery' to guard", tip:"Guard speaks Arabic and Hindi"},
+      {t:"Call customer from lobby — intercom is on right wall", tip:""},
+    ]},
 ];
 
-/* ── STATE ─────────────────────────────────────────────── */
-let socket=null, isOnline=false, isTracking=false, watchId=null;
+/* ─── VOICE KEYWORDS (all four languages) ──────────────── */
+const VOICE_KW = {
+  en: { arrived:["arrived","at location","at the door","i'm here","reached"],
+        picked: ["picked up","collected","got the order","got it"],
+        delivered:["delivered","done","complete","handed over"],
+        gps:   ["start gps","start tracking"],
+        sos:   ["sos","help","emergency","accident"] },
+  ar: { arrived:["وصلت","أنا هنا","عند الباب"],
+        picked: ["استلمت","أخذت الطلب"],
+        delivered:["تم التسليم","سلّمت","انتهيت"],
+        gps:   ["ابدأ gps"],
+        sos:   ["نجدة","مساعدة","طوارئ"] },
+  hi: { arrived:["pahunch gaya","pahuncha","aa gaya","yahan hoon"],
+        picked: ["le liya","pick up kiya","utha liya"],
+        delivered:["de diya","deliver ho gaya","khatam","done"],
+        gps:   ["gps shuru","tracking shuru"],
+        sos:   ["madad","emergency","bachao"] },
+  ur: { arrived:["pohunch gaya","aa gaya","yahan hoon"],
+        picked: ["le liya","utha liya","order liya"],
+        delivered:["de diya","deliver kar diya","khatam"],
+        gps:   ["gps shuru","tracking"],
+        sos:   ["madad","emergency","haadsa"] },
+};
+
+/* ─── STATE ─────────────────────────────────────────────── */
+let socket=null, isOnline=false, isTracking=false, watchId=null, gpsRetries=0;
 let currentOrderId=null, currentOrder=null, stage=0;
-let pingCount=0, todayDeliveries=0, todayEarnings=0;
-let custMsgs=[], kitMsgs=[];
-let podPhotoData=null;
-let currentDocKey=null;
-let withdrawnToday=false;
-let lastLat=null, lastLng=null;
-let currentLang = localStorage.getItem("riderLang") || "en";
+let pingCnt=0, todayDel=0, todayEarn=0;
+let custMsgArr=[], kitMsgArr=[];
+let podData=null, currentDocKey=null, withdrawnToday=false;
+let lastLat=null, lastLng=null, lastMoveLat=null, lastMoveLng=null;
+let lastMoveTime=Date.now();
+let wfTimer=null, wfCDInt=null, wfActive=false;
+let stuckTimer=null;
+let fabOpen=false;
+let orderStartTime=null, orderStartLat=null, orderStartLng=null;
+let totalRideMeters=0;
+let currentLang=localStorage.getItem("rLang")||"en";
+let offlineQ=[];
+let tempC=null;
+const WEEK=[85,110,140,95,160,200,0];
+const WDAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Today"];
+const TIERS=[{n:"Bronze Star",t:10,c:"bronze",r:"AED 5"},{n:"Silver Ace",t:25,c:"silver",r:"AED 15"},{n:"Gold Champion",t:50,c:"gold",r:"AED 35"}];
+const DOC_IDS={rta:"rta",medical:"med",insurance:"ins",emirates:"em",driving:"dr"};
 
-// ✅ NEW: Welfare check state
-let lastMovementTime = Date.now();
-let welfareCheckTimer = null;
-let welfareCountdownInterval = null;
-let welfareActive = false;
-const WELFARE_IDLE_THRESHOLD = 5 * 60 * 1000; // 5 mins idle with active order
-const WELFARE_RESPONSE_TIME  = 60; // seconds to respond
-
-// ✅ NEW: Offline queue
-let offlineQueue = [];
-let isNetworkOnline = navigator.onLine;
-
-// ✅ NEW: Heat safety state
-let currentTempC = null;
-const HEAT_THRESHOLD = 40;
-
-/* ── NETWORK DETECTION ─────────────────────────────────── */
-window.addEventListener("online",  () => { isNetworkOnline = true;  onNetworkChange(true);  });
-window.addEventListener("offline", () => { isNetworkOnline = false; onNetworkChange(false); });
-
-function onNetworkChange(online) {
-  document.getElementById("offlineIndicator").classList.toggle("show", !online);
-  if (online) {
-    log("Network restored — flushing queue", "ok");
-    flushOfflineQueue();
-    if (isOnline && !socket?.connected) initSocket();
-  } else {
-    log("Network lost — offline mode active", "warn");
-  }
-}
-
-function flushOfflineQueue() {
-  if (!offlineQueue.length) return;
-  offlineQueue.forEach(item => {
-    if (socket?.connected) {
-      socket.emit(item.event, item.data);
-      log("Flushed: " + item.event + " for order #" + item.data.orderId, "ok");
-    }
-  });
-  offlineQueue = [];
-}
-
-function safeEmit(event, data) {
-  if (socket?.connected && isNetworkOnline) {
-    socket.emit(event, data);
-  } else {
-    offlineQueue.push({ event, data });
-    log("Queued offline: " + event, "warn");
-    toast("Saved offline — will send when connected", "warn");
-  }
-}
-
-/* ── HEAT SAFETY ────────────────────────────────────────── */
-async function fetchTemperature() {
+/* ══════════════════════════════════════════════════════════
+   FIX 1: WEATHER — Backend proxy first, then CORS-safe
+           Open-Meteo fallback, then seasonal estimate.
+   Your backend should add:
+     app.get('/api/weather', async (req,res)=>{
+       const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=25.2285&longitude=55.3088&current_weather=true');
+       res.json(await r.json());
+     });
+══════════════════════════════════════════════════════════ */
+async function fetchWeather() {
+  // Try 1: Our own backend proxy (no CORS issue)
   try {
-    // Open-Meteo — free, no API key needed, accurate for Dubai
-    const res = await fetch(
+    const r = await fetch("/api/weather", { signal:AbortSignal.timeout(4000) });
+    if (r.ok) {
+      const d = await r.json();
+      const t = d.current_weather?.temperature ?? d.current?.temperature_2m;
+      if (t != null) { applyTemp(Math.round(t)); log(`Weather (proxy): ${Math.round(t)}°C`,"ok"); return; }
+    }
+  } catch(e) {}
+
+  // Try 2: Direct Open-Meteo (works in most browsers — they have proper CORS headers)
+  try {
+    const r = await fetch(
       "https://api.open-meteo.com/v1/forecast?latitude=25.2285&longitude=55.3088&current_weather=true&temperature_unit=celsius",
-      { signal: AbortSignal.timeout(5000) }
+      { signal:AbortSignal.timeout(5000), mode:"cors" }
     );
-    const data = await res.json();
-    currentTempC = data.current_weather?.temperature;
-    if (currentTempC !== null) {
-      log(`Temperature: ${currentTempC}°C`, currentTempC >= HEAT_THRESHOLD ? "warn" : "ok");
-      checkHeatAlert(currentTempC);
-      updateHeatWarningBox(currentTempC);
+    if (r.ok) {
+      const d = await r.json();
+      const t = d.current_weather?.temperature;
+      if (t != null) { applyTemp(Math.round(t)); log(`Weather (direct): ${Math.round(t)}°C`,"ok"); return; }
     }
-  } catch (e) {
-    log("Weather fetch failed — using local estimate", "warn");
-    // Dubai summer estimate fallback
-    const hour = new Date().getHours();
-    const estimatedTemp = (hour >= 12 && hour <= 17) ? 43 : 35;
-    currentTempC = estimatedTemp;
-    checkHeatAlert(estimatedTemp);
-    updateHeatWarningBox(estimatedTemp);
+  } catch(e) {}
+
+  // Try 3: wttr.in — alternative free API, solid CORS support
+  try {
+    const r = await fetch("https://wttr.in/Dubai?format=j1", { signal:AbortSignal.timeout(5000) });
+    if (r.ok) {
+      const d = await r.json();
+      const t = parseInt(d.current_condition?.[0]?.temp_C);
+      if (!isNaN(t)) { applyTemp(t); log(`Weather (wttr): ${t}°C`,"ok"); return; }
+    }
+  } catch(e) {}
+
+  // Fallback: seasonal Dubai estimate
+  const hr=new Date().getHours(), mo=new Date().getMonth();
+  const summer = mo>=4 && mo<=9;
+  const est = summer ? (hr>=12&&hr<=17?45:38) : (hr>=12&&hr<=16?32:26);
+  applyTemp(est);
+  log("Weather: all APIs unavailable, using seasonal estimate","w");
+}
+
+function applyTemp(t) {
+  tempC = t;
+  const isHot = t >= 40;
+  // Header banner
+  document.getElementById("heatTemp").textContent = t+"°C";
+  document.getElementById("heatMsg").textContent = t>=45
+    ? "⚠️ EXTREME HEAT — mandatory break now"
+    : t>=40 ? "Mandatory hydration break recommended"
+    : "Conditions safe · Stay hydrated";
+  document.getElementById("heatBanner").classList.toggle("show", isHot);
+  // Docs heat card
+  document.getElementById("hdTemp").textContent = t+"°C";
+  document.getElementById("hdBody").textContent = isHot
+    ? `${t}°C — UAE law requires rest breaks above 40°C. Stop every 30 min. The station below is your nearest mandatory hydration point.`
+    : `${t}°C — Conditions are safe. Keep water with you and check back in 15 minutes.`;
+  document.getElementById("heatDocsCard").classList.toggle("show", isHot);
+  // Stations: add urgent border + mandatory tag
+  ["st0","st1","st2"].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.classList.toggle("hot-mode", isHot);
+    let ht=el.querySelector(".stag.h.mandatory");
+    if(isHot && !ht){
+      const s=document.createElement("span"); s.className="stag h mandatory";
+      s.textContent="🌡️ Mandatory"; el.querySelector(".stags").appendChild(s);
+    } else if(!isHot && ht) ht.remove();
+  });
+  if(isHot) toast(`🌡️ ${t}°C in Al Karama — hydrate now!`,"hot");
+}
+
+function goHydration() { switchScreen("Docs"); setTimeout(()=>document.getElementById("stationCard").scrollIntoView({behavior:"smooth"}),250); }
+
+/* ══════════════════════════════════════════════════════════
+   FIX 2: NAVIGATION — Pure deep link, no deprecated SDK
+══════════════════════════════════════════════════════════ */
+function openNavigation() {
+  if (!currentOrder) { toast("Load an order first","w"); return; }
+  const addr = encodeURIComponent(currentOrder.customer_address || "Al Karama, Dubai");
+  // iOS: prefers maps:// | Android: geo: | fallback: google.com URL
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const url = isIOS
+    ? `maps://?daddr=${addr}`
+    : `https://www.google.com/maps/dir/?api=1&destination=${addr}&travelmode=driving`;
+  window.open(url, "_blank");
+  log("Navigation opened: "+currentOrder.customer_address,"ok");
+}
+
+/* ══════════════════════════════════════════════════════════
+   FIX 3: AUTO GPS STAGE DETECTION
+   - Within 80m of restaurant lat/lng → suggest Pickup
+   - Within 60m of customer lat/lng  → suggest Arrived
+══════════════════════════════════════════════════════════ */
+let autoStagePending=null;
+const RESTAURANT_LAT=25.2305, RESTAURANT_LNG=55.3082; // Magizham kitchen coords
+
+function checkAutoStage(lat, lng) {
+  if (!currentOrderId || stage>=4) return;
+
+  // Near restaurant & at pickup stage
+  if (stage===0) {
+    const dRest = haversine(lat,lng,RESTAURANT_LAT,RESTAURANT_LNG);
+    if (dRest < 80 && autoStagePending!=="pickup") {
+      autoStagePending="pickup";
+      showAutoHint("🍳","Near Magizham Kitchen","Confirm you've picked up the order?","pickup");
+    }
   }
-}
-
-function checkHeatAlert(temp) {
-  const alert = document.getElementById("heatAlert");
-  if (temp >= HEAT_THRESHOLD) {
-    document.getElementById("heatTitle").textContent = `Heat Alert — ${temp}°C`;
-    document.getElementById("heatSub").textContent   = temp >= 45
-      ? "EXTREME heat! Mandatory 15-min break required."
-      : "Mandatory hydration break recommended";
-    alert.classList.add("show");
-    toast(`🌡️ ${temp}°C — Please hydrate! Nearest station: RTA Karama (0.3 km)`, "hot");
-  } else {
-    alert.classList.remove("show");
+  // Near customer & at en-route stage
+  if (stage===2 && currentOrder?.customer_lat && currentOrder?.customer_lng) {
+    const dCust = haversine(lat,lng, parseFloat(currentOrder.customer_lat), parseFloat(currentOrder.customer_lng));
+    if (dCust < 60 && autoStagePending!=="arrived") {
+      autoStagePending="arrived";
+      showAutoHint("📍","Near delivery address","You appear to have arrived — request OTP?","arrived");
+    }
   }
-}
-
-function updateHeatWarningBox(temp) {
-  const box = document.getElementById("heatWarningBox");
-  const txt  = document.getElementById("heatWarningText");
-  if (temp >= HEAT_THRESHOLD) {
-    box.style.display = "block";
-    txt.textContent = `Current temp: ${temp}°C — Hydration stations highlighted below. Take a break!`;
-  } else {
-    box.style.display = "block";
-    box.style.background = "rgba(0,255,136,0.06)";
-    box.style.borderColor = "rgba(0,255,136,0.2)";
-    txt.style.color = "var(--neon)";
-    txt.textContent = `Current temp: ${temp}°C — Conditions safe. Stay hydrated!`;
+  // Also check building database
+  for (const bld of BUILDINGS) {
+    if (haversine(lat,lng,bld.lat,bld.lng) < 50) { showBuildingGuide(bld); return; }
   }
+  document.getElementById("bldCard").classList.remove("show");
 }
 
-function showHydrationStations() {
-  switchScreen("docs");
-  setTimeout(() => {
-    document.getElementById("heatWarningBox").scrollIntoView({ behavior: "smooth" });
-  }, 300);
+function showAutoHint(icon, title, sub, action) {
+  document.getElementById("ahIcon").textContent=icon;
+  document.getElementById("ahTitle").textContent=title;
+  document.getElementById("ahSub").textContent=sub;
+  document.getElementById("ahBtn").dataset.action=action;
+  document.getElementById("autoHint").classList.add("show");
+  toast(`📍 ${title}`, "b");
 }
 
-/* ── WELFARE CHECK ──────────────────────────────────────── */
+function acceptAutoStage() {
+  const action = document.getElementById("ahBtn").dataset.action;
+  document.getElementById("autoHint").classList.remove("show");
+  autoStagePending=null;
+  if (action==="pickup" && stage===0) { stage=1; updatePipeline(); updateActionBtn(); toast("✅ Pickup confirmed","ok"); }
+  else if (action==="arrived" && stage===2) { stage=3; updatePipeline(); updateActionBtn(); toast("✅ Arrived — request OTP","ok"); }
+}
+
+function showBuildingGuide(bld) {
+  document.getElementById("bldName").textContent=bld.name;
+  document.getElementById("bldSteps").innerHTML=bld.steps.map((s,i)=>
+    `<div class="bs"><div class="bs-n">${i+1}</div><div class="bs-body"><div class="bs-txt">${s.t}</div>${s.tip?`<div class="bs-tip">💡 ${s.tip}</div>`:""}</div></div>`
+  ).join("");
+  document.getElementById("bldCard").classList.add("show");
+}
+
+function haversine(a,b,c,d) {
+  const R=6371000, r=x=>x*Math.PI/180;
+  const dl=r(c-a), dn=r(d-b);
+  const x=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;
+  return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+}
+
+/* ══════════════════════════════════════════════════════════
+   FIX 4: WELFARE CHECK
+══════════════════════════════════════════════════════════ */
 function startWelfareMonitor() {
-  if (welfareCheckTimer) clearInterval(welfareCheckTimer);
-  lastMovementTime = Date.now();
-  welfareCheckTimer = setInterval(() => {
-    if (!currentOrderId || !isTracking || stage >= 4) return;
-    const idleMs = Date.now() - lastMovementTime;
-    if (idleMs >= WELFARE_IDLE_THRESHOLD && !welfareActive) {
-      triggerWelfareCheck();
-    }
-  }, 30000); // check every 30s
+  clearTimeout(stuckTimer);
+  if (!currentOrderId||!isTracking) return;
+  stuckTimer = setTimeout(triggerWelfare, 5*60*1000);
 }
 
-function stopWelfareMonitor() {
-  if (welfareCheckTimer) { clearInterval(welfareCheckTimer); welfareCheckTimer = null; }
-  if (welfareCountdownInterval) { clearInterval(welfareCountdownInterval); welfareCountdownInterval = null; }
+function resetWelfareTimer() {
+  clearTimeout(stuckTimer);
+  if (wfActive) { clearInterval(wfCDInt); document.getElementById("welfarePanel").classList.remove("open"); wfActive=false; }
+  startWelfareMonitor();
 }
 
-function triggerWelfareCheck() {
-  welfareActive = true;
-  let secs = WELFARE_RESPONSE_TIME;
-  document.getElementById("welfareCountdown").textContent = secs;
-  document.getElementById("welfareAlert").classList.add("open");
-  log("Welfare check triggered — idle for 5 min", "warn");
+function triggerWelfare() {
+  if (!currentOrderId || stage>=4) return;
+  wfActive=true; let s=60;
+  document.getElementById("wfCD").textContent=s;
+  document.getElementById("welfarePanel").classList.add("open");
+  log("Welfare check triggered","w");
+  wfCDInt = setInterval(()=>{
+    s--; document.getElementById("wfCD").textContent=s;
+    if (s<=0) { clearInterval(wfCDInt); autoWelfareEscalate(); }
+  },1000);
+}
 
-  welfareCountdownInterval = setInterval(() => {
-    secs--;
-    document.getElementById("welfareCountdown").textContent = secs;
-    if (secs <= 0) {
-      clearInterval(welfareCountdownInterval);
-      // Auto-trigger SOS + transfer if no response
-      document.getElementById("welfareAlert").classList.remove("open");
-      welfareActive = false;
-      log("No response to welfare check — auto SOS triggered", "err");
-      sendSOS("no_response");
-      setTimeout(openTransfer, 1500);
-      toast("🆘 Auto-SOS sent — no welfare response", "err");
-    }
-  }, 1000);
+function autoWelfareEscalate() {
+  document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
+  sendSOS("no_response");
+  setTimeout(openTransfer,1500);
+  log("Auto-SOS: no welfare response","err");
+  toast("🆘 Auto-SOS sent","err");
 }
 
 function confirmWelfare() {
-  if (welfareCountdownInterval) clearInterval(welfareCountdownInterval);
-  document.getElementById("welfareAlert").classList.remove("open");
-  welfareActive = false;
-  lastMovementTime = Date.now(); // reset idle timer
-  log("Welfare check confirmed — rider OK", "ok");
-  toast("✅ Welfare confirmed — stay safe!", "ok");
+  clearInterval(wfCDInt);
+  document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
+  lastMoveTime=Date.now(); resetWelfareTimer();
+  toast("✅ Welfare confirmed — stay safe!","ok");
+  log("Welfare confirmed OK","ok");
 }
 
-/* ── BUILDING ENTRY GUIDE ───────────────────────────────── */
-function checkBuildingProximity(lat, lng) {
-  if (!lat || !lng) return;
-  const THRESHOLD_M = 50;
-
-  for (const bld of BUILDING_DB) {
-    const dist = haversineMeters(lat, lng, bld.lat, bld.lng);
-    if (dist <= THRESHOLD_M) {
-      showBuildingEntry(bld);
-      return;
-    }
-  }
-  // No known building nearby
-  document.getElementById("buildingEntryCard").style.display = "none";
+function welfareSOSNow() {
+  clearInterval(wfCDInt);
+  document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
+  sendSOS("welfare");
 }
 
-function showBuildingEntry(bld) {
-  document.getElementById("bldName").textContent = bld.name;
-  document.getElementById("buildingEntryCard").style.display = "block";
+/* ══════════════════════════════════════════════════════════
+   FIX 5: OFFLINE QUEUE & CACHE
+══════════════════════════════════════════════════════════ */
+let netOnline=navigator.onLine;
+window.addEventListener("online", ()=>{ netOnline=true; document.getElementById("offlineBar").classList.remove("show"); flushQ(); if(isOnline&&!socket?.connected) initSocket(); log("Network restored","ok"); });
+window.addEventListener("offline",()=>{ netOnline=false; document.getElementById("offlineBar").classList.add("show"); log("Network lost — offline mode","w"); });
 
-  const stepsHtml = bld.steps.map((s, i) => `
-    <div class="entry-step">
-      <div class="entry-num">${i + 1}</div>
-      <div>
-        <div class="entry-txt">${s.txt}</div>
-        ${s.tip ? `<div class="entry-tip">💡 ${s.tip}</div>` : ""}
-      </div>
-    </div>
-  `).join("");
-
-  document.getElementById("entrySteps").innerHTML = stepsHtml;
-  toast("🏢 Building guide activated: " + bld.name, "blue");
-  log("Building entry: " + bld.name, "ok");
+function emit(ev, data) {
+  if (socket?.connected && netOnline) { socket.emit(ev,data); }
+  else { offlineQ.push({ev,data}); log("Queued: "+ev,"w"); }
 }
 
-function haversineMeters(lat1, lng1, lat2, lng2) {
-  const R = 6371000, r = x => x * Math.PI / 180;
-  const dLat = r(lat2 - lat1), dLng = r(lng2 - lng1);
-  const a = Math.sin(dLat/2)**2 + Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(dLng/2)**2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+function flushQ() {
+  if (!offlineQ.length) return;
+  offlineQ.forEach(i=>{ if(socket?.connected) socket.emit(i.ev,i.data); });
+  offlineQ=[]; log("Offline queue flushed","ok");
 }
 
-/* ── MULTI-LANGUAGE VOICE COMMANDS ─────────────────────── */
-let voiceRecognition=null;
-
-function startVoice() {
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) { toast("Voice not supported on this browser", "warn"); return; }
-
-  voiceRecognition = new SR();
-  // Set language based on selected UI language
-  const langMap = { en:"en-US", ar:"ar-AE", hi:"hi-IN", ur:"ur-PK" };
-  voiceRecognition.lang = langMap[currentLang] || "en-US";
-  voiceRecognition.continuous = false;
-  voiceRecognition.interimResults = false;
-
-  voiceRecognition.onresult = (e) => {
-    const cmd = e.results[0][0].transcript.toLowerCase().trim();
-    document.getElementById("voiceText").textContent = '"' + cmd + '"';
-    processVoiceCommand(cmd);
-    setTimeout(stopVoice, 1200);
-  };
-  voiceRecognition.onerror = () => stopVoice();
-  voiceRecognition.onend = () => {
-    document.getElementById("voiceBar").classList.remove("active");
-  };
-  voiceRecognition.start();
-  document.getElementById("voiceBar").classList.add("active");
-  document.getElementById("voiceText").textContent = currentLang === "hi" ? "Bol rahe hain..." : currentLang === "ar" ? "الاستماع..." : currentLang === "ur" ? "سن رہا ہوں..." : "Listening...";
+function cacheOrder(id, data) {
+  try { localStorage.setItem("oc_"+id, JSON.stringify({data,ts:Date.now()})); } catch(e) {}
 }
+function getCached(id) {
+  try { const c=JSON.parse(localStorage.getItem("oc_"+id)||"null"); return c?.data||null; } catch(e){return null;} }
 
-function stopVoice() {
-  try { if (voiceRecognition) voiceRecognition.stop(); } catch(e) {}
-  document.getElementById("voiceBar").classList.remove("active");
-}
-
-function processVoiceCommand(cmd) {
-  const cmds = VOICE_COMMANDS[currentLang] || VOICE_COMMANDS.en;
-
-  const matchesAny = (keywords) => keywords.some(kw => cmd.includes(kw));
-
-  if (matchesAny(cmds.sos)) {
-    closeSOS(); openSOS();
-    toast("🎙 SOS panel opened", "err");
-    return;
-  }
-  if (matchesAny(cmds.arrived)) {
-    safeEmit("orderStatusUpdate", { orderId: currentOrderId, status: "on_the_way" });
-    toast("🎙 Arrived — status updated!", "ok");
-    log("Voice: arrived at location", "ok");
-    return;
-  }
-  if (matchesAny(cmds.picked)) {
-    if (stage === 0) { stage = 1; updatePipeline(); updateActionBtn(); }
-    toast("🎙 Picked up — confirmed!", "ok");
-    log("Voice: order picked up", "ok");
-    return;
-  }
-  if (matchesAny(cmds.delivered)) {
-    toast("🎙 Delivered — great work!", "ok");
-    log("Voice: delivered", "ok");
-    return;
-  }
-  if (matchesAny(cmds.gps)) {
-    if (!isTracking && currentOrderId) startGPS();
-    toast("🎙 GPS started", "ok");
-    return;
-  }
-  if (matchesAny(cmds.otp)) {
-    toast("🎙 OTP noted", "ok");
-    return;
-  }
-
-  // Unknown command
-  const unknown = { en:"Not recognised", ar:"لم يُفهم", hi:"Samajh nahi aaya", ur:"Samajh nahi aaya" };
-  toast(`🎙 "${cmd}" — ${unknown[currentLang]||"Not recognised"}`, "warn");
-}
-
-/* ── SOCKET ─────────────────────────────────────────────── */
-function initSocket() {
-  if (socket?.connected) return;
-  if (socket) socket.disconnect();
-  socket = io("/", { query: { type:"rider", orderId: currentOrderId } });
-  socket.on("connect",    () => { setConnStatus(true);  log("Connected ✅", "ok");   flushOfflineQueue(); });
-  socket.on("disconnect", () => { setConnStatus(false); log("Disconnected", "warn"); });
-  socket.on("connect_error", e => { setConnStatus(false); log("Socket error: "+e.message, "err"); });
-}
-
-function setConnStatus(c) {
-  const el = document.getElementById("connStatus");
-  el.textContent = c ? "⬤ Live" : "⬤ Offline";
-  el.style.color = c ? "var(--neon)" : "var(--tx3)";
-  setSignal(c ? 4 : 0);
-}
-
-function setSignal(n) {
-  for (let i=1;i<=4;i++) document.getElementById("b"+i).classList.toggle("lit", i<=n);
-}
-
-/* ── ONLINE TOGGLE ──────────────────────────────────────── */
-function toggleOnline() {
-  isOnline = !isOnline;
-  document.getElementById("onlineTog").classList.toggle("active", isOnline);
-  document.getElementById("togLbl").textContent = isOnline ? "Online" : "Go Online";
-  if (isOnline) { initSocket(); toast("You are now online 🟢"); log("Online", "ok"); }
-  else {
-    if (isTracking) stopGPS();
-    stopWelfareMonitor();
-    toast("Offline", "warn"); log("Offline", "warn");
-  }
-}
-
-/* ── LOAD ORDER ─────────────────────────────────────────── */
-async function loadOrder() {
-  const input = document.getElementById("orderInput").value.trim();
-  if (!input) { toast("Enter an Order ID", "warn"); return; }
-
-  // ✅ Offline cache check
-  const cached = localStorage.getItem("order_cache_" + input);
-  if (!isNetworkOnline && cached) {
-    const data = JSON.parse(cached);
-    populateOrder(data, input);
-    toast("📵 Loaded from offline cache", "warn");
-    log("Loaded order #" + input + " from cache (offline)", "warn");
-    return;
-  }
-
-  log("Loading order #" + input);
-  try {
-    const res = await fetch("/api/orders/" + input + "/track");
-    if (!res.ok) throw new Error("Order not found (HTTP " + res.status + ")");
-    const data = await res.json();
-    // ✅ Cache for offline use
-    localStorage.setItem("order_cache_" + input, JSON.stringify(data));
-    populateOrder(data, input);
-    toast("Order #" + input + " loaded ✅");
-    log("Order #" + input + " — " + (data.customer_name || ""), "ok");
-  } catch (err) {
-    // Try cache fallback
-    if (cached) {
-      const data = JSON.parse(cached);
-      populateOrder(data, input);
-      toast("Loaded from cache (server unreachable)", "warn");
-      log("Cache fallback for #" + input, "warn");
-    } else {
-      toast(err.message, "err");
-      log("❌ " + err.message, "err");
-    }
-  }
-}
-
-function populateOrder(data, input) {
-  currentOrderId = input; currentOrder = data; stage = 0; podPhotoData = null;
-
-  document.getElementById("orderBadge").textContent = "ORD-" + (data.id || input);
-  document.getElementById("orderCust").textContent  = data.customer_name || "Customer";
-  document.getElementById("orderAddr").textContent  = data.customer_address || "Al Karama, Dubai";
-  document.getElementById("metaDist").textContent   = "—";
-  document.getElementById("metaAmt").textContent    = data.total_amount || data.total || "—";
-  document.getElementById("metaStat").textContent   = (data.status || "pending").toUpperCase();
-  document.getElementById("callBtn").href = "tel:" + (data.customer_phone || "");
-  document.getElementById("chatCustName").textContent = data.customer_name || "Customer";
-
-  const addr = data.customer_address || "";
-  if (addr.match(/flat|floor|villa|apt|apt\./i)) {
-    document.getElementById("orderFloor").textContent = "🏢 " + addr;
-    document.getElementById("orderFloor").style.display = "block";
-  }
-
-  generateLastMeterSteps(addr);
-
-  let items = data.items || [];
-  if (typeof items === "string") { try { items = JSON.parse(items); } catch(e) { items=[]; } }
-  document.getElementById("itemsList").innerHTML = items.length
-    ? items.map(it=>`<div class="item-row"><div class="item-dot"></div><div class="item-nm">${it.name||it}</div><div class="item-qty mono">×${it.qty||1}</div></div>`).join("")
-    : `<div class="item-row"><div class="item-dot"></div><div class="item-nm" style="color:var(--tx2)">Items not listed</div></div>`;
-
-  updatePipeline(); updateActionBtn();
-  document.getElementById("orderPanel").style.display = "block";
-  document.getElementById("gpsBtn").disabled = false;
-  document.getElementById("gpsBtn").innerHTML = "📡 Start GPS Sharing";
-  document.getElementById("buildingEntryCard").style.display = "none";
-
-  if (socket) { socket.disconnect(); socket = null; }
-  if (isOnline) initSocket();
-}
-
-/* ── PIPELINE + STAGE ───────────────────────────────────── */
-const STAGE_CFG = [
-  { label: () => "▶ Picked Up — Start Delivery", cls:"go",    next:1 },
-  { label: () => "📍 Mark as En Route",            cls:"go",    next:2 },
-  { label: () => "🏁 Arriving — Request OTP",     cls:"amber", next:3 },
-  { label: null },
-  { label: () => "✅ Confirm Delivery + PoD",     cls:"done",  next:5 },
-];
-
-function updatePipeline() {
-  for (let i=0;i<=4;i++) {
-    const el = document.getElementById("pipe"+i);
-    el.classList.remove("done","active");
-    if (i<stage) el.classList.add("done");
-    if (i===stage) el.classList.add("active");
-  }
-}
-
-function updateActionBtn() {
-  const btn = document.getElementById("actionBtn");
-  const otp = document.getElementById("otpSection");
-  const pod = document.getElementById("podSection");
-  otp.style.display="none"; pod.style.display="none"; btn.style.display="block";
-
-  if (stage===3) { btn.style.display="none"; otp.style.display="block"; }
-  else if (stage===4) {
-    pod.style.display="block"; btn.style.display="none";
-    document.getElementById("podPreview").querySelector(".pod-icon").style.display="block";
-    document.getElementById("podPreview").querySelector(".pod-lbl").style.display="block";
-    document.getElementById("podSubmitBtn").style.display="none";
-    const img = document.getElementById("podPreview").querySelector("img");
-    if (img) img.remove();
-  }
-  else if (stage>=5) { btn.style.display="none"; }
-  else {
-    const cfg = STAGE_CFG[stage];
-    if (cfg?.label) { btn.textContent=cfg.label(); btn.className="btn-action syne "+cfg.cls; }
-  }
-}
-
-function advanceStage() {
-  if (!currentOrderId) { toast("Load an order first", "warn"); return; }
-  const statusMap = { 1:"on_the_way", 2:"on_the_way", 3:"on_the_way" };
-  if (statusMap[stage+1]) safeEmit("orderStatusUpdate", { orderId:currentOrderId, status:statusMap[stage+1] });
-  stage = STAGE_CFG[stage]?.next || stage+1;
-  updatePipeline(); updateActionBtn();
-}
-
-/* ── OTP ────────────────────────────────────────────────── */
-function verifyOTP() {
-  const entered = document.getElementById("otpInput").value;
-  if (entered.length !== 4) { toast("Enter 4-digit OTP", "warn"); return; }
-  toast("OTP verified ✅ — take delivery photo");
-  log("OTP " + entered + " verified", "ok");
-  stage = 4; updatePipeline(); updateActionBtn();
-}
-
-/* ── PROOF OF DELIVERY ──────────────────────────────────── */
-function capturePhoto() { document.getElementById("podFileInput").click(); }
-
-function handlePhotoFile(input) {
-  const file = input.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    podPhotoData = e.target.result;
-    const preview = document.getElementById("podPreview");
-    let img = preview.querySelector("img");
-    if (!img) { img=document.createElement("img"); preview.appendChild(img); }
-    img.src = podPhotoData;
-    preview.querySelector(".pod-icon").style.display="none";
-    preview.querySelector(".pod-lbl").style.display="none";
-    document.getElementById("podSubmitBtn").style.display="block";
-    toast("Photo captured ✅");
-  };
-  reader.readAsDataURL(file);
-}
-
-function submitPoD() {
-  if (!podPhotoData) { toast("Take a photo first","warn"); return; }
-  toast("✅ Proof of delivery submitted!");
-  log("PoD submitted for order #"+currentOrderId,"ok");
-  document.getElementById("podSection").style.display="none";
-  setTimeout(showDeliveryDone, 500);
-}
-
-/* ── GPS ────────────────────────────────────────────────── */
-function toggleGPS() { isTracking ? stopGPS() : startGPS(); }
+/* ══════════════════════════════════════════════════════════
+   FIX 6: GPS WITH RETRY LOGIC
+══════════════════════════════════════════════════════════ */
+function toggleGPS(){ isTracking?stopGPS():startGPS(); }
 
 function startGPS() {
-  if (!navigator.geolocation) { toast("GPS not available","err"); return; }
-  if (!currentOrderId) { toast("Load an order first","warn"); return; }
-  isTracking = true;
-  document.getElementById("gpsBtn").innerHTML = "⏹ Stop GPS Broadcasting";
+  if (!navigator.geolocation) { toast("GPS not available on this device","err"); return; }
+  if (!currentOrderId)        { toast("Load an order first","w"); return; }
+  isTracking=true; gpsRetries=0;
+  document.getElementById("gpsBtn").innerHTML="⏹ Stop GPS";
   document.getElementById("gpsBtn").classList.add("stop");
-  lastMovementTime = Date.now();
+  document.body.classList.add("gps-active"); // Kill heavy animations → better performance
+  totalRideMeters=0; orderStartTime=Date.now(); orderStartLat=lastLat; orderStartLng=lastLng;
   startWelfareMonitor();
-  log("GPS started — high accuracy","ok");
-  watchId = navigator.geolocation.watchPosition(onGPSPos, onGPSErr, { enableHighAccuracy:true, maximumAge:2000, timeout:10000 });
+  log("GPS started","ok");
+  doWatch();
+}
+
+function doWatch() {
+  if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
+  watchId = navigator.geolocation.watchPosition(onPos, onGPSErr, { enableHighAccuracy:true, maximumAge:2000, timeout:12000 });
 }
 
 function stopGPS() {
-  isTracking = false;
+  isTracking=false; clearTimeout(stuckTimer);
   if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
-  stopWelfareMonitor();
-  document.getElementById("gpsBtn").innerHTML = "📡 Start GPS Sharing";
+  document.getElementById("gpsBtn").innerHTML="📡 Start GPS Tracking";
   document.getElementById("gpsBtn").classList.remove("stop");
-  log("GPS stopped","warn");
-  setSignal(socket?.connected ? 2 : 0);
+  document.body.classList.remove("gps-active");
+  log("GPS stopped","w"); setSig(socket?.connected?2:0);
 }
 
-function onGPSPos(pos) {
+function onPos(pos) {
+  gpsRetries=0; // Reset retry counter on success
   const lat=pos.coords.latitude, lng=pos.coords.longitude;
-  const speedMs=pos.coords.speed, accuracy=pos.coords.accuracy;
-  const speedKmh = speedMs!=null && speedMs>=0 ? speedMs*3.6 : null;
+  const speed=pos.coords.speed, acc=pos.coords.accuracy;
+  const kmh = speed!=null&&speed>=0 ? speed*3.6 : null;
+
+  // Track distance for earnings popup
+  if (lastLat!==null) {
+    const d=haversine(lastLat,lastLng,lat,lng);
+    if(d>3) totalRideMeters+=d;
+    // Welfare movement tracking
+    if(d>5) { lastMoveTime=Date.now(); resetWelfareTimer(); }
+  }
   lastLat=lat; lastLng=lng;
 
-  // Track movement for welfare check
-  if (lastLat !== null) {
-    const moved = haversineMeters(lastLat, lastLng, lat, lng);
-    if (moved > 5) { lastMovementTime = Date.now(); }
-  }
+  document.getElementById("dLat").textContent=lat.toFixed(6);
+  document.getElementById("dLng").textContent=lng.toFixed(6);
+  document.getElementById("dSpeed").textContent=kmh!=null?kmh.toFixed(1)+" km/h":"0.0 km/h";
+  document.getElementById("dAcc").textContent=acc!=null?Math.round(acc)+" m":"—";
 
-  document.getElementById("dispLat").textContent   = lat.toFixed(6);
-  document.getElementById("dispLng").textContent   = lng.toFixed(6);
-  document.getElementById("dispSpeed").textContent = speedKmh!=null ? speedKmh.toFixed(1)+" km/h" : "0.0 km/h";
-  document.getElementById("dispAcc").textContent   = accuracy!=null ? Math.round(accuracy)+" m" : "—";
+  checkAutoStage(lat,lng); // Auto stage detection
 
-  // ✅ Check building proximity for entry guide
-  checkBuildingProximity(lat, lng);
-
-  if (socket?.connected) {
-    safeEmit("riderLocationUpdate", { orderId:currentOrderId, lat, lng, speed:speedKmh, accuracy:accuracy||40 });
-    pingCount++;
-    document.getElementById("pingCount").textContent = pingCount;
-    flashPing();
-    setSignal(accuracy<10?4:accuracy<25?3:accuracy<50?2:1);
-  } else {
-    safeEmit("riderLocationUpdate", { orderId:currentOrderId, lat, lng, speed:speedKmh, accuracy:accuracy||40 });
-    setSignal(1);
-  }
+  emit("riderLocationUpdate",{orderId:currentOrderId,lat,lng,speed:kmh,accuracy:acc||40});
+  pingCnt++; document.getElementById("pingCnt").textContent=pingCnt;
+  flashPing(); setSig(acc<10?4:acc<25?3:acc<50?2:1);
 }
 
 function onGPSErr(err) {
-  const m={1:"Permission denied",2:"Position unavailable",3:"GPS timeout"};
-  toast(m[err.code]||err.message,"err");
-  log("GPS error: "+(m[err.code]||err.message),"err");
-}
-
-function flashPing() {
-  const el=document.getElementById("pingFlash");
-  el.classList.add("active"); setTimeout(()=>el.classList.remove("active"),200);
-}
-
-/* ── LAST METER STEPS (Generic) ─────────────────────────── */
-function generateLastMeterSteps(address) {
-  const steps=[
-    { n:1, t: "Enter from " + (address.includes("Karama")?"Al Karama St":"main road") },
-    { n:2, t:"Take stairs/lift to noted floor" },
-    { n:3, t:"Call customer if gate is locked" },
-    { n:4, t:"Take PoD photo before leaving" },
-  ];
-  const wrap = document.getElementById("lmnSteps");
-  wrap.innerHTML = steps.map(s=>`<div class="lmn-step"><div class="lmn-num">${s.n}</div><div class="lmn-txt">${s.t}</div></div>`).join("");
-  document.getElementById("lastMeterNav").style.display = "block";
-}
-
-/* ── SOS + TRANSFER ─────────────────────────────────────── */
-function openSOS()  { document.getElementById("sosPanel").classList.add("open"); }
-function closeSOS() { document.getElementById("sosPanel").classList.remove("open"); }
-
-function sendSOS(type) {
-  closeSOS();
-  const msgs = {
-    accident:    "🚑 SOS sent! Ambulance alerted. Riders nearby notified.",
-    breakdown:   "🔧 Breakdown SOS sent. Nearest rider coming!",
-    flat:        "🛞 Flat tyre SOS. Help is on the way!",
-    welfare:     "🆘 Welfare SOS: rider unresponsive. Emergency alert sent.",
-    no_response: "🆘 No welfare response — SOS auto-sent."
-  };
-  safeEmit("riderSOS", { type, orderId:currentOrderId, lat:lastLat, lng:lastLng });
-  toast(msgs[type]||"SOS sent!", "err");
-  log("SOS: " + type, "err");
-}
-
-const MOCK_RIDERS=[{name:"Arun K.",dist:"0.4 km",id:"r2"},{name:"Mohammed S.",dist:"0.7 km",id:"r3"},{name:"Ravi P.",dist:"1.1 km",id:"r4"}];
-
-function openTransfer() {
-  if (!currentOrderId) { toast("No active order","warn"); return; }
-  document.getElementById("nearbyRiders").innerHTML = MOCK_RIDERS.map(r=>`
-    <div class="nr-row">
-      <div class="nr-av">🏍</div>
-      <div class="nr-info"><div class="nr-name">${r.name}</div><div class="nr-dist">${r.dist} away</div></div>
-      <button class="btn-transfer" onclick="confirmTransfer('${r.id}','${r.name}')">Transfer</button>
-    </div>`).join("");
-  document.getElementById("transferPanel").classList.add("open");
-}
-
-function closeTransfer() { document.getElementById("transferPanel").classList.remove("open"); }
-
-function confirmTransfer(riderId, riderName) {
-  closeTransfer();
-  safeEmit("orderTransfer", { orderId:currentOrderId, toRider:riderId });
-  toast("Order transferred to " + riderName + " ✅");
-  log("Transfer to " + riderName, "warn");
-  resetDelivery();
-}
-
-/* ── DELIVERY DONE ──────────────────────────────────────── */
-const TIERS=[{name:"Bronze Star",target:10,color:"bronze",reward:"AED 5"},{name:"Silver Ace",target:25,color:"silver",reward:"AED 15"},{name:"Gold Champion",target:50,color:"gold",reward:"AED 35"}];
-
-function showDeliveryDone() {
-  safeEmit("orderStatusUpdate", { orderId:currentOrderId, status:"delivered" });
-  todayDeliveries++; todayEarnings += 15;
-  stopWelfareMonitor();
-  document.getElementById("doneEarn").textContent = "+AED 15";
-  const all = 312 + todayDeliveries;
-  const tier = TIERS.find(t => all >= t.target && all-1 < t.target);
-  if (tier) {
-    document.getElementById("doneAchievement").textContent = "🏆 " + tier.name + " unlocked! +" + tier.reward;
-    document.getElementById("doneAchievement").style.display = "block";
+  const m={1:"GPS permission denied",2:"Position unavailable",3:"GPS timeout"};
+  const msg=m[err.code]||err.message;
+  log("GPS: "+msg,"err");
+  // Retry logic — up to 3 retries for timeout/unavailable
+  if (err.code!==1 && gpsRetries<3) {
+    gpsRetries++;
+    log(`GPS retry ${gpsRetries}/3...`,"w");
+    setTimeout(doWatch, 2000*gpsRetries); // Exponential back-off
+  } else if (err.code!==1) {
+    toast("GPS unavailable — check location permissions","err");
   } else {
-    document.getElementById("doneAchievement").style.display = "none";
+    toast("GPS permission denied","err");
   }
-  document.getElementById("deliveryDone").classList.add("show");
-  updateHeaderStats(); updateWalletScreen(); renderRewards();
+}
+
+function flashPing() { const e=document.getElementById("pf"); e.classList.add("on"); setTimeout(()=>e.classList.remove("on"),180); }
+function setSig(n) { for(let i=1;i<=4;i++) document.getElementById("b"+i).classList.toggle("lit",i<=n); }
+
+/* ─── SOCKET ─────────────────────────────────────────────── */
+function initSocket() {
+  if (socket?.connected) return;
+  if (socket) { try{socket.disconnect();}catch(e){} }
+  socket=io("/",{query:{type:"rider",orderId:currentOrderId}});
+  socket.on("connect",()=>{ setConn(true); log("Socket connected","ok"); flushQ(); });
+  socket.on("disconnect",()=>{ setConn(false); log("Socket disconnected","w"); });
+  socket.on("connect_error",e=>{ setConn(false); log("Socket error: "+e.message,"err"); });
+}
+function setConn(c) {
+  document.getElementById("connStat").textContent=c?"⬤ Live":"⬤ Offline";
+  document.getElementById("connStat").style.color=c?"var(--neon)":"var(--tx3)";
+  setSig(c?4:0);
+}
+
+/* ─── ONLINE TOGGLE ──────────────────────────────────────── */
+function toggleOnline() {
+  isOnline=!isOnline;
+  document.getElementById("onlineTog").classList.toggle("on",isOnline);
+  document.getElementById("togLbl").textContent=isOnline?"Online":"Go Online";
+  if(isOnline){ initSocket(); toast("You are online 🟢"); log("Online","ok"); fetchWeather(); }
+  else { if(isTracking) stopGPS(); clearTimeout(stuckTimer); toast("Offline","w"); log("Offline","w"); }
+}
+
+/* ─── LOAD ORDER ─────────────────────────────────────────── */
+async function loadOrder() {
+  const id=document.getElementById("orderInput").value.trim();
+  if (!id) { toast("Enter an Order ID","w"); return; }
+  log("Loading order #"+id);
+  let data=null, fromCache=false;
+  if (!netOnline) {
+    data=getCached(id);
+    if (!data) { toast("Offline — order not in cache","err"); return; }
+    fromCache=true;
+  } else {
+    try {
+      const r=await fetch("/api/orders/"+id+"/track");
+      if (!r.ok) throw new Error("HTTP "+r.status);
+      data=await r.json(); cacheOrder(id,data);
+    } catch(e) {
+      data=getCached(id);
+      if (data) { fromCache=true; }
+      else { toast("Order not found: "+e.message,"err"); log("❌ "+e.message,"err"); return; }
+    }
+  }
+  if (fromCache) { document.getElementById("offlineBar").classList.add("show"); }
+  currentOrderId=id; currentOrder=data; stage=0; podData=null; autoStagePending=null;
+  document.getElementById("ordId").textContent="ORD-"+(data.id||id)+(fromCache?" 💾":"");
+  document.getElementById("ordCust").textContent=data.customer_name||"Customer";
+  document.getElementById("ordAddr").textContent=data.customer_address||"Al Karama, Dubai";
+  const af=document.getElementById("ordFloor");
+  if ((data.customer_address||"").match(/flat|floor|villa|apt/i)) {
+    af.textContent="🏢 "+data.customer_address; af.style.display="block";
+  } else af.style.display="none";
+  document.getElementById("mAmt").textContent=data.total_amount||data.total||"—";
+  document.getElementById("mStat").textContent=(data.status||"pending").toUpperCase();
+  document.getElementById("callBtn").href="tel:"+(data.customer_phone||"");
+  document.getElementById("custChatName").textContent=data.customer_name||"Customer";
+  // Items
+  let items=data.items||[]; if(typeof items==="string"){try{items=JSON.parse(items);}catch(e){items=[];}}
+  document.getElementById("itemsList").innerHTML=items.length
+    ?items.map(it=>`<div class="item-row"><div class="idot"></div><div class="inm">${it.name||it}</div><div class="iqty mono">×${it.qty||1}</div></div>`).join("")
+    :`<div class="item-row"><div class="idot"></div><div class="inm" style="color:var(--tx2)">Items not listed</div></div>`;
+  updatePipeline(); updateActBtn();
+  document.getElementById("orderPanel").style.display="block";
+  document.getElementById("gpsBtn").disabled=false;
+  document.getElementById("bldCard").classList.remove("show");
+  document.getElementById("autoHint").classList.remove("show");
+  if(socket){try{socket.disconnect();}catch(e){}}socket=null;
+  if(isOnline) initSocket();
+  toast("Order #"+id+" loaded ✅"+(fromCache?" (cache)":""));
+  log("Order #"+id+" — "+(data.customer_name||"")+(fromCache?" [cache]":""),"ok");
+}
+
+/* ─── PIPELINE ───────────────────────────────────────────── */
+const STAGES=[
+  {lbl:"▶ Confirm Pickup",cls:"go",next:1},
+  {lbl:"📍 Mark En Route",cls:"go",next:2},
+  {lbl:"🏁 I've Arrived — Get OTP",cls:"warn",next:3},
+  null,
+  {lbl:"✅ Confirm Delivery + Photo",cls:"done",next:5},
+];
+
+function updatePipeline() {
+  for(let i=0;i<=4;i++){
+    const e=document.getElementById("p"+i);
+    e.classList.remove("done","active");
+    if(i<stage) e.classList.add("done");
+    if(i===stage) e.classList.add("active");
+  }
+}
+function updateActBtn() {
+  const btn=document.getElementById("actBtn"),otp=document.getElementById("otpSec"),pod=document.getElementById("podSec");
+  otp.style.display="none"; pod.style.display="none"; btn.style.display="block";
+  if(stage===3){btn.style.display="none";otp.style.display="block";}
+  else if(stage===4){
+    pod.style.display="block"; btn.style.display="none";
+    document.getElementById("podPrev").querySelector(".pod-ico").style.display="block";
+    document.getElementById("podPrev").querySelector(".pod-lbl").style.display="block";
+    document.getElementById("podSubmit").style.display="none";
+    const img=document.getElementById("podPrev").querySelector("img"); if(img) img.remove();
+  }
+  else if(stage>=5){btn.style.display="none";}
+  else {
+    const s=STAGES[stage]; if(s){btn.textContent=s.lbl;btn.className="act-btn syne "+s.cls;}
+  }
+}
+function advanceStage() {
+  if(!currentOrderId){toast("Load an order first","w");return;}
+  if(stage===1) emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"});
+  stage=STAGES[stage]?.next||stage+1;
+  updatePipeline(); updateActBtn();
+  document.getElementById("autoHint").classList.remove("show"); autoStagePending=null;
+}
+
+/* ─── OTP ────────────────────────────────────────────────── */
+function verifyOTP() {
+  const v=document.getElementById("otpIn").value;
+  if(v.length!==4){toast("Enter 4-digit OTP","w");return;}
+  toast("OTP verified ✅"); log("OTP "+v+" verified","ok");
+  stage=4; updatePipeline(); updateActBtn();
+}
+
+/* ─── POD ────────────────────────────────────────────────── */
+function capturePhoto(){document.getElementById("podFile").click();}
+function handlePhoto(inp) {
+  const f=inp.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    podData=e.target.result;
+    const prev=document.getElementById("podPrev");
+    let img=prev.querySelector("img");
+    if(!img){img=document.createElement("img");prev.appendChild(img);}
+    img.src=podData;
+    prev.querySelector(".pod-ico").style.display="none";
+    prev.querySelector(".pod-lbl").style.display="none";
+    document.getElementById("podSubmit").style.display="block";
+    toast("Photo captured ✅");
+  };
+  r.readAsDataURL(f);
+}
+function submitPoD() {
+  if(!podData){toast("Take a photo first","w");return;}
+  toast("✅ Proof submitted!"); log("PoD submitted for #"+currentOrderId,"ok");
+  document.getElementById("podSec").style.display="none";
+  setTimeout(showDone,400);
+}
+
+/* ─── DELIVERY DONE ──────────────────────────────────────── */
+function showDone() {
+  emit("orderStatusUpdate",{orderId:currentOrderId,status:"delivered"});
+  todayDel++; todayEarn+=15;
+  clearTimeout(stuckTimer); clearInterval(wfCDInt);
+  // Earnings breakdown
+  const mins = orderStartTime ? Math.round((Date.now()-orderStartTime)/60000) : 0;
+  const km   = (totalRideMeters/1000).toFixed(1);
+  document.getElementById("ddEarn").textContent="+AED 15";
+  document.getElementById("ddDist").textContent=km+" km";
+  document.getElementById("ddTime").textContent=mins+"min";
+  document.getElementById("ddCount").textContent=todayDel;
+  // Achievement
+  const all=312+todayDel, tier=TIERS.find(t=>all>=t.t&&all-1<t.t);
+  document.getElementById("ddAchieve").style.display=tier?"block":"none";
+  if(tier) document.getElementById("ddAchieve").textContent="🏆 "+tier.n+" unlocked! +"+tier.r;
+  document.getElementById("delDone").classList.add("show");
+  updateStats(); updateWallet(); renderRewards();
 }
 
 function resetDelivery() {
-  document.getElementById("deliveryDone").classList.remove("show");
+  document.getElementById("delDone").classList.remove("show");
   document.getElementById("orderPanel").style.display="none";
   document.getElementById("orderInput").value="";
-  document.getElementById("otpInput").value="";
+  document.getElementById("otpIn").value="";
   document.getElementById("gpsBtn").disabled=true;
-  document.getElementById("gpsBtn").innerHTML="📡 Start GPS Sharing";
-  document.getElementById("buildingEntryCard").style.display="none";
-  currentOrderId=null; currentOrder=null; stage=0; pingCount=0; podPhotoData=null;
-  document.getElementById("pingCount").textContent="0";
-  if (isTracking) stopGPS();
-  stopWelfareMonitor();
+  document.getElementById("bldCard").classList.remove("show");
+  document.getElementById("autoHint").classList.remove("show");
+  currentOrderId=null; currentOrder=null; stage=0; pingCnt=0; podData=null; autoStagePending=null;
+  document.getElementById("pingCnt").textContent="0";
+  totalRideMeters=0; orderStartTime=null;
+  if(isTracking) stopGPS();
+  clearTimeout(stuckTimer); clearInterval(wfCDInt);
   toast("Ready for next delivery 🏍"); log("Reset — ready","ok");
 }
 
-/* ── CHAT ───────────────────────────────────────────────── */
-function openChat(type) {
-  if (type==="customer" && !currentOrder) { toast("No active order","warn"); return; }
-  document.getElementById("chat"+type.charAt(0).toUpperCase()+type.slice(1)).classList.add("open");
-  renderChat(type);
+/* ─── SOS + TRANSFER ─────────────────────────────────────── */
+function openSOS(){document.getElementById("sosPanel").classList.add("open");}
+function closeSOS(){document.getElementById("sosPanel").classList.remove("open");}
+function sendSOS(type) {
+  closeSOS();
+  emit("riderSOS",{type,orderId:currentOrderId,lat:lastLat,lng:lastLng});
+  const m={accident:"🚑 SOS sent — ambulance alerted",breakdown:"🔧 Breakdown SOS sent",flat:"🛞 Flat tyre SOS sent",welfare:"🆘 Welfare SOS sent",no_response:"🆘 Auto-SOS after no welfare response"};
+  toast(m[type]||"SOS sent","err"); log("SOS: "+type,"err");
 }
-function closeChat(type) { document.getElementById("chat"+type.charAt(0).toUpperCase()+type.slice(1)).classList.remove("open"); }
-function renderChat(type) {
-  const msgs = type==="customer" ? custMsgs : kitMsgs;
-  const el = document.getElementById(type==="customer"?"chatCustMsgs":"chatKitMsgs");
-  el.innerHTML = msgs.map(m=>`<div class="msg ${m.from}"><div class="msg-bubble">${m.text}</div><div class="msg-time">${m.time}</div></div>`).join("");
+const RIDERS=[{n:"Arun K.",d:"0.4 km",id:"r2"},{n:"Mohammed S.",d:"0.7 km",id:"r3"},{n:"Ravi P.",d:"1.1 km",id:"r4"}];
+function openTransfer() {
+  if(!currentOrderId){toast("No active order","w");return;}
+  document.getElementById("nearbyRiders").innerHTML=RIDERS.map(r=>`
+    <div class="nr"><div class="nr-av">🏍</div>
+    <div style="flex:1"><div class="nr-nm">${r.n}</div><div class="nr-d">${r.d} away</div></div>
+    <button class="xfr-btn" onclick="confirmXfer('${r.id}','${r.n}')">Transfer</button></div>`).join("");
+  document.getElementById("xferPanel").classList.add("open");
+}
+function closeTransfer(){document.getElementById("xferPanel").classList.remove("open");}
+function confirmXfer(id,name) {
+  closeTransfer();
+  emit("orderTransfer",{orderId:currentOrderId,toRider:id});
+  toast("Transferred to "+name+" ✅"); log("Xfer → "+name,"w"); resetDelivery();
+}
+
+/* ─── FAB ────────────────────────────────────────────────── */
+function toggleFAB() { fabOpen=!fabOpen; document.getElementById("fabItems").classList.toggle("hidden",!fabOpen); document.getElementById("fabMain").textContent=fabOpen?"✕":"🆘"; if(fabOpen) {} else {closeSOS();} if(!fabOpen){ /* default: SOS */ } if(fabOpen){toast("SOS · Voice · Transfer","b");} else openSOS(); }
+/* Simplified: SOS tapped = open SOS direct; long-tap or hold = expand FAB */
+document.getElementById("fabMain").addEventListener("click",()=>{ if(!fabOpen) openSOS(); else { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); document.getElementById("fabMain").textContent="🆘"; }});
+
+/* ─── CHAT ───────────────────────────────────────────────── */
+function openChat(t) {
+  if(t==="cust"&&!currentOrder){toast("No active order","w");return;}
+  document.getElementById(t==="cust"?"chatCust":"chatKit").classList.add("open");
+  renderChat(t);
+}
+function closeChat(t){document.getElementById(t==="cust"?"chatCust":"chatKit").classList.remove("open");}
+function renderChat(t) {
+  const msgs=t==="cust"?custMsgArr:kitMsgArr;
+  const el=document.getElementById(t==="cust"?"custMsgs":"kitMsgs");
+  el.innerHTML=msgs.map(m=>`<div class="msg ${m.f}"><div class="mbub">${m.t}</div><div class="mt">${m.ts}</div></div>`).join("");
   el.scrollTop=el.scrollHeight;
 }
-function sendChat(type) {
-  const inp = document.getElementById(type==="customer"?"chatCustInput":"chatKitInput");
-  const text = inp.value.trim(); if (!text) return;
-  addMsg(type,"rider",text); inp.value="";
+function sendChat(t) {
+  const inp=document.getElementById(t==="cust"?"custCI":"kitCI");
+  const txt=inp.value.trim(); if(!txt) return;
+  addMsg(t,"rider",txt); inp.value="";
 }
-function qr(type,text) { addMsg(type,"rider",text); }
-function addMsg(type,from,text) {
-  const now=new Date();
-  const time=(now.getHours()%12||12)+":"+String(now.getMinutes()).padStart(2,"0")+" "+(now.getHours()>=12?"PM":"AM");
-  (type==="customer"?custMsgs:kitMsgs).push({from,text,time}); renderChat(type);
+function qr(t,txt){addMsg(t,"rider",txt);}
+function addMsg(t,f,txt) {
+  const now=new Date(), ts=(now.getHours()%12||12)+":"+String(now.getMinutes()).padStart(2,"0")+" "+(now.getHours()>=12?"PM":"AM");
+  (t==="cust"?custMsgArr:kitMsgArr).push({f,t:txt,ts}); renderChat(t);
 }
 
-/* ── NAVIGATION ─────────────────────────────────────────── */
-function switchScreen(name) {
+/* ─── VOICE ──────────────────────────────────────────────── */
+let voiceRec=null;
+function startVoice() {
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){toast("Voice not supported here","w");return;}
+  voiceRec=new SR();
+  voiceRec.lang={en:"en-US",ar:"ar-AE",hi:"hi-IN",ur:"ur-PK"}[currentLang]||"en-US";
+  voiceRec.continuous=false; voiceRec.interimResults=false;
+  voiceRec.onresult=e=>{
+    const cmd=e.results[0][0].transcript.toLowerCase().trim();
+    document.getElementById("vText").textContent='"'+cmd+'"';
+    handleVoice(cmd); setTimeout(stopVoice,1300);
+  };
+  voiceRec.onerror=()=>stopVoice();
+  voiceRec.onend=()=>document.getElementById("voiceBar").classList.remove("on");
+  voiceRec.start();
+  document.getElementById("voiceBar").classList.add("on");
+  document.getElementById("vText").textContent="Listening...";
+}
+function stopVoice(){try{if(voiceRec)voiceRec.stop();}catch(e){} document.getElementById("voiceBar").classList.remove("on");}
+function handleVoice(cmd) {
+  const kw=VOICE_KW[currentLang]||VOICE_KW.en;
+  const m=arr=>arr.some(k=>cmd.includes(k));
+  if(m(kw.sos)){openSOS();return;}
+  if(m(kw.arrived)){emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"});toast("🎙 Arrived — updated!","ok");log("Voice: arrived","ok");return;}
+  if(m(kw.picked)){if(stage===0){stage=1;updatePipeline();updateActBtn();}toast("🎙 Pickup confirmed!","ok");log("Voice: picked","ok");return;}
+  if(m(kw.delivered)){toast("🎙 Delivered!","ok");log("Voice: delivered","ok");return;}
+  if(m(kw.gps)){if(!isTracking&&currentOrderId)startGPS();toast("🎙 GPS started","ok");return;}
+  toast(`🎙 "${cmd}" — not recognised`,"w");
+}
+
+/* ─── NAVIGATION ─────────────────────────────────────────── */
+function switchScreen(n) {
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
-  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.remove("active"));
-  document.getElementById("screen"+name.charAt(0).toUpperCase()+name.slice(1)).classList.add("active");
-  document.getElementById("nav-"+name).classList.add("active");
+  document.querySelectorAll(".nb").forEach(b=>b.classList.remove("on"));
+  document.getElementById("scr"+n).classList.add("active");
+  document.getElementById("nb-"+n.toLowerCase()).classList.add("on");
 }
 
-/* ── STATS ───────────────────────────────────────────────── */
-function updateHeaderStats() {
-  document.getElementById("todayEarn").textContent="AED "+todayEarnings;
-  document.getElementById("todayDel").textContent=todayDeliveries;
-  document.getElementById("pToday").textContent=todayDeliveries;
-  document.getElementById("pWeek").textContent=todayDeliveries;
+/* ─── STATS ──────────────────────────────────────────────── */
+function updateStats() {
+  document.getElementById("tEarn").textContent="AED "+todayEarn;
+  document.getElementById("tDel").textContent=todayDel;
+  document.getElementById("pToday").textContent=todayDel;
+  document.getElementById("pWeek").textContent=todayDel;
 }
-
-function updateWalletScreen() {
-  document.getElementById("walletBal").textContent="AED "+todayEarnings;
-  document.getElementById("walletDelSub").textContent=todayDeliveries+" deliveries";
-  document.getElementById("wAvg").textContent=todayDeliveries?"AED "+Math.floor(todayEarnings/todayDeliveries):"AED 0";
-  document.getElementById("wWeek").textContent="AED "+(WEEK_DATA.reduce((a,b)=>a+b,0)+todayEarnings);
+function updateWallet() {
+  document.getElementById("wBal").textContent="AED "+todayEarn;
+  document.getElementById("wDelSub").textContent=todayDel+" deliveries";
+  document.getElementById("wAvg").textContent=todayDel?"AED "+Math.floor(todayEarn/todayDel):"AED 0";
+  document.getElementById("wWeek").textContent="AED "+(WEEK.reduce((a,b)=>a+b,0)+todayEarn);
 }
-
-const WEEK_DATA=[85,110,140,95,160,200,0];
-const WEEK_DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Today"];
-
 function renderChart() {
-  const max=Math.max(...WEEK_DATA,1);
-  document.getElementById("chartRow").innerHTML=WEEK_DATA.map((v,i)=>
-    `<div class="cb-wrap"><div class="cb ${i===6?"today":""}" style="height:${(v/max)*100}%"></div></div>`).join("");
-  document.getElementById("chartLabels").innerHTML=WEEK_DAYS.map((d,i)=>
-    `<div style="flex:1;text-align:center;font-size:8.5px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`).join("");
+  const max=Math.max(...WEEK,1);
+  document.getElementById("chartRow").innerHTML=WEEK.map((v,i)=>`<div class="cb-w"><div class="cb ${i===6?"today":""}" style="height:${(v/max)*100}%"></div></div>`).join("");
+  document.getElementById("chartLbls").innerHTML=WDAYS.map((d,i)=>`<div style="flex:1;text-align:center;font-size:8px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`).join("");
 }
-
 function renderRewards() {
-  const all=312+todayDeliveries;
-  document.getElementById("rewardTiers").innerHTML=TIERS.map(t=>{
-    const pct=Math.min((all/t.target)*100,100), done=all>=t.target;
-    return `<div class="tier-row"><div class="tier-icon">${done?"🏆":"🎯"}</div><div class="tier-info"><div class="tier-name">${t.name}</div><div class="tier-desc">${t.target} deliveries · ${t.reward} bonus</div><div class="tier-prog-wrap"><div class="tier-prog-bar" style="width:${pct}%"></div></div></div><div class="tier-badge ${t.color}">${done?"✓":Math.min(all,t.target)+"/"+t.target}</div></div>`;
+  const all=312+todayDel;
+  document.getElementById("tiers").innerHTML=TIERS.map(t=>{
+    const pct=Math.min((all/t.t)*100,100), done=all>=t.t;
+    return `<div class="tr"><div class="ti-icon">${done?"🏆":"🎯"}</div><div class="ti-info"><div class="ti-name">${t.n}</div><div class="ti-desc">${t.t} deliveries · ${t.r} bonus</div><div class="tp-w"><div class="tp-b" style="width:${pct}%"></div></div></div><div class="tbadge ${t.c}">${done?"✓":Math.min(all,t.t)+"/"+t.t}</div></div>`;
   }).join("");
 }
 
-/* ── WALLET ──────────────────────────────────────────────── */
-function doWithdraw() {
-  if (todayEarnings<=0) { toast("No earnings yet","warn"); return; }
-  if (withdrawnToday) { toast("Already withdrawn today","warn"); return; }
-  withdrawnToday=true;
-  document.getElementById("withdrawBtn").disabled=true;
-  toast("AED "+todayEarnings+" sent to wallet! 💸");
-  log("Withdrawal: AED "+todayEarnings+" ✅","ok");
+/* ─── DOCUMENTS ──────────────────────────────────────────── */
+const DMAP={rta:{exp:"rtaExp",cd:"rtaCD",stat:"rtaStat"},medical:{exp:"medExp",cd:"medCD",stat:"medStat"},insurance:{exp:"insExp",cd:"insCD",stat:"insStat"},emirates:{exp:"emExp",cd:"emCD",stat:"emStat"},driving:{exp:"drExp",cd:"drCD",stat:"drStat"}};
+const DNAME={rta:"RTA Permit",medical:"Medical Fitness",insurance:"Vehicle Insurance",emirates:"Emirates ID",driving:"Driving Licence"};
+function loadDocs(){Object.keys(DMAP).forEach(k=>refreshDoc(k,localStorage.getItem("doc_"+k)));}
+function refreshDoc(k,v) {
+  const m=DMAP[k];
+  const expEl=document.getElementById(m.exp), cdEl=document.getElementById(m.cd), stEl=document.getElementById(m.stat);
+  if(!expEl) return;
+  if(!v){expEl.textContent="Expires: Not set";stEl.textContent="?";stEl.className="dstat w";cdEl.textContent="";return;}
+  const exp=new Date(v), days=Math.ceil((exp-new Date())/86400000);
+  expEl.textContent="Expires: "+exp.toLocaleDateString("en-AE",{day:"2-digit",month:"short",year:"numeric"});
+  if(days<0){stEl.textContent="Expired";stEl.className="dstat exp";cdEl.textContent="⛔ Expired "+Math.abs(days)+"d ago";cdEl.className="doc-cd exp";}
+  else if(days<30){stEl.textContent=days+"d left";stEl.className="dstat w";cdEl.textContent="⚠️ "+days+" days left";cdEl.className="doc-cd w";}
+  else{stEl.textContent="Valid";stEl.className="dstat ok";cdEl.textContent="✓ "+days+" days left";cdEl.className="doc-cd ok";}
 }
+function editDoc(k) {
+  currentDocKey=k;
+  document.getElementById("docModalTitle").textContent="📋 Update "+DNAME[k];
+  document.getElementById("docDate").value=localStorage.getItem("doc_"+k)||"";
+  document.getElementById("docModal").classList.add("open");
+}
+function saveDoc() {
+  const v=document.getElementById("docDate").value;
+  if(!v){toast("Pick a date","w");return;}
+  localStorage.setItem("doc_"+currentDocKey,v);
+  refreshDoc(currentDocKey,v); closeDocModal(); toast("Document updated ✅");
+}
+function closeDocModal(){document.getElementById("docModal").classList.remove("open");}
 
-function startWithdrawTimer() {
-  function tick() {
-    const now=new Date(), midnight=new Date(now); midnight.setHours(24,0,0,0);
-    const diff=midnight-now;
-    const h=String(Math.floor(diff/3600000)).padStart(2,"0");
-    const m=String(Math.floor((diff%3600000)/60000)).padStart(2,"0");
-    const s=String(Math.floor((diff%60000)/1000)).padStart(2,"0");
-    const el=document.getElementById("withdrawTimer");
-    if(el) el.textContent=`${h}:${m}:${s}`;
+/* ─── WALLET ─────────────────────────────────────────────── */
+function doWithdraw() {
+  if(todayEarn<=0){toast("No earnings yet","w");return;}
+  if(withdrawnToday){toast("Already withdrawn today","w");return;}
+  withdrawnToday=true; document.getElementById("wDrawBtn").disabled=true;
+  toast("AED "+todayEarn+" sent to wallet! 💸"); log("Withdrawal: AED "+todayEarn,"ok");
+}
+function startWTimer() {
+  function tick(){
+    const now=new Date(),m=new Date(now); m.setHours(24,0,0,0);
+    const d=m-now, h=String(Math.floor(d/3600000)).padStart(2,"0"), mn=String(Math.floor((d%3600000)/60000)).padStart(2,"0"), s=String(Math.floor((d%60000)/1000)).padStart(2,"0");
+    const e=document.getElementById("wTimer"); if(e) e.textContent=`${h}:${mn}:${s}`;
   }
   tick(); setInterval(tick,1000);
 }
 
-/* ── LANGUAGE ────────────────────────────────────────────── */
-function setLang(lang) {
-  currentLang=lang;
-  localStorage.setItem("riderLang",lang);
-  document.querySelectorAll(".lang-btn").forEach(b=>{
-    b.classList.toggle("active", b.textContent.trim()===({en:"EN",ar:"عربي",hi:"हिंदी",ur:"اردو"}[lang]));
-  });
-  document.documentElement.dir=(lang==="ar"||lang==="ur")?"rtl":"ltr";
-  toast(({en:"English",ar:"عربي",hi:"हिंदी",ur:"اردو"}[lang])+" ✓");
-  log("Language: "+lang,"ok");
+/* ─── LANGUAGE ───────────────────────────────────────────── */
+function setLang(l) {
+  currentLang=l; localStorage.setItem("rLang",l);
+  const map={en:"EN",ar:"عربي",hi:"हिंदी",ur:"اردو"};
+  document.querySelectorAll(".lb").forEach(b=>b.classList.toggle("on",b.textContent.trim()===map[l]));
+  document.documentElement.dir=(l==="ar"||l==="ur")?"rtl":"ltr";
+  toast(map[l]+" ✓");
 }
 
-/* ── DOCUMENTS ───────────────────────────────────────────── */
-const DOCS={rta:{},medical:{},insurance:{},emirates:{},driving:{}};
-
-function loadDocDates() {
-  ["rta","medical","insurance","emirates","driving"].forEach(key=>{
-    const stored=localStorage.getItem("doc_"+key);
-    updateDocUI(key,stored);
-  });
-}
-
-function updateDocUI(key,dateStr) {
-  const suffix={rta:"rta",medical:"med",insurance:"ins",emirates:"emirates",driving:"driving"};
-  const expEl=document.getElementById(suffix[key]+"Exp");
-  const statEl=document.getElementById(suffix[key]+"Status");
-  if(!expEl||!statEl) return;
-  if(!dateStr){expEl.textContent="Expires: Not set";statEl.textContent="?";statEl.className="doc-status warn";return;}
-  const exp=new Date(dateStr), today=new Date();
-  const daysLeft=Math.ceil((exp-today)/(1000*60*60*24));
-  expEl.textContent="Expires: "+exp.toLocaleDateString("en-AE",{day:"2-digit",month:"short",year:"numeric"});
-  if(daysLeft<0){statEl.textContent="Expired";statEl.className="doc-status expired";}
-  else if(daysLeft<30){statEl.textContent=daysLeft+"d left";statEl.className="doc-status warn";}
-  else{statEl.textContent="Valid";statEl.className="doc-status ok";}
-}
-
-function editDoc(key) {
-  currentDocKey=key;
-  const stored=localStorage.getItem("doc_"+key);
-  const names={rta:"RTA Permit",medical:"Medical Fitness",insurance:"Vehicle Insurance",emirates:"Emirates ID",driving:"Driving Licence"};
-  document.getElementById("docModalTitle").textContent="📋 Update "+names[key];
-  document.getElementById("docDateInput").value=stored||"";
-  document.getElementById("docModal").classList.add("open");
-}
-
-function saveDoc() {
-  const val=document.getElementById("docDateInput").value;
-  if(!val){toast("Pick a date","warn");return;}
-  localStorage.setItem("doc_"+currentDocKey,val);
-  updateDocUI(currentDocKey,val);
-  closeDocModal(); toast("Document updated ✅");
-}
-
-function closeDocModal() { document.getElementById("docModal").classList.remove("open"); }
-
-/* ── LOG + TOAST ─────────────────────────────────────────── */
-function log(msg,type="") {
-  const wrap=document.getElementById("logWrap");
-  const now=new Date();
+/* ─── LOG + TOAST ────────────────────────────────────────── */
+function log(msg,type=""){
+  const w=document.getElementById("logW"), now=new Date();
   const t=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0")+":"+String(now.getSeconds()).padStart(2,"0");
-  const div=document.createElement("div");
-  div.className="log-line "+type;
-  div.innerHTML=`<span class="lt">${t}</span><span class="lm">${msg}</span>`;
-  wrap.prepend(div);
-  while(wrap.children.length>60) wrap.removeChild(wrap.lastChild);
+  const d=document.createElement("div"); d.className="ll "+(type||"");
+  d.innerHTML=`<span class="lt">${t}</span><span class="lm">${msg}</span>`;
+  w.prepend(d); while(w.children.length>60) w.removeChild(w.lastChild);
+}
+let toastTO=null;
+function toast(msg,type=""){
+  const e=document.getElementById("toast");
+  e.textContent=msg; e.className="on "+(type||"");
+  if(toastTO) clearTimeout(toastTO);
+  toastTO=setTimeout(()=>e.className="",3000);
 }
 
-let toastT=null;
-function toast(msg,type="") {
-  const el=document.getElementById("toast");
-  el.textContent=msg; el.className="show "+(type||"");
-  if(toastT) clearTimeout(toastT);
-  toastT=setTimeout(()=>{el.className="";},3000);
-}
-
-/* ── BOOT ────────────────────────────────────────────────── */
+/* ─── BOOT ───────────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded",()=>{
   setLang(currentLang);
-  renderChart();
-  updateWalletScreen();
-  renderRewards();
-  loadDocDates();
-  startWithdrawTimer();
-  onNetworkChange(navigator.onLine);
-  // Fetch temperature on load and every 15 minutes
-  fetchTemperature();
-  setInterval(fetchTemperature, 15 * 60 * 1000);
-  log("Magizham Rider v4.0 ready ✅","ok");
-  log("Features: Building Entry · Voice Commands · Heat Safety · Welfare Check · Offline Mode","ok");
+  renderChart(); updateWallet(); renderRewards(); loadDocs(); startWTimer();
+  document.getElementById("offlineBar").classList.toggle("show",!navigator.onLine);
+  // Weather: fetch immediately + every 15 min
+  fetchWeather(); setInterval(fetchWeather,15*60*1000);
+  // FAB: SOS is default tap, long-press expands voice+transfer
+  const fab=document.getElementById("fabMain");
+  let pressTimer=null;
+  fab.addEventListener("pointerdown",()=>{ pressTimer=setTimeout(()=>{ fabOpen=true; document.getElementById("fabItems").classList.remove("hidden"); fab.textContent="✕"; },500); });
+  fab.addEventListener("pointerup",()=>{ clearTimeout(pressTimer); });
+  fab.addEventListener("click",e=>{ if(!fabOpen){ openSOS(); } else { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); fab.textContent="🆘"; } });
+  log("Magizham Rider v5.0 ready ✅","ok");
+  log("All systems: Weather · GPS · Voice · Welfare · Offline","ok");
 });
 </script>
 </body>
