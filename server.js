@@ -22,8 +22,8 @@ const io = new Server(server, {
     methods: ["GET", "POST"],
     credentials: false
   },
-  transports: ["websocket", "polling"],   // ✅ WebSocket first, polling fallback
-  allowEIO3: true,                         // ✅ Support older clients
+  transports: ["websocket", "polling"],
+  allowEIO3: true,
   pingTimeout: 60000,
   pingInterval: 25000,
   upgradeTimeout: 30000,
@@ -165,6 +165,30 @@ app.post("/api/rider/location", async (req, res) => {
   }
 });
 
+// ── WEATHER API ───────────────────────────────────────────────
+app.get("/api/weather", async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lon = parseFloat(req.query.lon);
+
+  if (isNaN(lat) || isNaN(lon)) {
+    return res.status(400).json({ error: "Valid lat and lon query params are required" });
+  }
+
+  try {
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weathercode,windspeed_10m,relative_humidity_2m&timezone=auto`;
+    const r = await fetch(url);
+
+    if (!r.ok) {
+      return res.status(502).json({ error: "Weather API error", status: r.status });
+    }
+
+    res.json(await r.json());
+  } catch (err) {
+    console.error("Weather fetch error:", err);
+    res.status(500).json({ error: "Failed to fetch weather data" });
+  }
+});
+
 // ── HEALTH CHECK ──────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({ status: "✅ Running", uptime: Math.floor(process.uptime()) });
@@ -179,7 +203,6 @@ io.on("connection", (socket) => {
 
   if (orderId) socket.join(`order_${orderId}`);
 
-  // ✅ Confirm connection to client
   socket.emit("connected", { message: "Socket connected", orderId });
 
   socket.on("riderLocationUpdate", async (data) => {
@@ -213,6 +236,7 @@ io.on("connection", (socket) => {
 });
 
 app.set("io", io);
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 // ── START SERVER ──────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
@@ -223,5 +247,6 @@ server.listen(PORT, "0.0.0.0", () => {
   console.log(`👉 http://localhost:${PORT}`);
   console.log(`👉 Track: http://localhost:${PORT}/track/1`);
   console.log(`👉 Rider: http://localhost:${PORT}/rider`);
+  console.log(`👉 Weather: http://localhost:${PORT}/api/weather?lat=25.24&lon=55.30`);
   console.log("");
 });
