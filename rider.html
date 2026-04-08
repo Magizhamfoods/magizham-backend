@@ -11,11 +11,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ═══════════════════════════════════════════════════════════
-   MAGIZHAM RIDER v5.0
+   MAGIZHAM RIDER v5.2
    Design: Industrial precision + neon-on-dark
-   Fixes: CORS proxy, No Maps SDK, Simplified UX,
-          Auto GPS stages, FAB menu, Reduced animations,
-          GPS retry, Earnings popup, Navigation deep-links
+   Weather: /api/weather?lat=&lon= proxy (primary) + seasonal fallback only
+   GPS: setInterval emit every 1.5s + watchPosition for accuracy
+   Offline: localStorage cache + queue flush + socket auto-reconnect
 ═══════════════════════════════════════════════════════════ */
 :root {
   --bg:#060A08; --bg1:#0C1410; --bg2:#111C14; --bg3:#162019;
@@ -26,17 +26,14 @@
   --orange:#FF6B2C; --tx:#E4F2EA; --tx2:#6E9E7C; --tx3:#2E4A39;
   --bdr:rgba(0,255,136,0.07); --bdrAmt:rgba(255,184,0,0.13);
   --r:18px; --r-sm:12px;
-  /* Animation toggle — set to 0 during active GPS to save CPU */
   --anim-scale:1;
 }
-/* ── PERFORMANCE MODE: Kill heavy anims when GPS is tracking ── */
 body.gps-active { --anim-scale:0; }
 body.gps-active .glow-anim { animation:none !important; box-shadow:none !important; }
 
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
 html { font-size:16px; }
 body { font-family:"Nunito",sans-serif; background:var(--bg); color:var(--tx); min-height:100dvh; max-width:430px; margin:0 auto; overflow-x:hidden; }
-/* Subtle grain — pure CSS, zero JS cost */
 body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.028'/%3E%3C/svg%3E"); opacity:.35; }
 #app { display:flex; flex-direction:column; min-height:100dvh; position:relative; z-index:1; }
@@ -64,7 +61,6 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 .tog.on .tog-lbl { color:var(--neon); }
 @keyframes pulse { 0%,100%{box-shadow:0 0 5px var(--neon);}50%{box-shadow:0 0 12px var(--neon);} }
 
-/* ── Heat banner ── */
 #heatBanner { display:none; margin:8px 0 0; padding:9px 13px; border-radius:var(--r-sm);
   background:linear-gradient(135deg,rgba(255,107,44,.14),rgba(255,51,71,.08));
   border:1.5px solid rgba(255,107,44,.32); align-items:center; gap:9px; }
@@ -75,7 +71,6 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 .heat-cta  { font-size:9.5px; font-weight:800; color:#000; background:var(--orange); border:none;
   border-radius:8px; padding:5px 11px; cursor:pointer; white-space:nowrap; }
 
-/* ── Ticker ── */
 #ticker { display:flex; margin:8px 0 0; background:var(--bg1); border:1px solid var(--bdrAmt);
   border-radius:var(--r-sm); overflow:hidden; }
 .ti { flex:1; text-align:center; padding:8px 4px; }
@@ -83,7 +78,6 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 .tl { font-size:7.5px; color:var(--tx2); margin-top:2px; text-transform:uppercase; letter-spacing:.06em; }
 .td { width:1px; background:var(--bdrAmt); }
 
-/* ── Voice bar ── */
 #voiceBar { display:none; margin:7px 0 0; padding:7px 13px; background:rgba(0,255,136,.07);
   border:1px solid rgba(0,255,136,.18); border-radius:var(--r-sm); align-items:center; gap:9px; }
 #voiceBar.on { display:flex; }
@@ -96,13 +90,11 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 .vt { font-size:11px; font-weight:700; color:var(--neon); flex:1; }
 .vc { font-size:13px; cursor:pointer; color:var(--tx3); padding:2px 5px; }
 
-/* ── Offline bar ── */
 #offlineBar { display:none; margin:6px 0 0; padding:6px 12px; background:var(--amberDim);
   border:1px solid var(--bdrAmt); border-radius:9px; font-size:10px; font-weight:800; color:var(--amber);
   text-align:center; }
 #offlineBar.show { display:block; }
 
-/* ── Lang strip ── */
 .lang-strip { display:flex; gap:5px; margin:7px 0 10px; }
 .lb { flex:1; padding:7px; border:1.5px solid var(--bdr); border-radius:9px; background:var(--bg2);
   color:var(--tx3); font-size:10.5px; font-weight:700; cursor:pointer; text-align:center;
@@ -132,7 +124,6 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 .mv { font-family:"Space Mono",monospace; font-size:12.5px; font-weight:700; color:var(--neon); }
 .ml { font-size:7.5px; color:var(--tx3); margin-top:1px; }
 
-/* ── Navigate button (BIG, prominent) ── */
 #navBtn { width:100%; padding:13px; border:none; border-radius:var(--r-sm); margin-bottom:10px;
   background:linear-gradient(135deg,var(--blue),#1A5FBF); color:#fff; font-family:"Syne",sans-serif;
   font-size:14px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center;
@@ -140,7 +131,6 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 #navBtn:active { transform:scale(.97); }
 #navBtn.hide { display:none; }
 
-/* ── Auto-stage hint ── */
 #autoStageHint { display:none; background:rgba(0,255,136,.08); border:1.5px solid rgba(0,255,136,.22);
   border-radius:11px; padding:10px 13px; margin-bottom:10px; }
 #autoStageHint.show { display:flex; align-items:center; gap:9px; }
@@ -151,13 +141,10 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 .ash-btn   { background:var(--neon2); color:#000; border:none; border-radius:9px; padding:7px 13px;
   font-family:"Syne",sans-serif; font-size:11px; font-weight:800; cursor:pointer; flex-shrink:0; }
 
-/* ── Building entry ── */
 #bldCard { display:none; background:linear-gradient(135deg,var(--bg2),var(--bg3));
   border:1.5px solid rgba(74,158,255,.22); border-radius:13px; padding:13px; margin-bottom:11px; }
 #bldCard.show { display:block; }
 .bld-head { display:flex; align-items:center; gap:8px; margin-bottom:9px; }
-.bld-badge { font-size:8.5px; font-weight:800; color:var(--blue); background:rgba(74,158,255,.12);
-  border:1px solid rgba(74,158,255,.2); border-radius:5px; padding:2px 7px; }
 .bld-name  { font-family:"Syne",sans-serif; font-size:13px; font-weight:800; color:var(--blue); }
 .bld-steps { display:flex; flex-direction:column; gap:5px; }
 .bs { display:flex; align-items:flex-start; gap:9px; background:var(--bg); border-radius:8px;
@@ -168,7 +155,6 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 .bs-txt { font-size:11px; color:var(--tx2); line-height:1.45; }
 .bs-tip { font-size:9.5px; color:var(--neon); font-weight:700; margin-top:2px; }
 
-/* ── Items ── */
 .items-list { display:flex; flex-direction:column; gap:4px; margin-bottom:11px; }
 .item-row { display:flex; align-items:center; gap:8px; background:var(--bg2);
   border-radius:8px; padding:8px 10px; border:1px solid var(--bdr); }
@@ -176,7 +162,6 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 .inm { flex:1; font-size:11.5px; font-weight:700; color:var(--tx); }
 .iqty { font-family:"Space Mono",monospace; font-size:10.5px; color:var(--tx2); }
 
-/* ── Pipeline ── */
 .pipeline { display:flex; align-items:center; margin:12px 0; }
 .ps { flex:1; display:flex; flex-direction:column; align-items:center; position:relative; }
 .ps::after { content:""; position:absolute; top:12px; left:50%; width:100%; height:2px;
@@ -188,14 +173,12 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
   position:relative; z-index:1; transition:all .35s; }
 .ps.done .pd { background:var(--neon2); border-color:var(--neon2); }
 .ps.active .pd { background:var(--bg); border-color:var(--neon); }
-/* Only pulse when not in GPS performance mode */
 body:not(.gps-active) .ps.active .pd { animation:ppulse 1.6s infinite; }
 @keyframes ppulse { 0%,100%{box-shadow:0 0 0 3px rgba(0,255,136,.14);}50%{box-shadow:0 0 0 7px rgba(0,255,136,.06),0 0 15px rgba(0,255,136,.22);} }
 .pl { font-size:7.5px; font-weight:700; color:var(--tx3); margin-top:3px; text-align:center; transition:color .28s; }
 .ps.active .pl { color:var(--neon); }
 .ps.done .pl   { color:var(--neon2); }
 
-/* ── Action button ── */
 .act-btn { width:100%; padding:15px; border:none; border-radius:13px;
   font-family:"Syne",sans-serif; font-size:14.5px; font-weight:800;
   cursor:pointer; transition:transform .2s; margin-bottom:8px; position:relative; overflow:hidden; }
@@ -206,7 +189,6 @@ body:not(.gps-active) .ps.active .pd { animation:ppulse 1.6s infinite; }
 .act-btn.done { background:linear-gradient(135deg,#00A050,#005228); color:#fff; }
 .act-btn:active { transform:scale(.97); }
 
-/* ── OTP ── */
 #otpSec { display:none; margin-bottom:11px; }
 .otp-h { font-size:10.5px; color:var(--tx2); margin-bottom:8px; text-align:center; }
 .otp-row { display:flex; gap:8px; }
@@ -217,7 +199,6 @@ body:not(.gps-active) .ps.active .pd { animation:ppulse 1.6s infinite; }
 .otp-btn { background:linear-gradient(135deg,var(--amber),#CC8A00); color:#000; border:none;
   border-radius:12px; padding:12px 18px; font-family:"Syne",sans-serif; font-size:12px; font-weight:800; cursor:pointer; }
 
-/* ── PoD ── */
 #podSec { display:none; margin-bottom:11px; }
 .pod-h { font-size:10.5px; color:var(--tx2); margin-bottom:8px; text-align:center; }
 .pod-prev { width:100%; height:150px; border-radius:11px; background:var(--bg2);
@@ -229,7 +210,6 @@ body:not(.gps-active) .ps.active .pd { animation:ppulse 1.6s infinite; }
 #podFile { display:none; }
 #podSubmit { display:none; }
 
-/* ── Contact row ── */
 .cta-row { display:flex; gap:7px; margin-top:5px; }
 .ctb { flex:1; display:flex; align-items:center; justify-content:center; gap:5px; padding:10px;
   border-radius:12px; border:1.5px solid var(--bdr); background:var(--bg2); cursor:pointer;
@@ -240,7 +220,6 @@ body:not(.gps-active) .ps.active .pd { animation:ppulse 1.6s infinite; }
 .ctb.kitchen { border-color:rgba(74,158,255,.18); color:var(--blue); }
 .ctb:active  { transform:scale(.96); }
 
-/* ── GPS button ── */
 #gpsBtn { width:calc(100% - 26px); margin:0 13px 11px; padding:16px; border:none;
   border-radius:15px; font-family:"Syne",sans-serif; font-size:15px; font-weight:800;
   cursor:pointer; transition:all .28s; position:relative; overflow:hidden;
@@ -248,13 +227,11 @@ body:not(.gps-active) .ps.active .pd { animation:ppulse 1.6s infinite; }
   box-shadow:0 6px 22px rgba(0,255,136,.2); }
 #gpsBtn.stop { background:linear-gradient(135deg,#BB1020,#5A0008); color:#fff; box-shadow:0 6px 22px rgba(255,51,71,.2); }
 #gpsBtn:disabled { opacity:.35; cursor:not-allowed; }
-/* Shimmer only when not in GPS performance mode */
 body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; left:-100%; width:55%;
   height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,.11),transparent);
   animation:shim 2.8s infinite; }
 @keyframes shim { to{left:160%;} }
 
-/* ── Stats grid ── */
 .sg { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
 .sb { background:var(--bg2); border-radius:11px; padding:10px; border:1px solid var(--bdr); }
 .sl { font-size:8px; font-weight:700; color:var(--tx3); text-transform:uppercase; letter-spacing:.07em; margin-bottom:3px; }
@@ -265,7 +242,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .bar.lit { background:var(--neon); }
 .bar:nth-child(1){height:4px}.bar:nth-child(2){height:8px}.bar:nth-child(3){height:12px}.bar:nth-child(4){height:16px}
 
-/* ── Log ── */
 .log-w { max-height:100px; overflow-y:auto; }
 .log-w::-webkit-scrollbar { display:none; }
 .ll { font-family:"Space Mono",monospace; font-size:9.5px; color:var(--tx3);
@@ -276,17 +252,14 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .ll.w   .lm { color:var(--amber); }
 .ll.err .lm { color:var(--red); }
 
-/* ── Ping flash ── */
 #pf { position:fixed; top:0; left:0; right:0; height:2px; background:var(--neon);
   transform:scaleX(0); transform-origin:left; transition:transform .08s; z-index:9999; pointer-events:none; }
 #pf.on { transform:scaleX(1); }
 
-/* ────── SCREENS ────── */
 .screen { display:none; } .screen.active { display:block; }
 .screen-title { font-family:"Syne",sans-serif; font-size:18px; font-weight:800;
   color:var(--tx); margin:15px 13px 11px; }
 
-/* ── Wallet ── */
 .w-hero { margin:0 13px 11px; padding:20px; background:linear-gradient(135deg,#0C2616,#090F0B);
   border-radius:19px; border:1px solid rgba(255,184,0,.18); text-align:center; position:relative; overflow:hidden; }
 .w-hero::before { content:""; position:absolute; top:-28px; right:-28px; width:100px; height:100px;
@@ -305,14 +278,12 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .wdraw:active { transform:scale(.97); }
 .wdraw:disabled { opacity:.38; cursor:not-allowed; }
 
-/* ── Chart ── */
 .chart-row { display:flex; align-items:flex-end; gap:3.5px; height:72px; margin-bottom:5px; }
 .cb-w { flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; }
 .cb { width:100%; border-radius:3px 3px 0 0; background:linear-gradient(180deg,var(--neon2),#003D1C); }
 .cb.today { background:linear-gradient(180deg,var(--amber),#7A4F00); }
 .cd { font-size:8px; font-weight:700; color:var(--tx3); margin-top:3px; }
 
-/* ── Rewards ── */
 .tiers { display:flex; flex-direction:column; gap:7px; }
 .tr { display:flex; align-items:center; gap:11px; background:var(--bg2);
   border-radius:10px; padding:10px; border:1px solid var(--bdr); }
@@ -328,7 +299,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .tbadge.silver { color:#000; background:#C0C0C0; }
 .tbadge.bronze { color:#fff; background:#CD7F32; }
 
-/* ── Docs ── */
 .doc-card { display:flex; align-items:center; gap:11px; background:var(--bg2);
   border-radius:12px; padding:12px; border:1px solid var(--bdr); margin-bottom:7px; cursor:pointer; }
 .doc-icon { font-size:22px; flex-shrink:0; }
@@ -344,7 +314,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .dstat.w   { background:var(--amberDim); color:var(--amber); }
 .dstat.exp { background:var(--redDim); color:var(--red); }
 
-/* ── Heat safety card (Docs screen) ── */
 #heatDocsCard { display:none; background:rgba(255,107,44,.08); border:1.5px solid rgba(255,107,44,.28);
   border-radius:13px; padding:13px; margin:0 13px 11px; }
 #heatDocsCard.show { display:block; }
@@ -357,7 +326,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .hds-name { font-size:12px; font-weight:800; color:var(--tx); margin-top:4px; }
 .hds-sub  { font-size:9.5px; color:var(--tx2); margin-top:2px; }
 
-/* ── Stations ── */
 .st-row { display:flex; align-items:center; gap:10px; background:var(--bg2);
   border-radius:10px; padding:10px 11px; border:1px solid var(--bdr); margin-bottom:6px; }
 .st-row.hot-mode { border-color:rgba(255,107,44,.3); background:rgba(255,107,44,.04); }
@@ -371,7 +339,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .stag.r { background:rgba(0,255,136,.09); color:var(--neon); }
 .stag.h { background:rgba(255,107,44,.13); color:var(--orange); }
 
-/* ── Parking ── */
 .park { background:var(--bg2); border-radius:10px; padding:10px 11px;
   border:1px solid var(--bdr); margin-bottom:6px; }
 .park-loc  { font-size:11.5px; font-weight:800; color:var(--tx); }
@@ -392,7 +359,7 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
   border-radius:2px; transform:scaleX(0); transition:transform .28s cubic-bezier(.34,1.56,.64,1); }
 .nb.on .n-ind { transform:scaleX(1); }
 
-/* ────── FAB MENU (replaces top action row) ────── */
+/* ────── FAB MENU ────── */
 #fab { position:fixed; right:16px; bottom:90px; z-index:300; display:flex; flex-direction:column;
   align-items:flex-end; gap:9px; }
 .fab-main { width:52px; height:52px; border-radius:50%; border:none; cursor:pointer;
@@ -413,7 +380,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .fab-xfer  { background:linear-gradient(135deg,var(--amber),#CC8A00); }
 
 /* ────── OVERLAYS ────── */
-/* Welfare / Are you okay? */
 #welfarePanel { display:none; position:fixed; inset:0; z-index:9996;
   background:rgba(255,51,71,.1); backdrop-filter:blur(10px);
   align-items:center; justify-content:center; }
@@ -433,7 +399,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
   background:linear-gradient(135deg,var(--red),#880010); color:#fff;
   font-family:"Syne",sans-serif; font-size:13.5px; font-weight:800; cursor:pointer; }
 
-/* SOS */
 #sosPanel { display:none; position:fixed; inset:0; z-index:9997;
   background:rgba(255,51,71,.07); backdrop-filter:blur(9px); align-items:center; justify-content:center; }
 #sosPanel.open { display:flex; }
@@ -448,7 +413,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .sb.a { background:linear-gradient(135deg,var(--amber),#CC8A00); color:#000; }
 .sb.c { background:var(--bg2); color:var(--tx2); border:1px solid var(--bdr); }
 
-/* Transfer */
 #xferPanel { display:none; position:fixed; inset:0; z-index:9995;
   background:rgba(0,0,0,.82); backdrop-filter:blur(7px); align-items:flex-end; justify-content:center; }
 #xferPanel.open { display:flex; }
@@ -465,7 +429,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
   background:linear-gradient(135deg,var(--neon2),#004A25); color:#000;
   font-family:"Syne",sans-serif; font-size:11px; font-weight:800; cursor:pointer; }
 
-/* Chat */
 .chat-sh { display:none; position:fixed; inset:0; z-index:9000;
   background:rgba(0,0,0,.82); backdrop-filter:blur(7px); align-items:flex-end; justify-content:center; }
 .chat-sh.open { display:flex; }
@@ -497,7 +460,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
   border:none; border-radius:10px; font-size:15px; cursor:pointer;
   display:flex; align-items:center; justify-content:center; }
 
-/* ── Delivery done ── */
 #delDone { display:none; position:fixed; inset:0; z-index:9999;
   background:rgba(6,10,8,.97); flex-direction:column; align-items:center; justify-content:center;
   text-align:center; padding:26px; }
@@ -506,7 +468,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 @keyframes bIn{from{transform:scale(0);}to{transform:scale(1);}}
 .dd-title { font-family:"Syne",sans-serif; font-size:25px; font-weight:800; color:var(--neon); margin-bottom:5px; }
 .dd-sub   { font-size:12.5px; color:var(--tx2); margin-bottom:10px; line-height:1.5; }
-/* Earnings breakdown card */
 .dd-earn-card { background:linear-gradient(135deg,#0C2616,#060A08); border:1px solid rgba(255,184,0,.22);
   border-radius:15px; padding:16px 20px; margin-bottom:16px; width:100%; max-width:300px; }
 .dd-earn-main { font-family:"Space Mono",monospace; font-size:36px; font-weight:700; color:var(--amber); }
@@ -518,14 +479,12 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 .dd-btn { background:linear-gradient(135deg,var(--neon2),#004A25); color:#000; border:none;
   border-radius:13px; padding:14px 36px; font-family:"Syne",sans-serif; font-size:14.5px; font-weight:800; cursor:pointer; }
 
-/* Doc modal */
 #docModal { display:none; position:fixed; inset:0; z-index:9998;
   background:rgba(0,0,0,.82); backdrop-filter:blur(7px); align-items:flex-end; justify-content:center; }
 #docModal.open { display:flex; }
 .dm-box { background:var(--bg1); border-radius:20px 20px 0 0; width:100%; max-width:430px;
   padding:22px; border:1px solid var(--bdrAmt); }
 
-/* Toast */
 #toast { position:fixed; bottom:84px; left:50%; transform:translateX(-50%) translateY(18px);
   background:var(--bg1); border:1px solid var(--bdr); border-radius:18px; padding:8px 18px;
   font-size:11.5px; font-weight:700; color:var(--neon); white-space:nowrap;
@@ -570,8 +529,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
       <span class="tog-lbl" id="togLbl">Go Online</span>
     </div>
   </div>
-
-  <!-- Heat banner -->
   <div id="heatBanner">
     <div style="font-size:22px;flex-shrink:0">🌡️</div>
     <div class="heat-lhs">
@@ -580,8 +537,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
     </div>
     <button class="heat-cta" onclick="goHydration()">Find Station</button>
   </div>
-
-  <!-- Ticker -->
   <div id="ticker">
     <div class="ti"><div class="tv mono" id="tEarn">AED 0</div><div class="tl">Today</div></div>
     <div class="td"></div>
@@ -589,32 +544,24 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
     <div class="td"></div>
     <div class="ti"><div class="tv mono" id="connStat" style="font-size:10.5px;color:var(--tx3)">⬤ Offline</div><div class="tl">Socket</div></div>
   </div>
-
-  <!-- Voice bar -->
   <div id="voiceBar">
     <div class="wv-row"><div class="wv"></div><div class="wv"></div><div class="wv"></div><div class="wv"></div><div class="wv"></div></div>
     <div class="vt" id="vText">Listening...</div>
     <div class="vc" onclick="stopVoice()">✕</div>
   </div>
-
-  <!-- Offline -->
   <div id="offlineBar">📵 Offline — cached orders available</div>
-
-  <!-- Lang -->
   <div class="lang-strip">
     <button class="lb on" onclick="setLang('en')">EN</button>
     <button class="lb" onclick="setLang('ar')">عربي</button>
     <button class="lb" onclick="setLang('hi')">हिंदी</button>
     <button class="lb" onclick="setLang('ur')">اردو</button>
   </div>
-</div><!-- /hdr -->
+</div>
 
 <div id="scrollArea">
 
 <!-- ══ HOME SCREEN ══ -->
 <div id="scrHome" class="screen active">
-
-  <!-- Order loader -->
   <div class="card">
     <div class="clbl">📦 Load Order</div>
     <div style="display:flex;gap:7px;">
@@ -626,11 +573,8 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
     <div id="cacheHint" style="display:none;font-size:9.5px;color:var(--amber);font-weight:700;margin-top:6px;">💾 Cached data available for this ID</div>
   </div>
 
-  <!-- Order panel (hidden until loaded) -->
   <div id="orderPanel" style="display:none;">
     <div class="card">
-
-      <!-- Order hero -->
       <div class="order-hero">
         <div class="ord-id mono" id="ordId">ORD-—</div>
         <div class="ord-name syne" id="ordCust">—</div>
@@ -642,11 +586,7 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
           <div class="mc"><div class="mv mono" id="mStat">—</div><div class="ml">status</div></div>
         </div>
       </div>
-
-      <!-- 🗺️ Navigate button — always visible once order loaded -->
       <button id="navBtn" onclick="openNavigation()">🧭 Navigate to Customer</button>
-
-      <!-- ⚡ Auto-stage hint — appears when GPS detects proximity -->
       <div id="autoHint">
         <div class="ash-icon" id="ahIcon">📍</div>
         <div class="ash-body">
@@ -655,8 +595,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
         </div>
         <button class="ash-btn" id="ahBtn" onclick="acceptAutoStage()">Confirm</button>
       </div>
-
-      <!-- 🏢 Building entry guide — shows within 50m -->
       <div id="bldCard">
         <div class="bld-head">
           <span style="font-size:9px;font-weight:800;color:var(--blue);background:rgba(74,158,255,.12);border:1px solid rgba(74,158,255,.2);border-radius:5px;padding:2px 7px;">📍 WITHIN 50m</span>
@@ -664,12 +602,8 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
         </div>
         <div class="bld-steps" id="bldSteps"></div>
       </div>
-
-      <!-- Items -->
       <div class="clbl">🧺 Items</div>
       <div class="items-list" id="itemsList"></div>
-
-      <!-- Pipeline -->
       <div class="clbl">📍 Progress</div>
       <div class="pipeline">
         <div class="ps done" id="p0"><div class="pd">✓</div><div class="pl">Ready</div></div>
@@ -678,8 +612,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
         <div class="ps" id="p3"><div class="pd">🔑</div><div class="pl">OTP</div></div>
         <div class="ps" id="p4"><div class="pd">✅</div><div class="pl">Done</div></div>
       </div>
-
-      <!-- OTP -->
       <div id="otpSec">
         <div class="otp-h">Ask customer for their 4-digit OTP</div>
         <div class="otp-row">
@@ -688,8 +620,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
           <button class="otp-btn syne" onclick="verifyOTP()">Verify</button>
         </div>
       </div>
-
-      <!-- PoD -->
       <div id="podSec">
         <div class="pod-h">📸 Capture proof of delivery</div>
         <div class="pod-prev" onclick="capturePhoto()" id="podPrev">
@@ -699,11 +629,7 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
         <input type="file" id="podFile" accept="image/*" capture="environment" onchange="handlePhoto(this)">
         <button class="act-btn done syne" id="podSubmit" onclick="submitPoD()">✅ Submit Delivery Proof</button>
       </div>
-
-      <!-- Action button -->
       <button class="act-btn go syne" id="actBtn" onclick="advanceStage()">▶ Confirm Pickup</button>
-
-      <!-- Contact row -->
       <div class="cta-row">
         <a class="ctb call" id="callBtn" href="#">📞 Call</a>
         <button class="ctb msg" onclick="openChat('customer')">💬 Message</button>
@@ -712,10 +638,8 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
     </div>
   </div>
 
-  <!-- GPS button -->
   <button id="gpsBtn" onclick="toggleGPS()" disabled>📡 Start GPS Tracking</button>
 
-  <!-- Telemetry -->
   <div class="card">
     <div class="clbl">📡 Live Telemetry</div>
     <div class="sg">
@@ -731,7 +655,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
     </div>
   </div>
 
-  <!-- Activity log -->
   <div class="card">
     <div class="clbl">🗂 Activity Log</div>
     <div class="log-w" id="logW"></div>
@@ -770,8 +693,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 <!-- ══ DOCS SCREEN ══ -->
 <div id="scrDocs" class="screen">
   <div class="screen-title">📋 UAE Documents</div>
-
-  <!-- Heat advisory card -->
   <div id="heatDocsCard">
     <div class="hd-title">🌡️ Heat Advisory — <span id="hdTemp">—</span></div>
     <div class="hd-body" id="hdBody">Temperature is being checked...</div>
@@ -781,7 +702,6 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
       <div class="hds-sub">0.3 km · Open 24 hrs · Free water + shade</div>
     </div>
   </div>
-
   <div style="margin:0 13px 11px;">
     <div class="doc-card" onclick="editDoc('rta')">
       <div class="doc-icon">🪪</div>
@@ -809,14 +729,12 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
       <div class="dstat w" id="drStat">?</div>
     </div>
   </div>
-
   <div class="card" id="stationCard">
     <div class="clbl">🧊 Cool-Down Stations</div>
     <div class="st-row" id="st0"><div class="sti">🏛️</div><div><div class="stn">RTA Rest Point — Karama</div><div class="std">0.3 km · Open 24h</div><div class="stags"><span class="stag w">💧 Water</span><span class="stag s">⛱ Shade</span><span class="stag r">RTA</span></div></div></div>
     <div class="st-row" id="st1"><div class="sti">☕</div><div><div class="stn">Magizham Café Partner</div><div class="std">0.5 km · Free water for riders</div><div class="stags"><span class="stag w">💧 Water</span><span class="stag s">⛱ Shade</span></div></div></div>
     <div class="st-row" id="st2"><div class="sti">⛽</div><div><div class="stn">ENOC — Dubai Frame Rd</div><div class="std">0.8 km · AC area</div><div class="stags"><span class="stag s">⛱ Shade</span><span class="stag h">❄️ AC</span></div></div></div>
   </div>
-
   <div class="card">
     <div class="clbl">🅿️ Parking Tips</div>
     <div class="park"><div class="park-loc">📍 Karama Centre Basement</div><div class="park-tip">Free bike bay near ramp entrance. Max 2 bikes.</div></div>
@@ -874,7 +792,7 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 
 </div><!-- /app -->
 
-<!-- ══ FAB MENU (SOS, Voice, Transfer) ══ -->
+<!-- ══ FAB MENU ══ -->
 <div id="fab">
   <div class="fab-items hidden" id="fabItems">
     <div class="fab-item"><span class="fab-lbl">Voice command</span><button class="fab-btn fab-voice" onclick="closeFAB();startVoice()">🎙</button></div>
@@ -969,16 +887,17 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 <script src="/socket.io/socket.io.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════
-   MAGIZHAM RIDER v5.0 — JavaScript
-   ✅ CORS fix: weather via backend proxy + free fallback
-   ✅ NO Google Maps SDK — pure deep-link navigation
-   ✅ Simplified UI — FAB menu, clean action flow
-   ✅ Auto GPS stage detection (restaurant + customer proximity)
-   ✅ Welfare check with auto-SOS fallback
-   ✅ Offline cache with queue flush
-   ✅ GPS performance mode (kills heavy animations)
-   ✅ GPS retry logic
-   ✅ Earnings breakdown popup
+   MAGIZHAM RIDER v5.2 — JavaScript
+   ✅ CHANGE 1 — WEATHER: backend proxy ONLY (/api/weather?lat=&lon=)
+      + seasonal fallback. Direct open-meteo + wttr.in removed.
+   ✅ CHANGE 2 — GPS EMIT: setInterval every 1500ms guarantees
+      1–2s emission regardless of watchPosition frequency.
+      Payload always includes lat, lng, speed, accuracy.
+   ✅ CHANGE 3 — OFFLINE SYSTEM: robust localStorage order cache,
+      online/offline event handlers, socket.connect() re-use on
+      reconnect (no teardown), flushQ drains queued events safely.
+   ── UNCHANGED ──────────────────────────────────────────────
+   UI design · Voice system · Hyperlocal features · Geofencing
 ═══════════════════════════════════════════════════════════ */
 
 /* ─── BUILDING DATABASE ─────────────────────────────────── */
@@ -1010,7 +929,7 @@ const BUILDINGS = [
     ]},
 ];
 
-/* ─── VOICE KEYWORDS (all four languages) ──────────────── */
+/* ─── VOICE KEYWORDS ────────────────────────────────────── */
 const VOICE_KW = {
   en: { arrived:["arrived","at location","at the door","i'm here","reached"],
         picked: ["picked up","collected","got the order","got it"],
@@ -1040,7 +959,9 @@ let currentOrderId=null, currentOrder=null, stage=0;
 let pingCnt=0, todayDel=0, todayEarn=0;
 let custMsgArr=[], kitMsgArr=[];
 let podData=null, currentDocKey=null, withdrawnToday=false;
-let lastLat=null, lastLng=null, lastMoveLat=null, lastMoveLng=null;
+let lastLat=null, lastLng=null;
+let lastSpeed=null, lastAcc=null;          // ← v5.2: tracked separately for interval emit
+let gpsEmitInterval=null;                  // ← v5.2: 1.5s emit timer handle
 let lastMoveTime=Date.now();
 let wfTimer=null, wfCDInt=null, wfActive=false;
 let stuckTimer=null;
@@ -1055,74 +976,62 @@ const WDAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Today"];
 const TIERS=[{n:"Bronze Star",t:10,c:"bronze",r:"AED 5"},{n:"Silver Ace",t:25,c:"silver",r:"AED 15"},{n:"Gold Champion",t:50,c:"gold",r:"AED 35"}];
 const DOC_IDS={rta:"rta",medical:"med",insurance:"ins",emirates:"em",driving:"dr"};
 
+/* ── Location constants (Al Karama, Dubai) ── */
+const DUBAI_LAT = 25.2285;
+const DUBAI_LNG = 55.3088;
+const RESTAURANT_LAT = 25.2305;
+const RESTAURANT_LNG = 55.3082;
+
 /* ══════════════════════════════════════════════════════════
-   FIX 1: WEATHER — Backend proxy first, then CORS-safe
-           Open-Meteo fallback, then seasonal estimate.
-   Your backend should add:
-     app.get('/api/weather', async (req,res)=>{
-       const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=25.2285&longitude=55.3088&current_weather=true');
-       res.json(await r.json());
-     });
+   CHANGE 1: WEATHER — backend proxy ONLY
+   All weather calls go through /api/weather?lat=&lon=
+   The only fallback is a seasonal estimate (no network needed).
+   Direct open-meteo and wttr.in calls have been removed.
 ══════════════════════════════════════════════════════════ */
 async function fetchWeather() {
-  // Try 1: Our own backend proxy (no CORS issue)
-  try {
-    const r = await fetch("/api/weather", { signal:AbortSignal.timeout(4000) });
-    if (r.ok) {
-      const d = await r.json();
-      const t = d.current_weather?.temperature ?? d.current?.temperature_2m;
-      if (t != null) { applyTemp(Math.round(t)); log(`Weather (proxy): ${Math.round(t)}°C`,"ok"); return; }
-    }
-  } catch(e) {}
-
-  // Try 2: Direct Open-Meteo (works in most browsers — they have proper CORS headers)
+  /* PRIMARY: Backend proxy — zero CORS risk */
   try {
     const r = await fetch(
-      "https://api.open-meteo.com/v1/forecast?latitude=25.2285&longitude=55.3088&current_weather=true&temperature_unit=celsius",
-      { signal:AbortSignal.timeout(5000), mode:"cors" }
+      `/api/weather?lat=${DUBAI_LAT}&lon=${DUBAI_LNG}`,
+      { signal: AbortSignal.timeout(5000) }
     );
     if (r.ok) {
       const d = await r.json();
-      const t = d.current_weather?.temperature;
-      if (t != null) { applyTemp(Math.round(t)); log(`Weather (direct): ${Math.round(t)}°C`,"ok"); return; }
+      /* Support both Open-Meteo response shapes */
+      const t = d.current_weather?.temperature ?? d.current?.temperature_2m;
+      if (t != null) {
+        applyTemp(Math.round(t));
+        log(`Weather (proxy): ${Math.round(t)}°C`, "ok");
+        return;
+      }
     }
-  } catch(e) {}
+  } catch(e) { /* proxy down — use seasonal estimate below */ }
 
-  // Try 3: wttr.in — alternative free API, solid CORS support
-  try {
-    const r = await fetch("https://wttr.in/Dubai?format=j1", { signal:AbortSignal.timeout(5000) });
-    if (r.ok) {
-      const d = await r.json();
-      const t = parseInt(d.current_condition?.[0]?.temp_C);
-      if (!isNaN(t)) { applyTemp(t); log(`Weather (wttr): ${t}°C`,"ok"); return; }
-    }
-  } catch(e) {}
-
-  // Fallback: seasonal Dubai estimate
-  const hr=new Date().getHours(), mo=new Date().getMonth();
-  const summer = mo>=4 && mo<=9;
-  const est = summer ? (hr>=12&&hr<=17?45:38) : (hr>=12&&hr<=16?32:26);
+  /* FALLBACK: Seasonal Dubai estimate — never fails, no network */
+  const hr = new Date().getHours();
+  const mo = new Date().getMonth(); // 0=Jan … 11=Dec
+  const isSummer = mo >= 4 && mo <= 9;   // May–Oct
+  const est = isSummer
+    ? (hr >= 12 && hr <= 17 ? 45 : 38)   // peak afternoon vs night/morning
+    : (hr >= 12 && hr <= 16 ? 32 : 26);  // winter peak vs cooler hours
   applyTemp(est);
-  log("Weather: all APIs unavailable, using seasonal estimate","w");
+  log("Weather: proxy unavailable — seasonal estimate used", "w");
 }
 
 function applyTemp(t) {
   tempC = t;
   const isHot = t >= 40;
-  // Header banner
   document.getElementById("heatTemp").textContent = t+"°C";
   document.getElementById("heatMsg").textContent = t>=45
     ? "⚠️ EXTREME HEAT — mandatory break now"
     : t>=40 ? "Mandatory hydration break recommended"
     : "Conditions safe · Stay hydrated";
   document.getElementById("heatBanner").classList.toggle("show", isHot);
-  // Docs heat card
   document.getElementById("hdTemp").textContent = t+"°C";
   document.getElementById("hdBody").textContent = isHot
     ? `${t}°C — UAE law requires rest breaks above 40°C. Stop every 30 min. The station below is your nearest mandatory hydration point.`
     : `${t}°C — Conditions are safe. Keep water with you and check back in 15 minutes.`;
   document.getElementById("heatDocsCard").classList.toggle("show", isHot);
-  // Stations: add urgent border + mandatory tag
   ["st0","st1","st2"].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     el.classList.toggle("hot-mode", isHot);
@@ -1135,15 +1044,17 @@ function applyTemp(t) {
   if(isHot) toast(`🌡️ ${t}°C in Al Karama — hydrate now!`,"hot");
 }
 
-function goHydration() { switchScreen("Docs"); setTimeout(()=>document.getElementById("stationCard").scrollIntoView({behavior:"smooth"}),250); }
+function goHydration() {
+  switchScreen("Docs");
+  setTimeout(()=>document.getElementById("stationCard").scrollIntoView({behavior:"smooth"}),250);
+}
 
 /* ══════════════════════════════════════════════════════════
-   FIX 2: NAVIGATION — Pure deep link, no deprecated SDK
+   NAVIGATION — pure deep link, no deprecated SDK (unchanged)
 ══════════════════════════════════════════════════════════ */
 function openNavigation() {
   if (!currentOrder) { toast("Load an order first","w"); return; }
   const addr = encodeURIComponent(currentOrder.customer_address || "Al Karama, Dubai");
-  // iOS: prefers maps:// | Android: geo: | fallback: google.com URL
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
   const url = isIOS
     ? `maps://?daddr=${addr}`
@@ -1153,17 +1064,12 @@ function openNavigation() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   FIX 3: AUTO GPS STAGE DETECTION
-   - Within 80m of restaurant lat/lng → suggest Pickup
-   - Within 60m of customer lat/lng  → suggest Arrived
+   AUTO GPS STAGE DETECTION (unchanged — geofencing intact)
 ══════════════════════════════════════════════════════════ */
 let autoStagePending=null;
-const RESTAURANT_LAT=25.2305, RESTAURANT_LNG=55.3082; // Magizham kitchen coords
 
 function checkAutoStage(lat, lng) {
   if (!currentOrderId || stage>=4) return;
-
-  // Near restaurant & at pickup stage
   if (stage===0) {
     const dRest = haversine(lat,lng,RESTAURANT_LAT,RESTAURANT_LNG);
     if (dRest < 80 && autoStagePending!=="pickup") {
@@ -1171,7 +1077,6 @@ function checkAutoStage(lat, lng) {
       showAutoHint("🍳","Near Magizham Kitchen","Confirm you've picked up the order?","pickup");
     }
   }
-  // Near customer & at en-route stage
   if (stage===2 && currentOrder?.customer_lat && currentOrder?.customer_lng) {
     const dCust = haversine(lat,lng, parseFloat(currentOrder.customer_lat), parseFloat(currentOrder.customer_lng));
     if (dCust < 60 && autoStagePending!=="arrived") {
@@ -1179,7 +1084,6 @@ function checkAutoStage(lat, lng) {
       showAutoHint("📍","Near delivery address","You appear to have arrived — request OTP?","arrived");
     }
   }
-  // Also check building database
   for (const bld of BUILDINGS) {
     if (haversine(lat,lng,bld.lat,bld.lng) < 50) { showBuildingGuide(bld); return; }
   }
@@ -1199,8 +1103,8 @@ function acceptAutoStage() {
   const action = document.getElementById("ahBtn").dataset.action;
   document.getElementById("autoHint").classList.remove("show");
   autoStagePending=null;
-  if (action==="pickup" && stage===0) { stage=1; updatePipeline(); updateActionBtn(); toast("✅ Pickup confirmed","ok"); }
-  else if (action==="arrived" && stage===2) { stage=3; updatePipeline(); updateActionBtn(); toast("✅ Arrived — request OTP","ok"); }
+  if (action==="pickup" && stage===0) { stage=1; updatePipeline(); updateActBtn(); toast("✅ Pickup confirmed","ok"); }
+  else if (action==="arrived" && stage===2) { stage=3; updatePipeline(); updateActBtn(); toast("✅ Arrived — request OTP","ok"); }
 }
 
 function showBuildingGuide(bld) {
@@ -1219,20 +1123,18 @@ function haversine(a,b,c,d) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   FIX 4: WELFARE CHECK
+   WELFARE CHECK (unchanged)
 ══════════════════════════════════════════════════════════ */
 function startWelfareMonitor() {
   clearTimeout(stuckTimer);
   if (!currentOrderId||!isTracking) return;
   stuckTimer = setTimeout(triggerWelfare, 5*60*1000);
 }
-
 function resetWelfareTimer() {
   clearTimeout(stuckTimer);
   if (wfActive) { clearInterval(wfCDInt); document.getElementById("welfarePanel").classList.remove("open"); wfActive=false; }
   startWelfareMonitor();
 }
-
 function triggerWelfare() {
   if (!currentOrderId || stage>=4) return;
   wfActive=true; let s=60;
@@ -1244,7 +1146,6 @@ function triggerWelfare() {
     if (s<=0) { clearInterval(wfCDInt); autoWelfareEscalate(); }
   },1000);
 }
-
 function autoWelfareEscalate() {
   document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
   sendSOS("no_response");
@@ -1252,7 +1153,6 @@ function autoWelfareEscalate() {
   log("Auto-SOS: no welfare response","err");
   toast("🆘 Auto-SOS sent","err");
 }
-
 function confirmWelfare() {
   clearInterval(wfCDInt);
   document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
@@ -1260,7 +1160,6 @@ function confirmWelfare() {
   toast("✅ Welfare confirmed — stay safe!","ok");
   log("Welfare confirmed OK","ok");
 }
-
 function welfareSOSNow() {
   clearInterval(wfCDInt);
   document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
@@ -1268,33 +1167,85 @@ function welfareSOSNow() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   FIX 5: OFFLINE QUEUE & CACHE
+   CHANGE 3: OFFLINE SYSTEM
+   • cacheOrder: saves order + records last-seen order ID key
+   • online listener: calls socket.connect() to reuse existing
+     socket instead of full teardown/rebuild — faster reconnect
+   • flushQ: safely drains queue, keeps failed events for retry
+   • offline listener: shows bar immediately
 ══════════════════════════════════════════════════════════ */
-let netOnline=navigator.onLine;
-window.addEventListener("online", ()=>{ netOnline=true; document.getElementById("offlineBar").classList.remove("show"); flushQ(); if(isOnline&&!socket?.connected) initSocket(); log("Network restored","ok"); });
-window.addEventListener("offline",()=>{ netOnline=false; document.getElementById("offlineBar").classList.add("show"); log("Network lost — offline mode","w"); });
+let netOnline = navigator.onLine;
+
+window.addEventListener("online", () => {
+  netOnline = true;
+  document.getElementById("offlineBar").classList.remove("show");
+  log("Network restored — flushing queue", "ok");
+  flushQ();
+  /* Reuse existing socket if possible; only create new one if needed */
+  if (isOnline) {
+    if (socket && !socket.connected) {
+      socket.connect();                   // reconnect without teardown
+    } else if (!socket) {
+      initSocket();
+    }
+  }
+});
+
+window.addEventListener("offline", () => {
+  netOnline = false;
+  document.getElementById("offlineBar").classList.add("show");
+  log("Network lost — offline mode active", "w");
+});
 
 function emit(ev, data) {
-  if (socket?.connected && netOnline) { socket.emit(ev,data); }
-  else { offlineQ.push({ev,data}); log("Queued: "+ev,"w"); }
+  if (socket?.connected && netOnline) {
+    socket.emit(ev, data);
+  } else {
+    offlineQ.push({ ev, data, ts: Date.now() });
+    log("Queued offline: " + ev, "w");
+  }
 }
 
 function flushQ() {
   if (!offlineQ.length) return;
-  offlineQ.forEach(i=>{ if(socket?.connected) socket.emit(i.ev,i.data); });
-  offlineQ=[]; log("Offline queue flushed","ok");
+  const failed = [];
+  offlineQ.forEach(item => {
+    if (socket?.connected) {
+      socket.emit(item.ev, item.data);
+    } else {
+      failed.push(item);   // keep for next flush attempt
+    }
+  });
+  const sent = offlineQ.length - failed.length;
+  offlineQ = failed;
+  if (sent > 0) log(`Flushed ${sent} queued event(s)`, "ok");
 }
 
+/* localStorage order cache — stores full order data keyed by ID */
 function cacheOrder(id, data) {
-  try { localStorage.setItem("oc_"+id, JSON.stringify({data,ts:Date.now()})); } catch(e) {}
+  try {
+    localStorage.setItem("oc_" + id, JSON.stringify({ data, ts: Date.now() }));
+    localStorage.setItem("oc_last_id", String(id));   // track last active order
+  } catch(e) { /* storage full — fail silently */ }
 }
+
 function getCached(id) {
-  try { const c=JSON.parse(localStorage.getItem("oc_"+id)||"null"); return c?.data||null; } catch(e){return null;} }
+  try {
+    const raw = localStorage.getItem("oc_" + id);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.data || null;
+  } catch(e) { return null; }
+}
 
 /* ══════════════════════════════════════════════════════════
-   FIX 6: GPS WITH RETRY LOGIC
+   CHANGE 2: GPS — 1.5s EMIT INTERVAL
+   watchPosition updates lastLat/lastLng/lastSpeed/lastAcc
+   but does NOT emit. A separate setInterval fires every
+   1500ms and emits all four values together. This guarantees
+   1–2s emission regardless of how often the OS calls onPos.
 ══════════════════════════════════════════════════════════ */
-function toggleGPS(){ isTracking?stopGPS():startGPS(); }
+function toggleGPS() { isTracking ? stopGPS() : startGPS(); }
 
 function startGPS() {
   if (!navigator.geolocation) { toast("GPS not available on this device","err"); return; }
@@ -1302,143 +1253,198 @@ function startGPS() {
   isTracking=true; gpsRetries=0;
   document.getElementById("gpsBtn").innerHTML="⏹ Stop GPS";
   document.getElementById("gpsBtn").classList.add("stop");
-  document.body.classList.add("gps-active"); // Kill heavy animations → better performance
+  document.body.classList.add("gps-active");
   totalRideMeters=0; orderStartTime=Date.now(); orderStartLat=lastLat; orderStartLng=lastLng;
   startWelfareMonitor();
-  log("GPS started","ok");
+  log("GPS started — emitting every 1.5s","ok");
   doWatch();
+  /* Start guaranteed 1.5s emit interval */
+  if (gpsEmitInterval) clearInterval(gpsEmitInterval);
+  gpsEmitInterval = setInterval(emitLocation, 1500);
 }
 
 function doWatch() {
-  if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
-  watchId = navigator.geolocation.watchPosition(onPos, onGPSErr, { enableHighAccuracy:true, maximumAge:2000, timeout:12000 });
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
+  watchId = navigator.geolocation.watchPosition(
+    onPos, onGPSErr,
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 12000 }
+  );
 }
 
 function stopGPS() {
-  isTracking=false; clearTimeout(stuckTimer);
-  if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
+  isTracking=false;
+  clearTimeout(stuckTimer);
+  if (gpsEmitInterval) { clearInterval(gpsEmitInterval); gpsEmitInterval=null; }
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
   document.getElementById("gpsBtn").innerHTML="📡 Start GPS Tracking";
   document.getElementById("gpsBtn").classList.remove("stop");
   document.body.classList.remove("gps-active");
-  log("GPS stopped","w"); setSig(socket?.connected?2:0);
+  log("GPS stopped","w");
+  setSig(socket?.connected ? 2 : 0);
 }
 
+/* Interval callback — emits current position every 1.5s */
+function emitLocation() {
+  if (lastLat === null || !currentOrderId) return;
+  emit("riderLocationUpdate", {
+    orderId:  currentOrderId,
+    lat:      lastLat,
+    lng:      lastLng,
+    speed:    lastSpeed,        // km/h or null
+    accuracy: lastAcc || 40     // metres
+  });
+  pingCnt++;
+  document.getElementById("pingCnt").textContent = pingCnt;
+  flashPing();
+}
+
+/* watchPosition callback — updates state + UI; does NOT emit */
 function onPos(pos) {
-  gpsRetries=0; // Reset retry counter on success
-  const lat=pos.coords.latitude, lng=pos.coords.longitude;
-  const speed=pos.coords.speed, acc=pos.coords.accuracy;
-  const kmh = speed!=null&&speed>=0 ? speed*3.6 : null;
+  gpsRetries = 0;
+  const lat   = pos.coords.latitude;
+  const lng   = pos.coords.longitude;
+  const speed = pos.coords.speed;
+  const acc   = pos.coords.accuracy;
+  const kmh   = (speed != null && speed >= 0) ? speed * 3.6 : null;
 
-  // Track distance for earnings popup
-  if (lastLat!==null) {
-    const d=haversine(lastLat,lastLng,lat,lng);
-    if(d>3) totalRideMeters+=d;
-    // Welfare movement tracking
-    if(d>5) { lastMoveTime=Date.now(); resetWelfareTimer(); }
+  /* Store latest values for emitLocation() */
+  lastSpeed = kmh;
+  lastAcc   = acc;
+
+  /* Distance + welfare movement tracking */
+  if (lastLat !== null) {
+    const d = haversine(lastLat, lastLng, lat, lng);
+    if (d > 3) totalRideMeters += d;
+    if (d > 5) { lastMoveTime = Date.now(); resetWelfareTimer(); }
   }
-  lastLat=lat; lastLng=lng;
+  lastLat = lat;
+  lastLng = lng;
 
-  document.getElementById("dLat").textContent=lat.toFixed(6);
-  document.getElementById("dLng").textContent=lng.toFixed(6);
-  document.getElementById("dSpeed").textContent=kmh!=null?kmh.toFixed(1)+" km/h":"0.0 km/h";
-  document.getElementById("dAcc").textContent=acc!=null?Math.round(acc)+" m":"—";
+  /* Update telemetry display */
+  document.getElementById("dLat").textContent   = lat.toFixed(6);
+  document.getElementById("dLng").textContent   = lng.toFixed(6);
+  document.getElementById("dSpeed").textContent = kmh != null ? kmh.toFixed(1) + " km/h" : "0.0 km/h";
+  document.getElementById("dAcc").textContent   = acc != null ? Math.round(acc) + " m" : "—";
 
-  checkAutoStage(lat,lng); // Auto stage detection
+  /* Geofencing — auto stage + building guide (unchanged) */
+  checkAutoStage(lat, lng);
 
-  emit("riderLocationUpdate",{orderId:currentOrderId,lat,lng,speed:kmh,accuracy:acc||40});
-  pingCnt++; document.getElementById("pingCnt").textContent=pingCnt;
-  flashPing(); setSig(acc<10?4:acc<25?3:acc<50?2:1);
+  /* Signal bars based on GPS accuracy */
+  setSig(acc < 10 ? 4 : acc < 25 ? 3 : acc < 50 ? 2 : 1);
 }
 
 function onGPSErr(err) {
-  const m={1:"GPS permission denied",2:"Position unavailable",3:"GPS timeout"};
-  const msg=m[err.code]||err.message;
-  log("GPS: "+msg,"err");
-  // Retry logic — up to 3 retries for timeout/unavailable
-  if (err.code!==1 && gpsRetries<3) {
+  const m = {1:"GPS permission denied", 2:"Position unavailable", 3:"GPS timeout"};
+  log("GPS: " + (m[err.code] || err.message), "err");
+  if (err.code !== 1 && gpsRetries < 3) {
     gpsRetries++;
-    log(`GPS retry ${gpsRetries}/3...`,"w");
-    setTimeout(doWatch, 2000*gpsRetries); // Exponential back-off
-  } else if (err.code!==1) {
-    toast("GPS unavailable — check location permissions","err");
+    log(`GPS retry ${gpsRetries}/3...`, "w");
+    setTimeout(doWatch, 2000 * gpsRetries);
+  } else if (err.code !== 1) {
+    toast("GPS unavailable — check location permissions", "err");
   } else {
-    toast("GPS permission denied","err");
+    toast("GPS permission denied", "err");
   }
 }
 
-function flashPing() { const e=document.getElementById("pf"); e.classList.add("on"); setTimeout(()=>e.classList.remove("on"),180); }
-function setSig(n) { for(let i=1;i<=4;i++) document.getElementById("b"+i).classList.toggle("lit",i<=n); }
+function flashPing() {
+  const e = document.getElementById("pf");
+  e.classList.add("on");
+  setTimeout(() => e.classList.remove("on"), 180);
+}
+function setSig(n) {
+  for (let i=1; i<=4; i++) document.getElementById("b"+i).classList.toggle("lit", i<=n);
+}
 
 /* ─── SOCKET ─────────────────────────────────────────────── */
 function initSocket() {
   if (socket?.connected) return;
-  if (socket) { try{socket.disconnect();}catch(e){} }
-  socket=io("/",{query:{type:"rider",orderId:currentOrderId}});
-  socket.on("connect",()=>{ setConn(true); log("Socket connected","ok"); flushQ(); });
-  socket.on("disconnect",()=>{ setConn(false); log("Socket disconnected","w"); });
-  socket.on("connect_error",e=>{ setConn(false); log("Socket error: "+e.message,"err"); });
+  if (socket) { try { socket.disconnect(); } catch(e) {} }
+  socket = io("/", { query: { type: "rider", orderId: currentOrderId } });
+  socket.on("connect",       () => { setConn(true);  log("Socket connected","ok"); flushQ(); });
+  socket.on("disconnect",    () => { setConn(false); log("Socket disconnected","w"); });
+  socket.on("connect_error", e => { setConn(false); log("Socket error: "+e.message,"err"); });
 }
 function setConn(c) {
-  document.getElementById("connStat").textContent=c?"⬤ Live":"⬤ Offline";
-  document.getElementById("connStat").style.color=c?"var(--neon)":"var(--tx3)";
-  setSig(c?4:0);
+  document.getElementById("connStat").textContent = c ? "⬤ Live" : "⬤ Offline";
+  document.getElementById("connStat").style.color = c ? "var(--neon)" : "var(--tx3)";
+  setSig(c ? 4 : 0);
 }
 
 /* ─── ONLINE TOGGLE ──────────────────────────────────────── */
 function toggleOnline() {
-  isOnline=!isOnline;
-  document.getElementById("onlineTog").classList.toggle("on",isOnline);
-  document.getElementById("togLbl").textContent=isOnline?"Online":"Go Online";
-  if(isOnline){ initSocket(); toast("You are online 🟢"); log("Online","ok"); fetchWeather(); }
-  else { if(isTracking) stopGPS(); clearTimeout(stuckTimer); toast("Offline","w"); log("Offline","w"); }
+  isOnline = !isOnline;
+  document.getElementById("onlineTog").classList.toggle("on", isOnline);
+  document.getElementById("togLbl").textContent = isOnline ? "Online" : "Go Online";
+  if (isOnline) {
+    initSocket();
+    toast("You are online 🟢");
+    log("Online","ok");
+    fetchWeather();
+  } else {
+    if (isTracking) stopGPS();
+    clearTimeout(stuckTimer);
+    toast("Offline","w");
+    log("Offline","w");
+  }
 }
 
 /* ─── LOAD ORDER ─────────────────────────────────────────── */
 async function loadOrder() {
-  const id=document.getElementById("orderInput").value.trim();
+  const id = document.getElementById("orderInput").value.trim();
   if (!id) { toast("Enter an Order ID","w"); return; }
   log("Loading order #"+id);
-  let data=null, fromCache=false;
+  let data = null, fromCache = false;
+
   if (!netOnline) {
-    data=getCached(id);
+    data = getCached(id);
     if (!data) { toast("Offline — order not in cache","err"); return; }
-    fromCache=true;
+    fromCache = true;
   } else {
     try {
-      const r=await fetch("/api/orders/"+id+"/track");
-      if (!r.ok) throw new Error("HTTP "+r.status);
-      data=await r.json(); cacheOrder(id,data);
+      const r = await fetch("/api/orders/" + id + "/track");
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      data = await r.json();
+      cacheOrder(id, data);                 // always cache fresh data
     } catch(e) {
-      data=getCached(id);
-      if (data) { fromCache=true; }
+      data = getCached(id);
+      if (data) { fromCache = true; }
       else { toast("Order not found: "+e.message,"err"); log("❌ "+e.message,"err"); return; }
     }
   }
-  if (fromCache) { document.getElementById("offlineBar").classList.add("show"); }
+
+  if (fromCache) document.getElementById("offlineBar").classList.add("show");
+
   currentOrderId=id; currentOrder=data; stage=0; podData=null; autoStagePending=null;
-  document.getElementById("ordId").textContent="ORD-"+(data.id||id)+(fromCache?" 💾":"");
-  document.getElementById("ordCust").textContent=data.customer_name||"Customer";
-  document.getElementById("ordAddr").textContent=data.customer_address||"Al Karama, Dubai";
-  const af=document.getElementById("ordFloor");
+  document.getElementById("ordId").textContent    = "ORD-"+(data.id||id)+(fromCache?" 💾":"");
+  document.getElementById("ordCust").textContent  = data.customer_name||"Customer";
+  document.getElementById("ordAddr").textContent  = data.customer_address||"Al Karama, Dubai";
+
+  const af = document.getElementById("ordFloor");
   if ((data.customer_address||"").match(/flat|floor|villa|apt/i)) {
-    af.textContent="🏢 "+data.customer_address; af.style.display="block";
+    af.textContent = "🏢 "+data.customer_address; af.style.display="block";
   } else af.style.display="none";
-  document.getElementById("mAmt").textContent=data.total_amount||data.total||"—";
-  document.getElementById("mStat").textContent=(data.status||"pending").toUpperCase();
-  document.getElementById("callBtn").href="tel:"+(data.customer_phone||"");
-  document.getElementById("custChatName").textContent=data.customer_name||"Customer";
-  // Items
-  let items=data.items||[]; if(typeof items==="string"){try{items=JSON.parse(items);}catch(e){items=[];}}
-  document.getElementById("itemsList").innerHTML=items.length
-    ?items.map(it=>`<div class="item-row"><div class="idot"></div><div class="inm">${it.name||it}</div><div class="iqty mono">×${it.qty||1}</div></div>`).join("")
-    :`<div class="item-row"><div class="idot"></div><div class="inm" style="color:var(--tx2)">Items not listed</div></div>`;
+
+  document.getElementById("mAmt").textContent  = data.total_amount||data.total||"—";
+  document.getElementById("mStat").textContent = (data.status||"pending").toUpperCase();
+  document.getElementById("callBtn").href       = "tel:"+(data.customer_phone||"");
+  document.getElementById("custChatName").textContent = data.customer_name||"Customer";
+
+  let items = data.items||[];
+  if (typeof items==="string") { try { items=JSON.parse(items); } catch(e) { items=[]; } }
+  document.getElementById("itemsList").innerHTML = items.length
+    ? items.map(it=>`<div class="item-row"><div class="idot"></div><div class="inm">${it.name||it}</div><div class="iqty mono">×${it.qty||1}</div></div>`).join("")
+    : `<div class="item-row"><div class="idot"></div><div class="inm" style="color:var(--tx2)">Items not listed</div></div>`;
+
   updatePipeline(); updateActBtn();
   document.getElementById("orderPanel").style.display="block";
   document.getElementById("gpsBtn").disabled=false;
   document.getElementById("bldCard").classList.remove("show");
   document.getElementById("autoHint").classList.remove("show");
-  if(socket){try{socket.disconnect();}catch(e){}}socket=null;
-  if(isOnline) initSocket();
+
+  if (socket) { try { socket.disconnect(); } catch(e) {} } socket=null;
+  if (isOnline) initSocket();
+
   toast("Order #"+id+" loaded ✅"+(fromCache?" (cache)":""));
   log("Order #"+id+" — "+(data.customer_name||"")+(fromCache?" [cache]":""),"ok");
 }
@@ -1453,56 +1459,56 @@ const STAGES=[
 ];
 
 function updatePipeline() {
-  for(let i=0;i<=4;i++){
-    const e=document.getElementById("p"+i);
+  for (let i=0; i<=4; i++) {
+    const e = document.getElementById("p"+i);
     e.classList.remove("done","active");
-    if(i<stage) e.classList.add("done");
-    if(i===stage) e.classList.add("active");
+    if (i < stage) e.classList.add("done");
+    if (i === stage) e.classList.add("active");
   }
 }
 function updateActBtn() {
-  const btn=document.getElementById("actBtn"),otp=document.getElementById("otpSec"),pod=document.getElementById("podSec");
+  const btn=document.getElementById("actBtn"), otp=document.getElementById("otpSec"), pod=document.getElementById("podSec");
   otp.style.display="none"; pod.style.display="none"; btn.style.display="block";
-  if(stage===3){btn.style.display="none";otp.style.display="block";}
-  else if(stage===4){
+  if (stage===3) { btn.style.display="none"; otp.style.display="block"; }
+  else if (stage===4) {
     pod.style.display="block"; btn.style.display="none";
     document.getElementById("podPrev").querySelector(".pod-ico").style.display="block";
     document.getElementById("podPrev").querySelector(".pod-lbl").style.display="block";
     document.getElementById("podSubmit").style.display="none";
-    const img=document.getElementById("podPrev").querySelector("img"); if(img) img.remove();
+    const img = document.getElementById("podPrev").querySelector("img"); if (img) img.remove();
   }
-  else if(stage>=5){btn.style.display="none";}
+  else if (stage>=5) { btn.style.display="none"; }
   else {
-    const s=STAGES[stage]; if(s){btn.textContent=s.lbl;btn.className="act-btn syne "+s.cls;}
+    const s = STAGES[stage]; if (s) { btn.textContent=s.lbl; btn.className="act-btn syne "+s.cls; }
   }
 }
 function advanceStage() {
-  if(!currentOrderId){toast("Load an order first","w");return;}
-  if(stage===1) emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"});
-  stage=STAGES[stage]?.next||stage+1;
+  if (!currentOrderId) { toast("Load an order first","w"); return; }
+  if (stage===1) emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"});
+  stage = STAGES[stage]?.next || stage+1;
   updatePipeline(); updateActBtn();
   document.getElementById("autoHint").classList.remove("show"); autoStagePending=null;
 }
 
 /* ─── OTP ────────────────────────────────────────────────── */
 function verifyOTP() {
-  const v=document.getElementById("otpIn").value;
-  if(v.length!==4){toast("Enter 4-digit OTP","w");return;}
+  const v = document.getElementById("otpIn").value;
+  if (v.length!==4) { toast("Enter 4-digit OTP","w"); return; }
   toast("OTP verified ✅"); log("OTP "+v+" verified","ok");
   stage=4; updatePipeline(); updateActBtn();
 }
 
 /* ─── POD ────────────────────────────────────────────────── */
-function capturePhoto(){document.getElementById("podFile").click();}
+function capturePhoto() { document.getElementById("podFile").click(); }
 function handlePhoto(inp) {
-  const f=inp.files[0]; if(!f) return;
-  const r=new FileReader();
-  r.onload=e=>{
-    podData=e.target.result;
-    const prev=document.getElementById("podPrev");
-    let img=prev.querySelector("img");
-    if(!img){img=document.createElement("img");prev.appendChild(img);}
-    img.src=podData;
+  const f = inp.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    podData = e.target.result;
+    const prev = document.getElementById("podPrev");
+    let img = prev.querySelector("img");
+    if (!img) { img=document.createElement("img"); prev.appendChild(img); }
+    img.src = podData;
     prev.querySelector(".pod-ico").style.display="none";
     prev.querySelector(".pod-lbl").style.display="none";
     document.getElementById("podSubmit").style.display="block";
@@ -1511,10 +1517,10 @@ function handlePhoto(inp) {
   r.readAsDataURL(f);
 }
 function submitPoD() {
-  if(!podData){toast("Take a photo first","w");return;}
+  if (!podData) { toast("Take a photo first","w"); return; }
   toast("✅ Proof submitted!"); log("PoD submitted for #"+currentOrderId,"ok");
   document.getElementById("podSec").style.display="none";
-  setTimeout(showDone,400);
+  setTimeout(showDone, 400);
 }
 
 /* ─── DELIVERY DONE ──────────────────────────────────────── */
@@ -1522,17 +1528,16 @@ function showDone() {
   emit("orderStatusUpdate",{orderId:currentOrderId,status:"delivered"});
   todayDel++; todayEarn+=15;
   clearTimeout(stuckTimer); clearInterval(wfCDInt);
-  // Earnings breakdown
   const mins = orderStartTime ? Math.round((Date.now()-orderStartTime)/60000) : 0;
   const km   = (totalRideMeters/1000).toFixed(1);
-  document.getElementById("ddEarn").textContent="+AED 15";
-  document.getElementById("ddDist").textContent=km+" km";
-  document.getElementById("ddTime").textContent=mins+"min";
-  document.getElementById("ddCount").textContent=todayDel;
-  // Achievement
-  const all=312+todayDel, tier=TIERS.find(t=>all>=t.t&&all-1<t.t);
-  document.getElementById("ddAchieve").style.display=tier?"block":"none";
-  if(tier) document.getElementById("ddAchieve").textContent="🏆 "+tier.n+" unlocked! +"+tier.r;
+  document.getElementById("ddEarn").textContent  = "+AED 15";
+  document.getElementById("ddDist").textContent  = km+" km";
+  document.getElementById("ddTime").textContent  = mins+"min";
+  document.getElementById("ddCount").textContent = todayDel;
+  const all  = 312+todayDel;
+  const tier = TIERS.find(t=>all>=t.t&&all-1<t.t);
+  document.getElementById("ddAchieve").style.display = tier ? "block" : "none";
+  if (tier) document.getElementById("ddAchieve").textContent = "🏆 "+tier.n+" unlocked! +"+tier.r;
   document.getElementById("delDone").classList.add("show");
   updateStats(); updateWallet(); renderRewards();
 }
@@ -1548,30 +1553,32 @@ function resetDelivery() {
   currentOrderId=null; currentOrder=null; stage=0; pingCnt=0; podData=null; autoStagePending=null;
   document.getElementById("pingCnt").textContent="0";
   totalRideMeters=0; orderStartTime=null;
-  if(isTracking) stopGPS();
+  if (isTracking) stopGPS();
   clearTimeout(stuckTimer); clearInterval(wfCDInt);
   toast("Ready for next delivery 🏍"); log("Reset — ready","ok");
 }
 
 /* ─── SOS + TRANSFER ─────────────────────────────────────── */
-function openSOS(){document.getElementById("sosPanel").classList.add("open");}
-function closeSOS(){document.getElementById("sosPanel").classList.remove("open");}
+function openSOS()  { document.getElementById("sosPanel").classList.add("open"); }
+function closeSOS() { document.getElementById("sosPanel").classList.remove("open"); }
 function sendSOS(type) {
   closeSOS();
   emit("riderSOS",{type,orderId:currentOrderId,lat:lastLat,lng:lastLng});
-  const m={accident:"🚑 SOS sent — ambulance alerted",breakdown:"🔧 Breakdown SOS sent",flat:"🛞 Flat tyre SOS sent",welfare:"🆘 Welfare SOS sent",no_response:"🆘 Auto-SOS after no welfare response"};
+  const m={accident:"🚑 SOS sent — ambulance alerted",breakdown:"🔧 Breakdown SOS sent",
+           flat:"🛞 Flat tyre SOS sent",welfare:"🆘 Welfare SOS sent",no_response:"🆘 Auto-SOS after no welfare response"};
   toast(m[type]||"SOS sent","err"); log("SOS: "+type,"err");
 }
+
 const RIDERS=[{n:"Arun K.",d:"0.4 km",id:"r2"},{n:"Mohammed S.",d:"0.7 km",id:"r3"},{n:"Ravi P.",d:"1.1 km",id:"r4"}];
 function openTransfer() {
-  if(!currentOrderId){toast("No active order","w");return;}
+  if (!currentOrderId) { toast("No active order","w"); return; }
   document.getElementById("nearbyRiders").innerHTML=RIDERS.map(r=>`
     <div class="nr"><div class="nr-av">🏍</div>
     <div style="flex:1"><div class="nr-nm">${r.n}</div><div class="nr-d">${r.d} away</div></div>
     <button class="xfr-btn" onclick="confirmXfer('${r.id}','${r.n}')">Transfer</button></div>`).join("");
   document.getElementById("xferPanel").classList.add("open");
 }
-function closeTransfer(){document.getElementById("xferPanel").classList.remove("open");}
+function closeTransfer() { document.getElementById("xferPanel").classList.remove("open"); }
 function confirmXfer(id,name) {
   closeTransfer();
   emit("orderTransfer",{orderId:currentOrderId,toRider:id});
@@ -1579,39 +1586,43 @@ function confirmXfer(id,name) {
 }
 
 /* ─── FAB ────────────────────────────────────────────────── */
-function toggleFAB() { fabOpen=!fabOpen; document.getElementById("fabItems").classList.toggle("hidden",!fabOpen); document.getElementById("fabMain").textContent=fabOpen?"✕":"🆘"; if(fabOpen) {} else {closeSOS();} if(!fabOpen){ /* default: SOS */ } if(fabOpen){toast("SOS · Voice · Transfer","b");} else openSOS(); }
-/* Simplified: SOS tapped = open SOS direct; long-tap or hold = expand FAB */
-document.getElementById("fabMain").addEventListener("click",()=>{ if(!fabOpen) openSOS(); else { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); document.getElementById("fabMain").textContent="🆘"; }});
+document.getElementById("fabMain").addEventListener("click", () => {
+  if (!fabOpen) { openSOS(); }
+  else { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); document.getElementById("fabMain").textContent="🆘"; }
+});
+function toggleFAB() { /* handled by listener above */ }
+function closeFAB()  { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); document.getElementById("fabMain").textContent="🆘"; }
 
 /* ─── CHAT ───────────────────────────────────────────────── */
 function openChat(t) {
-  if(t==="cust"&&!currentOrder){toast("No active order","w");return;}
+  if (t==="cust"&&!currentOrder) { toast("No active order","w"); return; }
   document.getElementById(t==="cust"?"chatCust":"chatKit").classList.add("open");
   renderChat(t);
 }
-function closeChat(t){document.getElementById(t==="cust"?"chatCust":"chatKit").classList.remove("open");}
+function closeChat(t) { document.getElementById(t==="cust"?"chatCust":"chatKit").classList.remove("open"); }
 function renderChat(t) {
-  const msgs=t==="cust"?custMsgArr:kitMsgArr;
-  const el=document.getElementById(t==="cust"?"custMsgs":"kitMsgs");
-  el.innerHTML=msgs.map(m=>`<div class="msg ${m.f}"><div class="mbub">${m.t}</div><div class="mt">${m.ts}</div></div>`).join("");
-  el.scrollTop=el.scrollHeight;
+  const msgs = t==="cust" ? custMsgArr : kitMsgArr;
+  const el   = document.getElementById(t==="cust"?"custMsgs":"kitMsgs");
+  el.innerHTML = msgs.map(m=>`<div class="msg ${m.f}"><div class="mbub">${m.t}</div><div class="mt">${m.ts}</div></div>`).join("");
+  el.scrollTop = el.scrollHeight;
 }
 function sendChat(t) {
-  const inp=document.getElementById(t==="cust"?"custCI":"kitCI");
-  const txt=inp.value.trim(); if(!txt) return;
+  const inp = document.getElementById(t==="cust"?"custCI":"kitCI");
+  const txt = inp.value.trim(); if (!txt) return;
   addMsg(t,"rider",txt); inp.value="";
 }
-function qr(t,txt){addMsg(t,"rider",txt);}
+function qr(t,txt) { addMsg(t,"rider",txt); }
 function addMsg(t,f,txt) {
-  const now=new Date(), ts=(now.getHours()%12||12)+":"+String(now.getMinutes()).padStart(2,"0")+" "+(now.getHours()>=12?"PM":"AM");
+  const now = new Date();
+  const ts  = (now.getHours()%12||12)+":"+String(now.getMinutes()).padStart(2,"0")+" "+(now.getHours()>=12?"PM":"AM");
   (t==="cust"?custMsgArr:kitMsgArr).push({f,t:txt,ts}); renderChat(t);
 }
 
-/* ─── VOICE ──────────────────────────────────────────────── */
+/* ─── VOICE (unchanged) ──────────────────────────────────── */
 let voiceRec=null;
 function startVoice() {
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){toast("Voice not supported here","w");return;}
+  if (!SR) { toast("Voice not supported here","w"); return; }
   voiceRec=new SR();
   voiceRec.lang={en:"en-US",ar:"ar-AE",hi:"hi-IN",ur:"ur-PK"}[currentLang]||"en-US";
   voiceRec.continuous=false; voiceRec.interimResults=false;
@@ -1626,19 +1637,19 @@ function startVoice() {
   document.getElementById("voiceBar").classList.add("on");
   document.getElementById("vText").textContent="Listening...";
 }
-function stopVoice(){try{if(voiceRec)voiceRec.stop();}catch(e){} document.getElementById("voiceBar").classList.remove("on");}
+function stopVoice() { try { if (voiceRec) voiceRec.stop(); } catch(e) {} document.getElementById("voiceBar").classList.remove("on"); }
 function handleVoice(cmd) {
   const kw=VOICE_KW[currentLang]||VOICE_KW.en;
   const m=arr=>arr.some(k=>cmd.includes(k));
-  if(m(kw.sos)){openSOS();return;}
-  if(m(kw.arrived)){emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"});toast("🎙 Arrived — updated!","ok");log("Voice: arrived","ok");return;}
-  if(m(kw.picked)){if(stage===0){stage=1;updatePipeline();updateActBtn();}toast("🎙 Pickup confirmed!","ok");log("Voice: picked","ok");return;}
-  if(m(kw.delivered)){toast("🎙 Delivered!","ok");log("Voice: delivered","ok");return;}
-  if(m(kw.gps)){if(!isTracking&&currentOrderId)startGPS();toast("🎙 GPS started","ok");return;}
+  if (m(kw.sos))       { openSOS(); return; }
+  if (m(kw.arrived))   { emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"}); toast("🎙 Arrived — updated!","ok"); log("Voice: arrived","ok"); return; }
+  if (m(kw.picked))    { if(stage===0){stage=1;updatePipeline();updateActBtn();} toast("🎙 Pickup confirmed!","ok"); log("Voice: picked","ok"); return; }
+  if (m(kw.delivered)) { toast("🎙 Delivered!","ok"); log("Voice: delivered","ok"); return; }
+  if (m(kw.gps))       { if(!isTracking&&currentOrderId) startGPS(); toast("🎙 GPS started","ok"); return; }
   toast(`🎙 "${cmd}" — not recognised`,"w");
 }
 
-/* ─── NAVIGATION ─────────────────────────────────────────── */
+/* ─── SCREEN NAVIGATION ──────────────────────────────────── */
 function switchScreen(n) {
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   document.querySelectorAll(".nb").forEach(b=>b.classList.remove("on"));
@@ -1648,25 +1659,25 @@ function switchScreen(n) {
 
 /* ─── STATS ──────────────────────────────────────────────── */
 function updateStats() {
-  document.getElementById("tEarn").textContent="AED "+todayEarn;
-  document.getElementById("tDel").textContent=todayDel;
-  document.getElementById("pToday").textContent=todayDel;
-  document.getElementById("pWeek").textContent=todayDel;
+  document.getElementById("tEarn").textContent  = "AED "+todayEarn;
+  document.getElementById("tDel").textContent   = todayDel;
+  document.getElementById("pToday").textContent = todayDel;
+  document.getElementById("pWeek").textContent  = todayDel;
 }
 function updateWallet() {
-  document.getElementById("wBal").textContent="AED "+todayEarn;
-  document.getElementById("wDelSub").textContent=todayDel+" deliveries";
-  document.getElementById("wAvg").textContent=todayDel?"AED "+Math.floor(todayEarn/todayDel):"AED 0";
-  document.getElementById("wWeek").textContent="AED "+(WEEK.reduce((a,b)=>a+b,0)+todayEarn);
+  document.getElementById("wBal").textContent    = "AED "+todayEarn;
+  document.getElementById("wDelSub").textContent = todayDel+" deliveries";
+  document.getElementById("wAvg").textContent    = todayDel ? "AED "+Math.floor(todayEarn/todayDel) : "AED 0";
+  document.getElementById("wWeek").textContent   = "AED "+(WEEK.reduce((a,b)=>a+b,0)+todayEarn);
 }
 function renderChart() {
-  const max=Math.max(...WEEK,1);
-  document.getElementById("chartRow").innerHTML=WEEK.map((v,i)=>`<div class="cb-w"><div class="cb ${i===6?"today":""}" style="height:${(v/max)*100}%"></div></div>`).join("");
-  document.getElementById("chartLbls").innerHTML=WDAYS.map((d,i)=>`<div style="flex:1;text-align:center;font-size:8px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`).join("");
+  const max = Math.max(...WEEK,1);
+  document.getElementById("chartRow").innerHTML  = WEEK.map((v,i)=>`<div class="cb-w"><div class="cb ${i===6?"today":""}" style="height:${(v/max)*100}%"></div></div>`).join("");
+  document.getElementById("chartLbls").innerHTML = WDAYS.map((d,i)=>`<div style="flex:1;text-align:center;font-size:8px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`).join("");
 }
 function renderRewards() {
-  const all=312+todayDel;
-  document.getElementById("tiers").innerHTML=TIERS.map(t=>{
+  const all = 312+todayDel;
+  document.getElementById("tiers").innerHTML = TIERS.map(t=>{
     const pct=Math.min((all/t.t)*100,100), done=all>=t.t;
     return `<div class="tr"><div class="ti-icon">${done?"🏆":"🎯"}</div><div class="ti-info"><div class="ti-name">${t.n}</div><div class="ti-desc">${t.t} deliveries · ${t.r} bonus</div><div class="tp-w"><div class="tp-b" style="width:${pct}%"></div></div></div><div class="tbadge ${t.c}">${done?"✓":Math.min(all,t.t)+"/"+t.t}</div></div>`;
   }).join("");
@@ -1675,17 +1686,17 @@ function renderRewards() {
 /* ─── DOCUMENTS ──────────────────────────────────────────── */
 const DMAP={rta:{exp:"rtaExp",cd:"rtaCD",stat:"rtaStat"},medical:{exp:"medExp",cd:"medCD",stat:"medStat"},insurance:{exp:"insExp",cd:"insCD",stat:"insStat"},emirates:{exp:"emExp",cd:"emCD",stat:"emStat"},driving:{exp:"drExp",cd:"drCD",stat:"drStat"}};
 const DNAME={rta:"RTA Permit",medical:"Medical Fitness",insurance:"Vehicle Insurance",emirates:"Emirates ID",driving:"Driving Licence"};
-function loadDocs(){Object.keys(DMAP).forEach(k=>refreshDoc(k,localStorage.getItem("doc_"+k)));}
+function loadDocs() { Object.keys(DMAP).forEach(k=>refreshDoc(k,localStorage.getItem("doc_"+k))); }
 function refreshDoc(k,v) {
   const m=DMAP[k];
   const expEl=document.getElementById(m.exp), cdEl=document.getElementById(m.cd), stEl=document.getElementById(m.stat);
-  if(!expEl) return;
-  if(!v){expEl.textContent="Expires: Not set";stEl.textContent="?";stEl.className="dstat w";cdEl.textContent="";return;}
+  if (!expEl) return;
+  if (!v) { expEl.textContent="Expires: Not set"; stEl.textContent="?"; stEl.className="dstat w"; cdEl.textContent=""; return; }
   const exp=new Date(v), days=Math.ceil((exp-new Date())/86400000);
   expEl.textContent="Expires: "+exp.toLocaleDateString("en-AE",{day:"2-digit",month:"short",year:"numeric"});
-  if(days<0){stEl.textContent="Expired";stEl.className="dstat exp";cdEl.textContent="⛔ Expired "+Math.abs(days)+"d ago";cdEl.className="doc-cd exp";}
-  else if(days<30){stEl.textContent=days+"d left";stEl.className="dstat w";cdEl.textContent="⚠️ "+days+" days left";cdEl.className="doc-cd w";}
-  else{stEl.textContent="Valid";stEl.className="dstat ok";cdEl.textContent="✓ "+days+" days left";cdEl.className="doc-cd ok";}
+  if (days<0)  { stEl.textContent="Expired";    stEl.className="dstat exp"; cdEl.textContent="⛔ Expired "+Math.abs(days)+"d ago"; cdEl.className="doc-cd exp"; }
+  else if (days<30) { stEl.textContent=days+"d left"; stEl.className="dstat w";   cdEl.textContent="⚠️ "+days+" days left";         cdEl.className="doc-cd w";   }
+  else         { stEl.textContent="Valid";     stEl.className="dstat ok";  cdEl.textContent="✓ "+days+" days left";               cdEl.className="doc-cd ok";  }
 }
 function editDoc(k) {
   currentDocKey=k;
@@ -1695,24 +1706,26 @@ function editDoc(k) {
 }
 function saveDoc() {
   const v=document.getElementById("docDate").value;
-  if(!v){toast("Pick a date","w");return;}
+  if (!v) { toast("Pick a date","w"); return; }
   localStorage.setItem("doc_"+currentDocKey,v);
   refreshDoc(currentDocKey,v); closeDocModal(); toast("Document updated ✅");
 }
-function closeDocModal(){document.getElementById("docModal").classList.remove("open");}
+function closeDocModal() { document.getElementById("docModal").classList.remove("open"); }
 
 /* ─── WALLET ─────────────────────────────────────────────── */
 function doWithdraw() {
-  if(todayEarn<=0){toast("No earnings yet","w");return;}
-  if(withdrawnToday){toast("Already withdrawn today","w");return;}
+  if (todayEarn<=0)    { toast("No earnings yet","w"); return; }
+  if (withdrawnToday)  { toast("Already withdrawn today","w"); return; }
   withdrawnToday=true; document.getElementById("wDrawBtn").disabled=true;
   toast("AED "+todayEarn+" sent to wallet! 💸"); log("Withdrawal: AED "+todayEarn,"ok");
 }
 function startWTimer() {
-  function tick(){
-    const now=new Date(),m=new Date(now); m.setHours(24,0,0,0);
-    const d=m-now, h=String(Math.floor(d/3600000)).padStart(2,"0"), mn=String(Math.floor((d%3600000)/60000)).padStart(2,"0"), s=String(Math.floor((d%60000)/1000)).padStart(2,"0");
-    const e=document.getElementById("wTimer"); if(e) e.textContent=`${h}:${mn}:${s}`;
+  function tick() {
+    const now=new Date(), m=new Date(now); m.setHours(24,0,0,0);
+    const d=m-now, h=String(Math.floor(d/3600000)).padStart(2,"0"),
+          mn=String(Math.floor((d%3600000)/60000)).padStart(2,"0"),
+          s=String(Math.floor((d%60000)/1000)).padStart(2,"0");
+    const e=document.getElementById("wTimer"); if (e) e.textContent=`${h}:${mn}:${s}`;
   }
   tick(); setInterval(tick,1000);
 }
@@ -1727,36 +1740,44 @@ function setLang(l) {
 }
 
 /* ─── LOG + TOAST ────────────────────────────────────────── */
-function log(msg,type=""){
+function log(msg, type="") {
   const w=document.getElementById("logW"), now=new Date();
   const t=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0")+":"+String(now.getSeconds()).padStart(2,"0");
   const d=document.createElement("div"); d.className="ll "+(type||"");
   d.innerHTML=`<span class="lt">${t}</span><span class="lm">${msg}</span>`;
-  w.prepend(d); while(w.children.length>60) w.removeChild(w.lastChild);
+  w.prepend(d);
+  while (w.children.length>60) w.removeChild(w.lastChild);
 }
 let toastTO=null;
-function toast(msg,type=""){
+function toast(msg, type="") {
   const e=document.getElementById("toast");
   e.textContent=msg; e.className="on "+(type||"");
-  if(toastTO) clearTimeout(toastTO);
-  toastTO=setTimeout(()=>e.className="",3000);
+  if (toastTO) clearTimeout(toastTO);
+  toastTO=setTimeout(()=>e.className="", 3000);
 }
 
 /* ─── BOOT ───────────────────────────────────────────────── */
-document.addEventListener("DOMContentLoaded",()=>{
+document.addEventListener("DOMContentLoaded", () => {
   setLang(currentLang);
   renderChart(); updateWallet(); renderRewards(); loadDocs(); startWTimer();
-  document.getElementById("offlineBar").classList.toggle("show",!navigator.onLine);
-  // Weather: fetch immediately + every 15 min
-  fetchWeather(); setInterval(fetchWeather,15*60*1000);
-  // FAB: SOS is default tap, long-press expands voice+transfer
+  document.getElementById("offlineBar").classList.toggle("show", !navigator.onLine);
+  /* Weather: fetch once on load + every 15 min via backend proxy only */
+  fetchWeather(); setInterval(fetchWeather, 15*60*1000);
+  /* FAB: tap = SOS; long-press (500ms) = expand voice+transfer menu */
   const fab=document.getElementById("fabMain");
   let pressTimer=null;
-  fab.addEventListener("pointerdown",()=>{ pressTimer=setTimeout(()=>{ fabOpen=true; document.getElementById("fabItems").classList.remove("hidden"); fab.textContent="✕"; },500); });
-  fab.addEventListener("pointerup",()=>{ clearTimeout(pressTimer); });
-  fab.addEventListener("click",e=>{ if(!fabOpen){ openSOS(); } else { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); fab.textContent="🆘"; } });
-  log("Magizham Rider v5.0 ready ✅","ok");
-  log("All systems: Weather · GPS · Voice · Welfare · Offline","ok");
+  fab.addEventListener("pointerdown", () => {
+    pressTimer = setTimeout(() => {
+      fabOpen=true;
+      document.getElementById("fabItems").classList.remove("hidden");
+      fab.textContent="✕";
+      toast("SOS · Voice · Transfer","b");
+    }, 500);
+  });
+  fab.addEventListener("pointerup",    () => clearTimeout(pressTimer));
+  fab.addEventListener("pointercancel",() => clearTimeout(pressTimer));
+  log("Magizham Rider v5.2 ready ✅","ok");
+  log("Weather: proxy-only · GPS: 1.5s emit · Offline: queue+cache","ok");
 });
 </script>
 </body>
