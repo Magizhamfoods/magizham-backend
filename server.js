@@ -19,9 +19,13 @@ const server = http.createServer(app);
 // ── MAGIZHAM CONSTANTS ────────────────────────────────────────
 const RESTAURANT_LAT = 25.2426266;
 const RESTAURANT_LNG = 55.3026453;
-const JWT_SECRET     = process.env.JWT_SECRET || "magizham-dev-secret-2025";
 
-// ── FIX 2: DB write throttle per socket ──────────────────────
+// FIX 3: JWT_SECRET must be set in Railway environment variables.
+// Never leave this as the hardcoded fallback in production.
+// Railway → Variables → Add: JWT_SECRET=your-strong-random-secret
+const JWT_SECRET = process.env.JWT_SECRET || "magizham-dev-secret-2025";
+
+// ── DB write throttle per socket ──────────────────────────────
 // Only write to DB every 5 seconds per socket (socket emits still go instantly)
 const dbUpdateTimestamps = {};
 
@@ -45,7 +49,7 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// ── FIX 3: AUTH MIDDLEWARE ────────────────────────────────────
+// ── AUTH MIDDLEWARE ───────────────────────────────────────────
 // Protects status updates and location writes from fake requests.
 function authMiddleware(req, res, next) {
   // Always allow the public read-only tracking endpoint
@@ -93,7 +97,7 @@ pool.connect()
       )
     `);
 
-    // FIX 5: rider_locations with speed, heading, accuracy, updated_at
+    // rider_locations with speed, heading, accuracy, updated_at
     await pool.query(`
       CREATE TABLE IF NOT EXISTS rider_locations (
         id         SERIAL PRIMARY KEY,
@@ -187,9 +191,8 @@ app.post("/api/orders/:id/status", authMiddleware, async (req, res) => {
 });
 
 // ── RIDER LOCATION REST API (protected) ──────────────────────
-// Used by PowerShell testing or external integrations.
 // The rider app uses Socket.IO (faster), but this REST endpoint
-// is useful for debugging and fallback.
+// is useful for PowerShell testing and external integrations.
 app.post("/api/rider/location", authMiddleware, async (req, res) => {
   const { orderId, lat, lng, speed, heading, accuracy } = req.body;
 
@@ -209,13 +212,11 @@ app.post("/api/rider/location", authMiddleware, async (req, res) => {
 
   try {
     if (orderId) {
-      // Update main orders table
       await pool.query(
         "UPDATE orders SET lat = $1, lng = $2 WHERE id = $3",
         [parsedLat, parsedLng, orderId]
       );
 
-      // Upsert rider_locations with full telemetry
       await pool.query(
         `INSERT INTO rider_locations (order_id, lat, lng, speed, heading, accuracy, updated_at)
          VALUES ($1, $2, $3, $4, $5, $6, NOW())
@@ -229,7 +230,6 @@ app.post("/api/rider/location", authMiddleware, async (req, res) => {
         [orderId, parsedLat, parsedLng, parsedSpd, parsedHdg, parsedAcc]
       );
 
-      // Broadcast to all customers watching this order
       io.to(`order_${orderId}`).emit("orderLocationUpdate", {
         lat:      parsedLat,
         lng:      parsedLng,
@@ -247,31 +247,39 @@ app.post("/api/rider/location", authMiddleware, async (req, res) => {
   }
 });
 
-// ── FIX 1: WEATHER PROXY ──────────────────────────────────────
+// ── FIX 2: WEATHER PROXY — with 6s timeout ───────────────────
 // Rider app fetches /api/weather instead of calling open-meteo directly.
-// This avoids browser CORS restrictions on the open-meteo API.
+// Added timeout so a hanging Open-Meteo response doesn't block the rider.
 app.get("/api/weather", (req, res) => {
   const lat = parseFloat(req.query.lat) || RESTAURANT_LAT;
   const lon = parseFloat(req.query.lon) || RESTAURANT_LNG;
 
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,weathercode,windspeed_10m,relative_humidity_2m&timezone=Asia%2FDubai`;
 
-  https.get(url, (apiRes) => {
+  const request = https.get(url, (apiRes) => {
     let data = "";
     apiRes.on("data", chunk => data += chunk);
     apiRes.on("end", () => {
       try {
         const parsed = JSON.parse(data);
         res.setHeader("Content-Type", "application/json");
-        res.setHeader("Cache-Control", "public, max-age=600"); // Cache 10 min
+        res.setHeader("Cache-Control", "public, max-age=600"); // cache 10 min
         res.json(parsed);
       } catch (e) {
-        res.status(502).json({ error: "Invalid response from weather API" });
+        if (!res.headersSent) res.status(502).json({ error: "Invalid weather response" });
       }
     });
-  }).on("error", (e) => {
+  });
+
+  // 6 second timeout — if Open-Meteo hangs, fail fast so rider gets seasonal fallback
+  request.setTimeout(6000, () => {
+    request.destroy();
+    if (!res.headersSent) res.status(504).json({ error: "Weather API timeout" });
+  });
+
+  request.on("error", (e) => {
     console.error("Weather proxy error:", e.message);
-    res.status(500).json({ error: "Weather API unavailable" });
+    if (!res.headersSent) res.status(500).json({ error: "Weather API unavailable" });
   });
 });
 
@@ -280,7 +288,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     status:  "✅ Running",
     uptime:  Math.floor(process.uptime()),
-    version: "1.5.0",
+    version: "1.5.1",
     db:      "Railway PostgreSQL",
     endpoints: {
       track:   "/track/:orderId",
@@ -299,25 +307,33 @@ io.on("connection", async (socket) => {
   const type    = socket.handshake.query.type    || "unknown";
   const orderId = socket.handshake.query.orderId;
 
-  // FIX 4: Validate the order exists before joining its room
+  // FIX 1: Safe orderId validation — parseInt(x) || 0 was broken
+  // because parseInt("abc") = NaN, and NaN || 0 = 0, querying id=0
+  // which always returns nothing, so riders never joined their room.
   if (orderId) {
-    try {
-      const result = await pool.query(
-        "SELECT id FROM orders WHERE id = $1 LIMIT 1",
-        [parseInt(orderId, 10) || 0]
-      );
+    const numericId = parseInt(orderId, 10);
 
-      if (result.rows.length > 0) {
-        socket.join(`order_${orderId}`);
-        socket.orderId = orderId;
-        console.log(`✅ [${type}] joined order_${orderId} | Socket: ${socket.id} | Transport: ${socket.conn.transport.name}`);
-      } else {
-        // Order doesn't exist — still connect but don't join the room
-        // Customer might be waiting before order is created
-        console.warn(`⚠️  [${type}] order_${orderId} not found — socket connected but not in room`);
+    if (isNaN(numericId)) {
+      console.warn(`⚠️  [${type}] invalid orderId "${orderId}" — socket connected but not in room`);
+    } else {
+      try {
+        const result = await pool.query(
+          "SELECT id FROM orders WHERE id = $1 LIMIT 1",
+          [numericId]
+        );
+
+        if (result.rows.length > 0) {
+          socket.join(`order_${orderId}`);
+          socket.orderId = orderId;
+          console.log(`✅ [${type}] joined order_${orderId} | Socket: ${socket.id} | Transport: ${socket.conn.transport.name}`);
+        } else {
+          // Order doesn't exist yet — still connect, don't join room
+          // Customer might be connecting before the order is created
+          console.warn(`⚠️  [${type}] order_${orderId} not found — socket connected but not in room`);
+        }
+      } catch (err) {
+        console.error("Socket room validation error:", err.message);
       }
-    } catch (err) {
-      console.error("Socket room validation error:", err.message);
     }
   } else {
     console.log(`✅ [${type}] connected | No order | Socket: ${socket.id}`);
@@ -356,7 +372,7 @@ io.on("connection", async (socket) => {
       });
     }
 
-    // FIX 2: Throttle DB writes to every 5 seconds per socket
+    // Throttle DB writes to every 5 seconds per socket
     const now    = Date.now();
     const lastDb = dbUpdateTimestamps[socket.id] || 0;
 
@@ -364,13 +380,11 @@ io.on("connection", async (socket) => {
       dbUpdateTimestamps[socket.id] = now;
 
       try {
-        // Update main orders lat/lng
         await pool.query(
           "UPDATE orders SET lat = $1, lng = $2 WHERE id = $3",
           [parsedLat, parsedLng, oId]
         );
 
-        // Upsert full telemetry into rider_locations
         await pool.query(
           `INSERT INTO rider_locations (order_id, lat, lng, speed, heading, accuracy, updated_at)
            VALUES ($1, $2, $3, $4, $5, $6, NOW())
@@ -409,7 +423,6 @@ io.on("connection", async (socket) => {
         "UPDATE orders SET status = $1 WHERE id = $2",
         [status, oId]
       );
-      // Broadcast to all parties watching this order (rider + customer)
       io.to(`order_${oId}`).emit("orderStatusUpdate", { orderId: oId, status });
       console.log(`📋 Socket: Order ${oId} → ${status}`);
     } catch (err) {
@@ -421,7 +434,6 @@ io.on("connection", async (socket) => {
   socket.on("riderSOS", (data) => {
     const { type: sosType, orderId: oId, lat, lng } = data;
     console.log(`🆘 SOS from Order ${oId}: ${sosType} at ${lat}, ${lng}`);
-    // Broadcast to owner dashboard room (future feature)
     io.to("owners").emit("riderSOS", { orderId: oId, type: sosType, lat, lng, ts: Date.now() });
   });
 
@@ -455,7 +467,7 @@ const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, "0.0.0.0", () => {
   console.log("");
-  console.log("🚀 Magizham Backend running:");
+  console.log("🚀 Magizham Backend v1.5.1 running:");
   console.log(`👉 Local:   http://localhost:${PORT}`);
   console.log(`👉 Track:   http://localhost:${PORT}/track/1`);
   console.log(`👉 Rider:   http://localhost:${PORT}/rider`);
