@@ -47,8 +47,6 @@ app.use(express.static(path.join(__dirname)));
 
 // ── FIX 3: AUTH MIDDLEWARE ────────────────────────────────────
 // Protects status updates and location writes from fake requests.
-// In development mode it logs but allows through.
-// When you add a login system, flip the commented line.
 function authMiddleware(req, res, next) {
   // Always allow the public read-only tracking endpoint
   if (req.method === "GET" && req.path.endsWith("/track")) return next();
@@ -57,11 +55,7 @@ function authMiddleware(req, res, next) {
   const token  = header.replace("Bearer ", "").trim();
 
   if (!token) {
-    // Development: log unauthenticated but allow through
-    // Production: uncomment the line below and remove next()
-    console.warn(`⚠️  Unauthenticated: ${req.method} ${req.path}`);
-    // return res.status(401).json({ error: "Unauthorized — token required" });
-    return next();
+    return res.status(401).json({ error: "Unauthorized" });
   }
 
   try {
