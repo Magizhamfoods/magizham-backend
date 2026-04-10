@@ -131,9 +131,10 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 #navBtn:active { transform:scale(.97); }
 #navBtn.hide { display:none; }
 
-#autoStageHint { display:none; background:rgba(0,255,136,.08); border:1.5px solid rgba(0,255,136,.22);
+/* ══ FIX 2: corrected selector from #autoStageHint → #autoHint to match the HTML id ══ */
+#autoHint { display:none; background:rgba(0,255,136,.08); border:1.5px solid rgba(0,255,136,.22);
   border-radius:11px; padding:10px 13px; margin-bottom:10px; }
-#autoStageHint.show { display:flex; align-items:center; gap:9px; }
+#autoHint.show { display:flex; align-items:center; gap:9px; }
 .ash-icon { font-size:20px; flex-shrink:0; }
 .ash-body { flex:1; }
 .ash-title { font-size:12px; font-weight:800; color:var(--neon); }
@@ -587,6 +588,7 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
         </div>
       </div>
       <button id="navBtn" onclick="openNavigation()">🧭 Navigate to Customer</button>
+      <!-- ══ FIX 2: id="autoHint" — matches CSS #autoHint and JS getElementById("autoHint") ══ -->
       <div id="autoHint">
         <div class="ash-icon" id="ahIcon">📍</div>
         <div class="ash-body">
@@ -632,8 +634,8 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
       <button class="act-btn go syne" id="actBtn" onclick="advanceStage()">▶ Confirm Pickup</button>
       <div class="cta-row">
         <a class="ctb call" id="callBtn" href="#">📞 Call</a>
-        <button class="ctb msg" onclick="openChat('customer')">💬 Message</button>
-        <button class="ctb kitchen" onclick="openChat('kitchen')">🍳 Kitchen</button>
+        <button class="ctb msg" onclick="openChat('cust')">💬 Message</button>
+        <button class="ctb kitchen" onclick="openChat('kit')">🍳 Kitchen</button>
       </div>
     </div>
   </div>
@@ -798,7 +800,7 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
     <div class="fab-item"><span class="fab-lbl">Voice command</span><button class="fab-btn fab-voice" onclick="closeFAB();startVoice()">🎙</button></div>
     <div class="fab-item"><span class="fab-lbl">Transfer order</span><button class="fab-btn fab-xfer" onclick="closeFAB();openTransfer()">🔄</button></div>
   </div>
-  <button class="fab-main" id="fabMain" onclick="toggleFAB()">🆘</button>
+  <button class="fab-main" id="fabMain">🆘</button>
 </div>
 
 <!-- ══ CHAT SHEETS ══ -->
@@ -896,8 +898,7 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
    ✅ CHANGE 3 — OFFLINE SYSTEM: robust localStorage order cache,
       online/offline event handlers, socket.connect() re-use on
       reconnect (no teardown), flushQ drains queued events safely.
-   ── UNCHANGED ──────────────────────────────────────────────
-   UI design · Voice system · Hyperlocal features · Geofencing
+   ✅ FIX: CSS #autoStageHint → #autoHint (matched to HTML id)
 ═══════════════════════════════════════════════════════════ */
 
 /* ─── BUILDING DATABASE ─────────────────────────────────── */
@@ -960,8 +961,8 @@ let pingCnt=0, todayDel=0, todayEarn=0;
 let custMsgArr=[], kitMsgArr=[];
 let podData=null, currentDocKey=null, withdrawnToday=false;
 let lastLat=null, lastLng=null;
-let lastSpeed=null, lastAcc=null;          // ← v5.2: tracked separately for interval emit
-let gpsEmitInterval=null;                  // ← v5.2: 1.5s emit timer handle
+let lastSpeed=null, lastAcc=null;
+let gpsEmitInterval=null;
 let lastMoveTime=Date.now();
 let wfTimer=null, wfCDInt=null, wfActive=false;
 let stuckTimer=null;
@@ -976,20 +977,15 @@ const WDAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Today"];
 const TIERS=[{n:"Bronze Star",t:10,c:"bronze",r:"AED 5"},{n:"Silver Ace",t:25,c:"silver",r:"AED 15"},{n:"Gold Champion",t:50,c:"gold",r:"AED 35"}];
 const DOC_IDS={rta:"rta",medical:"med",insurance:"ins",emirates:"em",driving:"dr"};
 
-/* ── Location constants (Al Karama, Dubai) ── */
 const DUBAI_LAT = 25.2285;
 const DUBAI_LNG = 55.3088;
 const RESTAURANT_LAT = 25.2305;
 const RESTAURANT_LNG = 55.3082;
 
 /* ══════════════════════════════════════════════════════════
-   CHANGE 1: WEATHER — backend proxy ONLY
-   All weather calls go through /api/weather?lat=&lon=
-   The only fallback is a seasonal estimate (no network needed).
-   Direct open-meteo and wttr.in calls have been removed.
+   WEATHER — backend proxy ONLY
 ══════════════════════════════════════════════════════════ */
 async function fetchWeather() {
-  /* PRIMARY: Backend proxy — zero CORS risk */
   try {
     const r = await fetch(
       `/api/weather?lat=${DUBAI_LAT}&lon=${DUBAI_LNG}`,
@@ -997,23 +993,16 @@ async function fetchWeather() {
     );
     if (r.ok) {
       const d = await r.json();
-      /* Support both Open-Meteo response shapes */
       const t = d.current_weather?.temperature ?? d.current?.temperature_2m;
-      if (t != null) {
-        applyTemp(Math.round(t));
-        log(`Weather (proxy): ${Math.round(t)}°C`, "ok");
-        return;
-      }
+      if (t != null) { applyTemp(Math.round(t)); log(`Weather (proxy): ${Math.round(t)}°C`, "ok"); return; }
     }
-  } catch(e) { /* proxy down — use seasonal estimate below */ }
-
-  /* FALLBACK: Seasonal Dubai estimate — never fails, no network */
+  } catch(e) {}
   const hr = new Date().getHours();
-  const mo = new Date().getMonth(); // 0=Jan … 11=Dec
-  const isSummer = mo >= 4 && mo <= 9;   // May–Oct
+  const mo = new Date().getMonth();
+  const isSummer = mo >= 4 && mo <= 9;
   const est = isSummer
-    ? (hr >= 12 && hr <= 17 ? 45 : 38)   // peak afternoon vs night/morning
-    : (hr >= 12 && hr <= 16 ? 32 : 26);  // winter peak vs cooler hours
+    ? (hr >= 12 && hr <= 17 ? 45 : 38)
+    : (hr >= 12 && hr <= 16 ? 32 : 26);
   applyTemp(est);
   log("Weather: proxy unavailable — seasonal estimate used", "w");
 }
@@ -1036,10 +1025,8 @@ function applyTemp(t) {
     const el=document.getElementById(id); if(!el) return;
     el.classList.toggle("hot-mode", isHot);
     let ht=el.querySelector(".stag.h.mandatory");
-    if(isHot && !ht){
-      const s=document.createElement("span"); s.className="stag h mandatory";
-      s.textContent="🌡️ Mandatory"; el.querySelector(".stags").appendChild(s);
-    } else if(!isHot && ht) ht.remove();
+    if(isHot && !ht){ const s=document.createElement("span"); s.className="stag h mandatory"; s.textContent="🌡️ Mandatory"; el.querySelector(".stags").appendChild(s); }
+    else if(!isHot && ht) ht.remove();
   });
   if(isHot) toast(`🌡️ ${t}°C in Al Karama — hydrate now!`,"hot");
 }
@@ -1050,7 +1037,7 @@ function goHydration() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   NAVIGATION — pure deep link, no deprecated SDK (unchanged)
+   NAVIGATION
 ══════════════════════════════════════════════════════════ */
 function openNavigation() {
   if (!currentOrder) { toast("Load an order first","w"); return; }
@@ -1064,7 +1051,7 @@ function openNavigation() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   AUTO GPS STAGE DETECTION (unchanged — geofencing intact)
+   AUTO GPS STAGE DETECTION
 ══════════════════════════════════════════════════════════ */
 let autoStagePending=null;
 
@@ -1123,7 +1110,7 @@ function haversine(a,b,c,d) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   WELFARE CHECK (unchanged)
+   WELFARE CHECK
 ══════════════════════════════════════════════════════════ */
 function startWelfareMonitor() {
   clearTimeout(stuckTimer);
@@ -1167,12 +1154,7 @@ function welfareSOSNow() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   CHANGE 3: OFFLINE SYSTEM
-   • cacheOrder: saves order + records last-seen order ID key
-   • online listener: calls socket.connect() to reuse existing
-     socket instead of full teardown/rebuild — faster reconnect
-   • flushQ: safely drains queue, keeps failed events for retry
-   • offline listener: shows bar immediately
+   OFFLINE SYSTEM
 ══════════════════════════════════════════════════════════ */
 let netOnline = navigator.onLine;
 
@@ -1181,13 +1163,9 @@ window.addEventListener("online", () => {
   document.getElementById("offlineBar").classList.remove("show");
   log("Network restored — flushing queue", "ok");
   flushQ();
-  /* Reuse existing socket if possible; only create new one if needed */
   if (isOnline) {
-    if (socket && !socket.connected) {
-      socket.connect();                   // reconnect without teardown
-    } else if (!socket) {
-      initSocket();
-    }
+    if (socket && !socket.connected) { socket.connect(); }
+    else if (!socket) { initSocket(); }
   }
 });
 
@@ -1198,52 +1176,39 @@ window.addEventListener("offline", () => {
 });
 
 function emit(ev, data) {
-  if (socket?.connected && netOnline) {
-    socket.emit(ev, data);
-  } else {
-    offlineQ.push({ ev, data, ts: Date.now() });
-    log("Queued offline: " + ev, "w");
-  }
+  if (socket?.connected && netOnline) { socket.emit(ev, data); }
+  else { offlineQ.push({ ev, data, ts: Date.now() }); log("Queued offline: " + ev, "w"); }
 }
 
 function flushQ() {
   if (!offlineQ.length) return;
   const failed = [];
   offlineQ.forEach(item => {
-    if (socket?.connected) {
-      socket.emit(item.ev, item.data);
-    } else {
-      failed.push(item);   // keep for next flush attempt
-    }
+    if (socket?.connected) { socket.emit(item.ev, item.data); }
+    else { failed.push(item); }
   });
   const sent = offlineQ.length - failed.length;
   offlineQ = failed;
   if (sent > 0) log(`Flushed ${sent} queued event(s)`, "ok");
 }
 
-/* localStorage order cache — stores full order data keyed by ID */
 function cacheOrder(id, data) {
   try {
     localStorage.setItem("oc_" + id, JSON.stringify({ data, ts: Date.now() }));
-    localStorage.setItem("oc_last_id", String(id));   // track last active order
-  } catch(e) { /* storage full — fail silently */ }
+    localStorage.setItem("oc_last_id", String(id));
+  } catch(e) {}
 }
 
 function getCached(id) {
   try {
     const raw = localStorage.getItem("oc_" + id);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed?.data || null;
+    return JSON.parse(raw)?.data || null;
   } catch(e) { return null; }
 }
 
 /* ══════════════════════════════════════════════════════════
-   CHANGE 2: GPS — 1.5s EMIT INTERVAL
-   watchPosition updates lastLat/lastLng/lastSpeed/lastAcc
-   but does NOT emit. A separate setInterval fires every
-   1500ms and emits all four values together. This guarantees
-   1–2s emission regardless of how often the OS calls onPos.
+   GPS — 1.5s EMIT INTERVAL
 ══════════════════════════════════════════════════════════ */
 function toggleGPS() { isTracking ? stopGPS() : startGPS(); }
 
@@ -1258,7 +1223,6 @@ function startGPS() {
   startWelfareMonitor();
   log("GPS started — emitting every 1.5s","ok");
   doWatch();
-  /* Start guaranteed 1.5s emit interval */
   if (gpsEmitInterval) clearInterval(gpsEmitInterval);
   gpsEmitInterval = setInterval(emitLocation, 1500);
 }
@@ -1283,22 +1247,20 @@ function stopGPS() {
   setSig(socket?.connected ? 2 : 0);
 }
 
-/* Interval callback — emits current position every 1.5s */
 function emitLocation() {
   if (lastLat === null || !currentOrderId) return;
   emit("riderLocationUpdate", {
     orderId:  currentOrderId,
     lat:      lastLat,
     lng:      lastLng,
-    speed:    lastSpeed,        // km/h or null
-    accuracy: lastAcc || 40     // metres
+    speed:    lastSpeed,
+    accuracy: lastAcc || 40
   });
   pingCnt++;
   document.getElementById("pingCnt").textContent = pingCnt;
   flashPing();
 }
 
-/* watchPosition callback — updates state + UI; does NOT emit */
 function onPos(pos) {
   gpsRetries = 0;
   const lat   = pos.coords.latitude;
@@ -1306,12 +1268,8 @@ function onPos(pos) {
   const speed = pos.coords.speed;
   const acc   = pos.coords.accuracy;
   const kmh   = (speed != null && speed >= 0) ? speed * 3.6 : null;
-
-  /* Store latest values for emitLocation() */
   lastSpeed = kmh;
   lastAcc   = acc;
-
-  /* Distance + welfare movement tracking */
   if (lastLat !== null) {
     const d = haversine(lastLat, lastLng, lat, lng);
     if (d > 3) totalRideMeters += d;
@@ -1319,17 +1277,11 @@ function onPos(pos) {
   }
   lastLat = lat;
   lastLng = lng;
-
-  /* Update telemetry display */
   document.getElementById("dLat").textContent   = lat.toFixed(6);
   document.getElementById("dLng").textContent   = lng.toFixed(6);
   document.getElementById("dSpeed").textContent = kmh != null ? kmh.toFixed(1) + " km/h" : "0.0 km/h";
   document.getElementById("dAcc").textContent   = acc != null ? Math.round(acc) + " m" : "—";
-
-  /* Geofencing — auto stage + building guide (unchanged) */
   checkAutoStage(lat, lng);
-
-  /* Signal bars based on GPS accuracy */
   setSig(acc < 10 ? 4 : acc < 25 ? 3 : acc < 50 ? 2 : 1);
 }
 
@@ -1395,7 +1347,6 @@ async function loadOrder() {
   if (!id) { toast("Enter an Order ID","w"); return; }
   log("Loading order #"+id);
   let data = null, fromCache = false;
-
   if (!netOnline) {
     data = getCached(id);
     if (!data) { toast("Offline — order not in cache","err"); return; }
@@ -1405,46 +1356,38 @@ async function loadOrder() {
       const r = await fetch("/api/orders/" + id + "/track");
       if (!r.ok) throw new Error("HTTP " + r.status);
       data = await r.json();
-      cacheOrder(id, data);                 // always cache fresh data
+      cacheOrder(id, data);
     } catch(e) {
       data = getCached(id);
       if (data) { fromCache = true; }
       else { toast("Order not found: "+e.message,"err"); log("❌ "+e.message,"err"); return; }
     }
   }
-
   if (fromCache) document.getElementById("offlineBar").classList.add("show");
-
   currentOrderId=id; currentOrder=data; stage=0; podData=null; autoStagePending=null;
   document.getElementById("ordId").textContent    = "ORD-"+(data.id||id)+(fromCache?" 💾":"");
   document.getElementById("ordCust").textContent  = data.customer_name||"Customer";
   document.getElementById("ordAddr").textContent  = data.customer_address||"Al Karama, Dubai";
-
   const af = document.getElementById("ordFloor");
   if ((data.customer_address||"").match(/flat|floor|villa|apt/i)) {
     af.textContent = "🏢 "+data.customer_address; af.style.display="block";
   } else af.style.display="none";
-
   document.getElementById("mAmt").textContent  = data.total_amount||data.total||"—";
   document.getElementById("mStat").textContent = (data.status||"pending").toUpperCase();
   document.getElementById("callBtn").href       = "tel:"+(data.customer_phone||"");
   document.getElementById("custChatName").textContent = data.customer_name||"Customer";
-
   let items = data.items||[];
   if (typeof items==="string") { try { items=JSON.parse(items); } catch(e) { items=[]; } }
   document.getElementById("itemsList").innerHTML = items.length
     ? items.map(it=>`<div class="item-row"><div class="idot"></div><div class="inm">${it.name||it}</div><div class="iqty mono">×${it.qty||1}</div></div>`).join("")
     : `<div class="item-row"><div class="idot"></div><div class="inm" style="color:var(--tx2)">Items not listed</div></div>`;
-
   updatePipeline(); updateActBtn();
   document.getElementById("orderPanel").style.display="block";
   document.getElementById("gpsBtn").disabled=false;
   document.getElementById("bldCard").classList.remove("show");
   document.getElementById("autoHint").classList.remove("show");
-
   if (socket) { try { socket.disconnect(); } catch(e) {} } socket=null;
   if (isOnline) initSocket();
-
   toast("Order #"+id+" loaded ✅"+(fromCache?" (cache)":""));
   log("Order #"+id+" — "+(data.customer_name||"")+(fromCache?" [cache]":""),"ok");
 }
@@ -1586,12 +1529,30 @@ function confirmXfer(id,name) {
 }
 
 /* ─── FAB ────────────────────────────────────────────────── */
-document.getElementById("fabMain").addEventListener("click", () => {
-  if (!fabOpen) { openSOS(); }
-  else { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); document.getElementById("fabMain").textContent="🆘"; }
+function closeFAB() {
+  fabOpen=false;
+  document.getElementById("fabItems").classList.add("hidden");
+  document.getElementById("fabMain").textContent="🆘";
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const fab = document.getElementById("fabMain");
+  let pressTimer = null;
+  fab.addEventListener("pointerdown", () => {
+    pressTimer = setTimeout(() => {
+      fabOpen = true;
+      document.getElementById("fabItems").classList.remove("hidden");
+      fab.textContent = "✕";
+      toast("SOS · Voice · Transfer","b");
+    }, 500);
+  });
+  fab.addEventListener("pointerup",    () => clearTimeout(pressTimer));
+  fab.addEventListener("pointercancel",() => clearTimeout(pressTimer));
+  fab.addEventListener("click", () => {
+    if (!fabOpen) openSOS();
+    else closeFAB();
+  });
 });
-function toggleFAB() { /* handled by listener above */ }
-function closeFAB()  { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); document.getElementById("fabMain").textContent="🆘"; }
 
 /* ─── CHAT ───────────────────────────────────────────────── */
 function openChat(t) {
@@ -1618,7 +1579,7 @@ function addMsg(t,f,txt) {
   (t==="cust"?custMsgArr:kitMsgArr).push({f,t:txt,ts}); renderChat(t);
 }
 
-/* ─── VOICE (unchanged) ──────────────────────────────────── */
+/* ─── VOICE ──────────────────────────────────────────────── */
 let voiceRec=null;
 function startVoice() {
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -1694,9 +1655,9 @@ function refreshDoc(k,v) {
   if (!v) { expEl.textContent="Expires: Not set"; stEl.textContent="?"; stEl.className="dstat w"; cdEl.textContent=""; return; }
   const exp=new Date(v), days=Math.ceil((exp-new Date())/86400000);
   expEl.textContent="Expires: "+exp.toLocaleDateString("en-AE",{day:"2-digit",month:"short",year:"numeric"});
-  if (days<0)  { stEl.textContent="Expired";    stEl.className="dstat exp"; cdEl.textContent="⛔ Expired "+Math.abs(days)+"d ago"; cdEl.className="doc-cd exp"; }
-  else if (days<30) { stEl.textContent=days+"d left"; stEl.className="dstat w";   cdEl.textContent="⚠️ "+days+" days left";         cdEl.className="doc-cd w";   }
-  else         { stEl.textContent="Valid";     stEl.className="dstat ok";  cdEl.textContent="✓ "+days+" days left";               cdEl.className="doc-cd ok";  }
+  if (days<0)   { stEl.textContent="Expired";    stEl.className="dstat exp"; cdEl.textContent="⛔ Expired "+Math.abs(days)+"d ago"; cdEl.className="doc-cd exp"; }
+  else if (days<30) { stEl.textContent=days+"d left"; stEl.className="dstat w"; cdEl.textContent="⚠️ "+days+" days left"; cdEl.className="doc-cd w"; }
+  else          { stEl.textContent="Valid";     stEl.className="dstat ok";  cdEl.textContent="✓ "+days+" days left"; cdEl.className="doc-cd ok"; }
 }
 function editDoc(k) {
   currentDocKey=k;
@@ -1761,23 +1722,9 @@ document.addEventListener("DOMContentLoaded", () => {
   setLang(currentLang);
   renderChart(); updateWallet(); renderRewards(); loadDocs(); startWTimer();
   document.getElementById("offlineBar").classList.toggle("show", !navigator.onLine);
-  /* Weather: fetch once on load + every 15 min via backend proxy only */
   fetchWeather(); setInterval(fetchWeather, 15*60*1000);
-  /* FAB: tap = SOS; long-press (500ms) = expand voice+transfer menu */
-  const fab=document.getElementById("fabMain");
-  let pressTimer=null;
-  fab.addEventListener("pointerdown", () => {
-    pressTimer = setTimeout(() => {
-      fabOpen=true;
-      document.getElementById("fabItems").classList.remove("hidden");
-      fab.textContent="✕";
-      toast("SOS · Voice · Transfer","b");
-    }, 500);
-  });
-  fab.addEventListener("pointerup",    () => clearTimeout(pressTimer));
-  fab.addEventListener("pointercancel",() => clearTimeout(pressTimer));
   log("Magizham Rider v5.2 ready ✅","ok");
-  log("Weather: proxy-only · GPS: 1.5s emit · Offline: queue+cache","ok");
+  log("FIX: #autoHint CSS matched · Weather: proxy-only · GPS: 1.5s emit · Offline: queue+cache","ok");
 });
 </script>
 </body>
