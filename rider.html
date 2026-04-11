@@ -1821,14 +1821,42 @@ document.addEventListener("DOMContentLoaded",()=>{
   document.getElementById("offlineBar").classList.toggle("show",!navigator.onLine);
   // Weather: fetch immediately + every 15 min
   fetchWeather(); setInterval(fetchWeather,15*60*1000);
-  // FAB: SOS is default tap, long-press expands voice+transfer
-  const fab=document.getElementById("fabMain");
-  let pressTimer=null;
-  fab.addEventListener("pointerdown",()=>{ pressTimer=setTimeout(()=>{ fabOpen=true; document.getElementById("fabItems").classList.remove("hidden"); fab.textContent="✕"; },500); });
-  fab.addEventListener("pointerup",()=>{ clearTimeout(pressTimer); });
-  fab.addEventListener("click",e=>{ if(!fabOpen){ openSOS(); } else { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); fab.textContent="🆘"; } });
-  log("Magizham Rider v5.2 ready ✅","ok");
-  log("GPS: 1s emit interval · Weather: proxy · Offline: cached","ok");
+  // FAB: short tap = SOS; hold 500ms = expand voice + transfer
+  // Fix: longPressHappened flag prevents the click event from
+  // immediately closing the menu after a long-press opens it.
+  const fab = document.getElementById("fabMain");
+  let pressTimer = null;
+  let longPressHappened = false;
+
+  fab.addEventListener("pointerdown", () => {
+    longPressHappened = false;
+    pressTimer = setTimeout(() => {
+      longPressHappened = true;
+      fabOpen = true;
+      document.getElementById("fabItems").classList.remove("hidden");
+      fab.textContent = "✕";
+      toast("SOS · Voice · Transfer", "b");
+    }, 500);
+  });
+  fab.addEventListener("pointerup",     () => clearTimeout(pressTimer));
+  fab.addEventListener("pointercancel", () => clearTimeout(pressTimer));
+  fab.addEventListener("click", () => {
+    if (longPressHappened) { longPressHappened = false; return; } // swallow post-hold click
+    if (!fabOpen) openSOS();
+    else closeFAB();
+  });
+
+  // When app returns to foreground, attempt socket reconnect if needed.
+  // The GPS interval already resumes automatically (document.hidden = false).
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && isOnline && !socket?.connected) {
+      log("App visible — reconnecting socket","ok");
+      initSocket();
+    }
+  });
+
+  log("Magizham Rider v5.3 ready ✅","ok");
+  log("v5.3: background GPS opt · FAB fix · visibility reconnect","ok");
 });
 </script>
 </body>
