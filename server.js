@@ -1,9 +1,10 @@
 /* ═══════════════════════════════════════════════════════════════
-   MAGIZHAM BACKEND — server.js  PRODUCTION v1.6
+   MAGIZHAM BACKEND — server.js  PRODUCTION v1.6.1
    Fixes applied:
      ✅ AUTH: JWT required on all write routes — 401 on missing/bad token
      ✅ DB THROTTLE: Socket location writes every 5 s per socket.id
      ✅ CLEANUP: dbUpdateTimestamps removed on disconnect
+     ✅ SOCKET GUARD: riderLocationUpdate rejects if data.orderId is missing
    Unchanged:
      ✓ Weather proxy (/api/weather)
      ✓ rider_locations schema
@@ -280,7 +281,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     status:  "✅ Running",
     uptime:  Math.floor(process.uptime()),
-    version: "1.6.0",
+    version: "1.6.1",
     db:      "Railway PostgreSQL",
     auth:    "JWT required — production hardened",
     db_throttle: `${DB_WRITE_INTERVAL_MS / 1000}s per socket`,
@@ -328,6 +329,9 @@ io.on("connection", async (socket) => {
      DB write: throttled to DB_WRITE_INTERVAL_MS per socket.id
   ──────────────────────────────────────────────────────────── */
   socket.on("riderLocationUpdate", async (data) => {
+    // ✅ Guard: reject immediately if no orderId — prevents invalid broadcasts and DB ops
+    if (!data || !data.orderId) return;
+
     const { lat, lng, orderId: oId, speed, heading, accuracy } = data;
     if (lat == null || lng == null) return;
 
@@ -420,7 +424,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log("");
-  console.log("🚀 Magizham Backend v1.6 — PRODUCTION");
+  console.log("🚀 Magizham Backend v1.6.1 — PRODUCTION");
   console.log(`   http://localhost:${PORT}`);
   console.log(`   Auth: JWT required on all write routes`);
   console.log(`   DB throttle: ${DB_WRITE_INTERVAL_MS / 1000}s per socket`);
