@@ -19,6 +19,20 @@
     #offlineBanner { display:none; position:fixed; top:0; left:0; right:0; background:var(--red); color:white; text-align:center; padding:10px 16px; font-size:13px; font-weight:700; z-index:9999; }
     #predictionBadge { display:none; position:fixed; top:56px; left:50%; transform:translateX(-50%); background:rgba(249,115,22,0.92); color:white; border-radius:20px; padding:5px 14px; font-size:11px; font-weight:800; z-index:9998; white-space:nowrap; backdrop-filter:blur(4px); }
 
+    /* ── Reconnect banner — shown on socket disconnect ── */
+    #reconnectBanner {
+      display:none; position:fixed; top:0; left:0; right:0;
+      background:#854d0e; color:white; text-align:center;
+      padding:9px 16px; font-size:12px; font-weight:800; z-index:9998;
+      align-items:center; justify-content:center; gap:8px;
+    }
+    #reconnectBanner.show { display:flex; }
+    .reconnect-dot {
+      width:8px; height:8px; border-radius:50%; background:white;
+      animation:rcPulse 1s ease-in-out infinite;
+    }
+    @keyframes rcPulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
     #proximityBanner { display:none; position:fixed; top:12px; left:12px; right:12px; background:var(--green); color:white; border-radius:16px; padding:12px 16px; z-index:9997; align-items:center; gap:12px; box-shadow:0 4px 20px rgba(26,122,74,0.4); animation:slideDown .4s cubic-bezier(.34,1.56,.64,1); }
     #proximityBanner .prox-text { flex:1; }
     #proximityBanner .prox-title { font-size:14px; font-weight:900; }
@@ -152,6 +166,12 @@
 </div>
 <div id="predictionBadge">🔮 Offline prediction mode</div>
 
+<!-- ── Reconnect banner — shown on socket disconnect ── -->
+<div id="reconnectBanner">
+  <div class="reconnect-dot"></div>
+  <span id="reconnectText">Connection lost — reconnecting...</span>
+</div>
+
 <div id="proximityBanner">
   <div class="prox-text">
     <div class="prox-title">🛵 Rider is almost here!</div>
@@ -255,12 +275,15 @@
 <script src="/socket.io/socket.io.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   MAGIZHAM TRACKING — PRODUCTION v1.6
+   MAGIZHAM TRACKING — PRODUCTION v1.7
+   ✅ Socket reconnect: disconnect → amber banner + inertia pred
+   ✅ Socket reconnect: reconnect attempt counter shown to customer
+   ✅ Socket reconnect: on connect → banner hides, "Live tracking"
    ✅ Socket: type=customer + orderId query sent on connect
    ✅ Socket: orderStatusUpdate guarded against cross-order events
    ✅ Smoothing: 40-step interpolation (25ms/step) — no jump movement
    ✅ Offline: inertia prediction when socket drops
-   Unchanged: UI, timeline, ETA, popup, confetti, speech, star rating
+   Unchanged: Map UI · Timeline · ETA system · Animation
 ═══════════════════════════════════════════════════════════════ */
 
   const pathParts  = window.location.pathname.split("/");
@@ -268,7 +291,7 @@
   const orderId    = (pathId && pathId !== "" && pathId !== "tracking.html")
     ? pathId : new URLSearchParams(window.location.search).get("orderId");
 
-  // ✅ Reject non-numeric order IDs immediately — prevents invalid socket joins
+  // Reject non-numeric order IDs immediately — prevents invalid socket joins
   const orderIdInt = parseInt(orderId, 10);
   const validOrder = !isNaN(orderIdInt) && orderIdInt > 0;
 
@@ -285,8 +308,9 @@
   let customerPos = { ...DEFAULT_CUSTOMER_POS };
   let bikeSvgEl = null, riderWrapEl = null;
   let isArrivingState = false, proximityAlertShown = false;
+  let reconnectAttempt = 0;  // ← tracks reconnect attempt count for display
 
-  // ETA smoothing (EMA α=0.25) — absorbs jitter from route recalculations
+  // ETA smoothing (EMA α=0.25)
   let smoothedETA = null;
   const ETA_ALPHA = 0.25;
   function getSmoothedETA(rawSecs) {
@@ -318,6 +342,25 @@
     if (offlineInterval) { clearInterval(offlineInterval); offlineInterval = null; }
     document.getElementById("predictionBadge").style.display = "none";
     document.getElementById("offlineBanner").style.display   = "none";
+  }
+
+  /* ── showReconnectBanner / hideReconnectBanner ──────────────
+     Shows an amber banner at the top with a pulsing dot and the
+     current reconnect attempt number. Hidden immediately when the
+     socket reconnects successfully.
+  ────────────────────────────────────────────────────────────── */
+  function showReconnectBanner(attempt) {
+    const banner = document.getElementById("reconnectBanner");
+    const text   = document.getElementById("reconnectText");
+    text.innerText = attempt > 0
+      ? `Connection lost — reconnecting (attempt ${attempt})...`
+      : "Connection lost — reconnecting...";
+    banner.classList.add("show");
+  }
+
+  function hideReconnectBanner() {
+    document.getElementById("reconnectBanner").classList.remove("show");
+    reconnectAttempt = 0;
   }
 
   function getBearing(p1, p2) {
@@ -365,7 +408,6 @@
     });
   }
 
-  // ── Countdown + all live ETA labels updated every second ──
   function startCountdown(seconds) {
     if (countdownTimer) clearInterval(countdownTimer);
     countdownSecs = Math.max(0, seconds);
@@ -399,8 +441,7 @@
 
   function launchConfetti() {
     const canvas = document.getElementById("confettiCanvas");
-    canvas.style.display = "block";
-    canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    canvas.style.display = "block"; canvas.width = window.innerWidth; canvas.height = window.innerHeight;
     const ctx = canvas.getContext("2d");
     const colors = ["#1a7a4a","#25a066","#fbbf24","#f87171","#60a5fa","#a78bfa","#fb923c","#34d399"];
     const pieces = Array.from({length:220},()=>({ x:Math.random()*canvas.width, y:-20-Math.random()*120, w:Math.random()*12+5, h:Math.random()*6+3, color:colors[Math.floor(Math.random()*colors.length)], vx:(Math.random()-.5)*5, vy:Math.random()*4+2, rot:Math.random()*360, vr:(Math.random()-.5)*10, opacity:1 }));
@@ -425,8 +466,11 @@
     setTimeout(()=>{ document.getElementById("arrivingBanner").style.display="none"; },5000);
   }
   function clearArrivingState() {
-    document.getElementById("arrivingOverlay").style.display="none"; document.getElementById("arrivingBanner").style.display="none";
-    document.getElementById("arrivalRow").classList.remove("arriving-mode"); if(riderWrapEl) riderWrapEl.classList.remove("arriving"); isArrivingState=false;
+    document.getElementById("arrivingOverlay").style.display="none";
+    document.getElementById("arrivingBanner").style.display="none";
+    document.getElementById("arrivalRow").classList.remove("arriving-mode");
+    if (riderWrapEl) riderWrapEl.classList.remove("arriving");
+    isArrivingState=false;
   }
   function triggerProximityAlert() {
     if (proximityAlertShown) return; proximityAlertShown=true;
@@ -440,13 +484,11 @@
     const { Map } = await google.maps.importLibrary("maps");
     const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
     routesLib = await google.maps.importLibrary("routes");
-
     try {
       map = new Map(document.getElementById("map"), { zoom:15, center:riderPos, mapId:"78097e3a5f61cdda88affacb", mapTypeControl:false, fullscreenControl:false, streetViewControl:false, zoomControl:false, colorScheme:"DARK" });
     } catch(e) {
       map = new Map(document.getElementById("map"), { zoom:15, center:riderPos, mapTypeControl:false, fullscreenControl:false, streetViewControl:false, zoomControl:false });
     }
-
     riderWrapEl = document.createElement("div"); riderWrapEl.className="rider-marker-wrap";
     const ring1=document.createElement("div"); ring1.className="rider-pulse-ring";
     const ring2=document.createElement("div"); ring2.className="rider-pulse-ring2";
@@ -454,27 +496,21 @@
     bikeSvgEl=document.createElement("span"); bikeSvgEl.className="rider-bike-svg"; bikeSvgEl.innerText="🛵";
     circle.appendChild(bikeSvgEl); riderWrapEl.appendChild(ring1); riderWrapEl.appendChild(ring2); riderWrapEl.appendChild(circle);
     riderMarker = new AdvancedMarkerElement({ position:riderPos, map, content:riderWrapEl, title:"Rider", zIndex:4 });
-
     const etaEl=document.createElement("div"); etaEl.className="eta-bubble"; etaEl.innerText="ETA: --";
     etaMarker = new AdvancedMarkerElement({ position:{lat:riderPos.lat+.0004,lng:riderPos.lng}, map, content:etaEl, title:"ETA", zIndex:5 });
-
     const homeWrap=document.createElement("div"); homeWrap.className="home-marker";
     const homeBody=document.createElement("div"); homeBody.className="home-marker-body";
     const homeIcon=document.createElement("div"); homeIcon.className="home-marker-icon"; homeIcon.innerText="🏠";
     homeBody.appendChild(homeIcon); homeWrap.appendChild(homeBody);
     customerMarker = new AdvancedMarkerElement({ position:custPos, map, content:homeWrap, title:"Delivery location", zIndex:3 });
-
     const restEl=document.createElement("div"); restEl.className="restaurant-marker"; restEl.innerHTML="<span>🏪</span><span>Magizham</span>";
     restaurantMarker = new AdvancedMarkerElement({ position:RESTAURANT_POS, map, content:restEl, title:"Magizham", zIndex:2 });
-
     updateAccuracyCircle(riderPos);
     drawTrafficRoute(riderPos, custPos);
   }
 
   /* ── smoothMoveMarker ─────────────────────────────────────────
-     Interpolates the rider icon from current → newPos in 40 steps
-     over 1 second (25ms per frame). Eliminates jump movement when
-     GPS updates arrive every 1-2 seconds.
+     40-step interpolation over 1s (25ms/frame). No jump movement.
   ─────────────────────────────────────────────────────────────── */
   function smoothMoveMarker(newPos) {
     if (!riderMarker) return;
@@ -582,7 +618,7 @@
     document.getElementById("tlProgress").style.width=PROGRESS_PCTS[status]||"5%";
   }
 
-  const STATUS_BADGE_LABELS={delivered:"Delivered 🎉",arriving:"Almost there! 🏁",onTheWay:"On the way 🛵",serverOffline:"Server offline",connectionLost:"Connection lost",reconnecting:"Reconnecting...",connecting:"Connecting...",confirmed:"Confirmed 🏪"};
+  const STATUS_BADGE_LABELS={delivered:"Delivered 🎉",arriving:"Almost there! 🏁",onTheWay:"Live tracking 🛵",serverOffline:"Server offline",connectionLost:"Connection lost",reconnecting:"Reconnecting...",connecting:"Connecting...",confirmed:"Confirmed 🏪"};
   function updateStatusBadge(key,type){ const el=document.getElementById("statusBadge"); el.innerText=STATUS_BADGE_LABELS[key]||key; el.className=type||""; }
 
   async function loadOrder() {
@@ -612,22 +648,80 @@
     }
   }
 
-  /* ── connectSocket ────────────────────────────────────────────
-     ✅ Sends type=customer and orderId on connection.
-     Server validates orderId against DB before adding to room —
-     so fake/non-existent orderId connections never receive events.
-     orderStatusUpdate handler also does a String comparison to
-     guard against any theoretical cross-order leakage.
-  ─────────────────────────────────────────────────────────────── */
+  /* ═══════════════════════════════════════════════════════════
+     connectSocket — reconnect handling
+     ─────────────────────────────────────────────────────────
+     connect      → hide reconnect banner, show "Live tracking"
+     disconnect   → show reconnect banner, start inertia pred
+     reconnect_attempt → update banner with attempt count
+     connect_error → show error badge, show retry button
+  ═══════════════════════════════════════════════════════════ */
   function connectSocket() {
     if (typeof io==="undefined") { updateStatusBadge("serverOffline","error"); startOfflinePrediction(); return; }
     if (socketInstance&&socketInstance.connected) return;
     if (socketInstance) socketInstance.disconnect();
-    socketInstance=io("/",{ query:{type:"customer",orderId:orderId}, reconnection:true, reconnectionDelay:1000, reconnectionAttempts:10 });
 
-    socketInstance.on("connect",()=>{ stopOfflinePrediction(); document.getElementById("retryBtn").style.display="none"; updateStatusBadge("onTheWay","connected"); });
+    socketInstance = io("/", {
+      query: { type: "customer", orderId: orderId },
+      reconnection:        true,
+      reconnectionDelay:   1000,   // wait 1s before first retry
+      reconnectionDelayMax:5000,   // cap at 5s between retries
+      reconnectionAttempts:20      // try up to 20 times (~90s total)
+    });
 
-    socketInstance.on("orderLocationUpdate",(data)=>{
+    /* ── CONNECTED ────────────────────────────────────────── */
+    socketInstance.on("connect", () => {
+      // Hide all disconnect-related UI
+      hideReconnectBanner();
+      stopOfflinePrediction();
+      document.getElementById("retryBtn").style.display = "none";
+
+      // Restore live status badge
+      updateStatusBadge("onTheWay", "connected");
+
+      // Brief toast so the customer knows tracking resumed
+      if (reconnectAttempt > 0) {
+        showToast("✅ Live tracking restored", 2500);
+      }
+    });
+
+    /* ── DISCONNECTED ─────────────────────────────────────── */
+    socketInstance.on("disconnect", (reason) => {
+      // Show reconnect banner immediately
+      showReconnectBanner(0);
+
+      // Update badge to "Reconnecting..."
+      updateStatusBadge("reconnecting", "pulse");
+
+      // Keep the map alive using inertia prediction
+      startOfflinePrediction();
+
+      console.log("Socket disconnected:", reason);
+    });
+
+    /* ── RECONNECT ATTEMPT ────────────────────────────────── */
+    socketInstance.on("reconnect_attempt", (attempt) => {
+      reconnectAttempt = attempt;
+      showReconnectBanner(attempt);
+    });
+
+    /* ── RECONNECT FAILED (all attempts exhausted) ────────── */
+    socketInstance.on("reconnect_failed", () => {
+      hideReconnectBanner();
+      updateStatusBadge("connectionLost", "error");
+      document.getElementById("retryBtn").style.display = "inline-block";
+      showToast("❌ Could not reconnect — tap Retry", 4000);
+    });
+
+    /* ── CONNECT ERROR (first connection failed) ──────────── */
+    socketInstance.on("connect_error", () => {
+      updateStatusBadge("connectionLost", "error");
+      document.getElementById("retryBtn").style.display = "inline-block";
+      startOfflinePrediction();
+    });
+
+    /* ── LOCATION UPDATE ──────────────────────────────────── */
+    socketInstance.on("orderLocationUpdate", (data) => {
       if (!data||!data.lat||!data.lng) return;
       const lat=parseFloat(data.lat), lng=parseFloat(data.lng);
       if (isNaN(lat)||isNaN(lng)) return;
@@ -639,33 +733,38 @@
       if (lastPosition&&lastTime) { const dt=Math.max((now-lastTime)/1000,.5); lastVelocity={vLat:(newPos.lat-lastPosition.lat)/dt,vLng:(newPos.lng-lastPosition.lng)/dt}; }
       if (lastPosition&&getDistanceMeters(lastPosition,newPos)>5) updateBikeHeading(getBearing(lastPosition,newPos));
       lastPosition=newPos; lastTime=now;
-      if (riderMarker) smoothMoveMarker(newPos); // ✅ smooth — no jumps
+      if (riderMarker) smoothMoveMarker(newPos);
       updateAccuracyCircle(newPos,data.accuracy||40);
       if (shouldUpdateRoute(newPos)) drawTrafficRoute(newPos,customerPos);
     });
 
-    socketInstance.on("orderStatusUpdate",(data)=>{
-      // ✅ Guard: ignore events that don't belong to this customer's order
-      if (String(data.orderId)!==String(orderId)) return;
+    /* ── STATUS UPDATE ────────────────────────────────────── */
+    socketInstance.on("orderStatusUpdate", (data) => {
+      // Guard: ignore events that don't belong to this customer's order
+      if (String(data.orderId) !== String(orderId)) return;
       const s=data.status; updateTimeline(s);
       if (s==="delivered") { updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); speak("speechDelivered"); if(!popupShown){popupShown=true;triggerDelivery();} }
       else if (s==="on_the_way") { updateStatusBadge("onTheWay","connected"); setStatusHero("on_the_way",riderName+" picked up your order!"); speak("speechOnTheWay"); showToast("🛵 "+riderName+" is on the way!"); }
       else if (s==="confirmed") { updateStatusBadge("confirmed",""); setStatusHero("confirmed","Kitchen is preparing your order"); showToast("🏪 Your order has been confirmed!"); }
     });
-
-    socketInstance.on("connect_error",()=>{ updateStatusBadge("connectionLost","error"); document.getElementById("retryBtn").style.display="inline-block"; startOfflinePrediction(); });
-    socketInstance.on("disconnect",()=>{ updateStatusBadge("reconnecting","pulse"); startOfflinePrediction(); });
   }
 
   function retryConnection() {
-    stopOfflinePrediction(); updateStatusBadge("connecting","pulse"); document.getElementById("retryBtn").style.display="none";
+    stopOfflinePrediction();
+    hideReconnectBanner();
+    updateStatusBadge("connecting","pulse");
+    document.getElementById("retryBtn").style.display="none";
     if (typeof io==="undefined") {
       const s=document.createElement("script"); s.src="/socket.io/socket.io.js"; s.onload=connectSocket; s.onerror=()=>updateStatusBadge("serverOffline","error"); document.body.appendChild(s);
-    } else { connectSocket(); }
+    } else {
+      // Force a fresh socket connection on manual retry
+      if (socketInstance) { socketInstance.disconnect(); socketInstance=null; }
+      connectSocket();
+    }
   }
 
   // ── Boot ─────────────────────────────────────────────────
-  if (!orderId||!validOrder) {
+  if (!orderId || !validOrder) {
     document.getElementById("loadingText").innerText="❌ Invalid order ID. Use /track/123";
     document.getElementById("retryBtn").style.display="none";
   } else {
