@@ -1,14 +1,14 @@
 /* ═══════════════════════════════════════════════════════════════
-   MAGIZHAM BACKEND — server.js  PRODUCTION v1.6.1
-   Fixes applied:
+   MAGIZHAM BACKEND — server.js  PRODUCTION v1.7.0
+   Fixes applied previously:
      ✅ AUTH: JWT required on all write routes — 401 on missing/bad token
      ✅ DB THROTTLE: Socket location writes every 5 s per socket.id
      ✅ CLEANUP: dbUpdateTimestamps removed on disconnect
      ✅ SOCKET GUARD: riderLocationUpdate rejects if data.orderId is missing
-   Unchanged:
-     ✓ Weather proxy (/api/weather)
-     ✓ rider_locations schema
-     ✓ Health endpoint
+   New Features Added (v1.7.0):
+     🚀 ETA ENGINE: Calculates distance to customer and returns ETA in mins
+     🚦 STUCK DETECTION: Flags rider if moved < 50m in 3 minutes
+     📍 GEOFENCING: Auto-detects 'at_restaurant' and 'arrived_at_customer' (150m radius)
 ═══════════════════════════════════════════════════════════════ */
 require('dotenv').config();
 
@@ -33,11 +33,29 @@ const RESTAURANT_LAT = 25.2426266;
 const RESTAURANT_LNG = 55.3026453;
 const JWT_SECRET     = process.env.JWT_SECRET || "magizham-dev-secret-2025";
 
-// ── DB WRITE THROTTLE MAP ────────────────────────────────────
-// Key: socket.id  Value: Date.now() of last DB write
-// Lets socket broadcasts happen instantly but caps DB writes to every 5 s.
-const dbUpdateTimestamps   = {};
+// ── ENGINE CONFIGURATIONS ────────────────────────────────────
 const DB_WRITE_INTERVAL_MS = 5000;
+const STUCK_TIME_MS        = 3 * 60 * 1000; // 3 minutes
+const STUCK_RADIUS_KM      = 0.05;          // 50 meters
+const GEOFENCE_RADIUS_KM   = 0.15;          // 150 meters
+const AVG_CITY_SPEED_KMH   = 30;            // 30 km/h average speed for ETA
+
+// ── IN-MEMORY STATE ──────────────────────────────────────────
+const dbUpdateTimestamps = {}; // Key: socket.id, Value: timestamp
+const activeDeliveries   = {}; // Key: orderId, Value: Tracking State Object
+const fetchingDeliveries = {}; // Locks for DB queries
+
+// ── HELPER: HAVERSINE DISTANCE ───────────────────────────────
+function getDistanceKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  return R * c;
+}
 
 // ── SOCKET.IO ────────────────────────────────────────────────
 const io = new Server(server, {
@@ -55,13 +73,8 @@ app.use(cors({ origin: "*" }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-/* ── AUTH MIDDLEWARE — PRODUCTION ─────────────────────────────
-   Every mutating request must carry a valid Bearer JWT.
-   Public GET /track endpoints are exempted.
-   ✅ FIX 1: No dev bypass. Missing or bad token → 401 immediately.
-─────────────────────────────────────────────────────────────── */
+/* ── AUTH MIDDLEWARE — PRODUCTION ───────────────────────────── */
 function authMiddleware(req, res, next) {
-  // Always allow the public read-only tracking endpoint
   if (req.method === "GET" && req.path.endsWith("/track")) return next();
 
   const header = (req.headers.authorization || "").trim();
@@ -118,7 +131,6 @@ pool.connect()
       )
     `);
 
-    // Safe migration — adds columns if the table already existed without them
     await pool.query(`
       ALTER TABLE rider_locations
         ADD COLUMN IF NOT EXISTS speed      NUMERIC(5,1)  DEFAULT 0,
@@ -127,7 +139,6 @@ pool.connect()
         ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP     DEFAULT NOW()
     `);
 
-    // Seed test order (no-op if id=1 already exists)
     await pool.query(`
       INSERT INTO orders
         (id, user_id, total, status, rider_name, rider_phone, lat, lng, delivery_lat, delivery_lng)
@@ -164,7 +175,17 @@ app.get("/api/orders/:id/track", async (req, res) => {
       [req.params.id]
     );
     if (!result.rows.length) return res.status(404).json({ error: "Order not found" });
-    res.json(result.rows[0]);
+    
+    // Inject current tracking state if available in memory
+    const data = result.rows[0];
+    const trackingState = activeDeliveries[req.params.id];
+    if (trackingState) {
+        data.eta_mins = trackingState.etaMins;
+        data.is_stuck = trackingState.isStuck;
+        data.geofence = trackingState.geofence;
+    }
+    
+    res.json(data);
   } catch (err) {
     console.error("Track fetch error:", err);
     res.status(500).json({ error: "Server error" });
@@ -185,6 +206,10 @@ app.post("/api/orders/:id/status", authMiddleware, async (req, res) => {
     await pool.query("UPDATE orders SET status = $1 WHERE id = $2", [status, id]);
     io.to(`order_${id}`).emit("orderStatusUpdate", { orderId: id, status });
     console.log(`📋 Order ${id} → ${status}`);
+    
+    // Cleanup state if delivered
+    if (status === 'delivered') delete activeDeliveries[id];
+
     res.json({ success: true, orderId: id, status });
   } catch (err) {
     console.error("Status update error:", err);
@@ -193,8 +218,6 @@ app.post("/api/orders/:id/status", authMiddleware, async (req, res) => {
 });
 
 // ── RIDER LOCATION REST (protected) ──────────────────────────
-// REST fallback for PowerShell tests or external integrations.
-// Rider app uses Socket.IO for real-time — this is the write-through path.
 app.post("/api/rider/location", authMiddleware, async (req, res) => {
   const { orderId, lat, lng, speed, heading, accuracy } = req.body;
 
@@ -233,7 +256,6 @@ app.post("/api/rider/location", authMiddleware, async (req, res) => {
       io.to(`order_${orderId}`).emit("orderLocationUpdate", {
         lat: pLat, lng: pLng, speed: pSpd, heading: pHdg, accuracy: pAcc
       });
-      console.log(`📍 REST: Order ${orderId} → ${pLat.toFixed(6)}, ${pLng.toFixed(6)}`);
     }
     res.json({ success: true });
   } catch (err) {
@@ -242,11 +264,7 @@ app.post("/api/rider/location", authMiddleware, async (req, res) => {
   }
 });
 
-/* ── WEATHER PROXY ─────────────────────────────────────────────
-   Rider app calls /api/weather?lat=&lon= — no browser CORS issue.
-   Returns current temperature_2m (shape: d.current.temperature_2m).
-   Rider.html handles both shapes: current_weather.temperature ?? current.temperature_2m
-─────────────────────────────────────────────────────────────── */
+/* ── WEATHER PROXY ───────────────────────────────────────────── */
 app.get("/api/weather", (req, res) => {
   const lat = parseFloat(req.query.lat) || RESTAURANT_LAT;
   const lon = parseFloat(req.query.lon) || RESTAURANT_LNG;
@@ -281,15 +299,13 @@ app.get("/api/health", (req, res) => {
   res.json({
     status:  "✅ Running",
     uptime:  Math.floor(process.uptime()),
-    version: "1.6.1",
-    db:      "Railway PostgreSQL",
-    auth:    "JWT required — production hardened",
-    db_throttle: `${DB_WRITE_INTERVAL_MS / 1000}s per socket`,
+    version: "1.7.0",
+    db:      "PostgreSQL",
+    engines: "ETA, Geofence, Stuck Detection Active",
     endpoints: {
       track:   "/track/:orderId",
       rider:   "/rider",
-      health:  "/api/health",
-      weather: "/api/weather?lat=25.24&lon=55.30"
+      health:  "/api/health"
     }
   });
 });
@@ -301,7 +317,6 @@ io.on("connection", async (socket) => {
   const type    = socket.handshake.query.type    || "unknown";
   const orderId = socket.handshake.query.orderId;
 
-  // Validate the order before joining its room (prevents spoofed room joins)
   if (orderId) {
     try {
       const result = await pool.query(
@@ -311,25 +326,16 @@ io.on("connection", async (socket) => {
       if (result.rows.length > 0) {
         socket.join(`order_${orderId}`);
         socket.orderId = orderId;
-        console.log(`✅ [${type}] joined order_${orderId} | ${socket.id} | ${socket.conn.transport.name}`);
-      } else {
-        console.warn(`⚠️  [${type}] order_${orderId} not found — not joining room`);
+        console.log(`✅ [${type}] joined order_${orderId} | ${socket.id}`);
       }
     } catch (err) {
       console.error("Socket room validation:", err.message);
     }
-  } else {
-    console.log(`✅ [${type}] connected — no order | ${socket.id}`);
   }
 
   socket.emit("connected", { message: "Socket connected to Magizham", orderId: orderId || null, socketId: socket.id });
 
-  /* ── Rider GPS update ─────────────────────────────────────
-     Broadcast: instant (every call)
-     DB write: throttled to DB_WRITE_INTERVAL_MS per socket.id
-  ──────────────────────────────────────────────────────────── */
   socket.on("riderLocationUpdate", async (data) => {
-    // ✅ Guard: reject immediately if no orderId — prevents invalid broadcasts and DB ops
     if (!data || !data.orderId) return;
 
     const { lat, lng, orderId: oId, speed, heading, accuracy } = data;
@@ -342,18 +348,93 @@ io.on("connection", async (socket) => {
     const pSpd = parseFloat(speed)    || 0;
     const pHdg = parseFloat(heading)  || 0;
     const pAcc = parseFloat(accuracy) || 40;
+    const now  = Date.now();
 
-    // Always broadcast instantly to customer tracking page
+    /* ==============================================================
+       🚀 ENGINE LAYER: ETA, STUCK DETECTION, & GEOFENCING
+       ============================================================== */
+    
+    // 1. Lazy-load delivery coordinates if not in memory
+    if (!activeDeliveries[oId] && !fetchingDeliveries[oId]) {
+        fetchingDeliveries[oId] = true;
+        pool.query('SELECT delivery_lat, delivery_lng FROM orders WHERE id = $1', [oId])
+            .then(res => {
+                if(res.rows.length && res.rows[0].delivery_lat) {
+                    activeDeliveries[oId] = {
+                        delLat: parseFloat(res.rows[0].delivery_lat),
+                        delLng: parseFloat(res.rows[0].delivery_lng),
+                        lastLat: pLat, lastLng: pLng, lastMoveTs: now,
+                        isStuck: false, geofence: 'restaurant', etaMins: null
+                    };
+                }
+            })
+            .catch(e => console.error("Delivery fetch error:", e))
+            .finally(() => delete fetchingDeliveries[oId]);
+    }
+
+    let payloadEnrichments = {};
+    const state = activeDeliveries[oId];
+
+    if (state) {
+        // --- 1. ETA ENGINE ---
+        const distToCustKm = getDistanceKm(pLat, pLng, state.delLat, state.delLng);
+        const roadDistKm = distToCustKm * 1.3; // 1.3x multiplier for road vs straight-line
+        state.etaMins = Math.ceil((roadDistKm / AVG_CITY_SPEED_KMH) * 60);
+        payloadEnrichments.etaMins = state.etaMins;
+
+        // --- 2. GEOFENCING ---
+        const distToRestKm = getDistanceKm(pLat, pLng, RESTAURANT_LAT, RESTAURANT_LNG);
+        
+        let newGeofence = state.geofence;
+        if (distToCustKm <= GEOFENCE_RADIUS_KM) {
+            newGeofence = 'arrived_at_customer';
+        } else if (distToRestKm <= GEOFENCE_RADIUS_KM) {
+            newGeofence = 'at_restaurant';
+        } else {
+            newGeofence = 'transit';
+        }
+
+        if (newGeofence !== state.geofence) {
+            state.geofence = newGeofence;
+            io.to(`order_${oId}`).emit("geofenceEvent", { status: state.geofence, orderId: oId });
+            console.log(`📍 Geofence: Order ${oId} is now [${state.geofence}]`);
+        }
+        payloadEnrichments.geofence = state.geofence;
+
+        // --- 3. STUCK DETECTION ---
+        const distMovedKm = getDistanceKm(pLat, pLng, state.lastLat, state.lastLng);
+        if (distMovedKm > STUCK_RADIUS_KM) {
+            // Rider has moved meaningfully
+            state.lastLat = pLat;
+            state.lastLng = pLng;
+            state.lastMoveTs = now;
+            if (state.isStuck) {
+                state.isStuck = false;
+                io.to(`order_${oId}`).emit("stuckEvent", { status: 'moving', orderId: oId });
+            }
+        } else {
+            // Rider hasn't moved meaningfully, check time
+            if ((now - state.lastMoveTs) > STUCK_TIME_MS && !state.isStuck) {
+                state.isStuck = true;
+                io.to("owners").emit("riderAlert", { type: 'stuck', orderId: oId, lat: pLat, lng: pLng });
+                io.to(`order_${oId}`).emit("stuckEvent", { status: 'stuck', orderId: oId });
+                console.log(`⚠️ STUCK: Order ${oId} (No movement in 3 mins)`);
+            }
+        }
+        payloadEnrichments.isStuck = state.isStuck;
+    }
+    /* ============================================================== */
+
+    // Broadcast instantly to customer tracking page (with enrichments)
     if (oId) {
       socket.to(`order_${oId}`).emit("orderLocationUpdate", {
-        lat: pLat, lng: pLng, speed: pSpd, heading: pHdg, accuracy: pAcc
+        lat: pLat, lng: pLng, speed: pSpd, heading: pHdg, accuracy: pAcc,
+        ...payloadEnrichments
       });
     }
 
-    // ✅ FIX 2: DB write only every 5 seconds per socket
-    const now    = Date.now();
+    // DB write throttle (every 5s)
     const lastDb = dbUpdateTimestamps[socket.id] || 0;
-
     if (oId && (now - lastDb) >= DB_WRITE_INTERVAL_MS) {
       dbUpdateTimestamps[socket.id] = now;
       try {
@@ -373,7 +454,6 @@ io.on("connection", async (socket) => {
                  updated_at = NOW()`,
           [oId, pLat, pLng, pSpd, pHdg, pAcc]
         );
-        console.log(`📍 DB write: Order ${oId} → ${pLat.toFixed(6)}, ${pLng.toFixed(6)}`);
       } catch (err) {
         console.error("Socket DB write error:", err.message);
       }
@@ -391,6 +471,9 @@ io.on("connection", async (socket) => {
       await pool.query("UPDATE orders SET status = $1 WHERE id = $2", [status, oId]);
       io.to(`order_${oId}`).emit("orderStatusUpdate", { orderId: oId, status });
       console.log(`📋 Socket: Order ${oId} → ${status}`);
+      
+      // Cleanup
+      if (status === 'delivered') delete activeDeliveries[oId];
     } catch (err) {
       console.error("Socket status error:", err.message);
     }
@@ -406,7 +489,6 @@ io.on("connection", async (socket) => {
     io.to(`rider_${data.toRider}`).emit("orderTransferIncoming", { orderId: data.orderId });
   });
 
-  // ✅ FIX 3: Remove throttle entry on disconnect to prevent memory leak
   socket.on("disconnect", (reason) => {
     delete dbUpdateTimestamps[socket.id];
     console.log(`❌ [${type}] disconnected | Order: ${orderId || "none"} | ${reason}`);
@@ -424,9 +506,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, "0.0.0.0", () => {
   console.log("");
-  console.log("🚀 Magizham Backend v1.6.1 — PRODUCTION");
+  console.log("🚀 Magizham Backend v1.7.0 — PRODUCTION");
   console.log(`   http://localhost:${PORT}`);
   console.log(`   Auth: JWT required on all write routes`);
-  console.log(`   DB throttle: ${DB_WRITE_INTERVAL_MS / 1000}s per socket`);
+  console.log(`   Engines: ETA, Geofencing, Stuck Detection [ACTIVE]`);
   console.log("");
 });

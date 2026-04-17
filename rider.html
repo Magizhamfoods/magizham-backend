@@ -11,11 +11,11 @@
   <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Mono:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* ═══════════════════════════════════════════════════════════
-   MAGIZHAM RIDER v5.1
+   MAGIZHAM RIDER v5.3
    Design: Industrial precision + neon-on-dark
    Weather: /api/weather?lat=&lon= proxy (primary) + 3 fallbacks
    Nav: Deep-link only (no deprecated Maps SDK)
-   GPS: Retry logic + performance mode + auto stage detection
+   GPS: Adaptive Frequency + Heading/Speed transmission
    UX: FAB menu, welfare check, offline cache, earnings popup
 ═══════════════════════════════════════════════════════════ */
 :root {
@@ -723,12 +723,14 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
       <div class="sb"><div class="sl">Latitude</div><div class="sv mono" id="dLat">——</div></div>
       <div class="sb"><div class="sl">Longitude</div><div class="sv mono" id="dLng">——</div></div>
       <div class="sb"><div class="sl">Speed</div><div class="sv a mono" id="dSpeed">——</div></div>
+      <div class="sb"><div class="sl">Heading</div><div class="sv mono" id="dHeading">——</div></div>
       <div class="sb"><div class="sl">Accuracy</div><div class="sv mono" id="dAcc">——</div></div>
       <div class="sb"><div class="sl">Pings Sent</div><div class="sv mono" id="pingCnt">0</div></div>
       <div class="sb" style="display:flex;flex-direction:column;justify-content:space-between;">
         <div class="sl">Signal</div>
         <div class="sig-bars"><div class="bar" id="b1"></div><div class="bar" id="b2"></div><div class="bar" id="b3"></div><div class="bar" id="b4"></div></div>
       </div>
+      <div class="sb"><div class="sl">Emit Rate</div><div class="sv mono" id="gpsMode" style="font-size:12px;color:var(--tx2);">—</div></div>
     </div>
   </div>
 
@@ -970,17 +972,13 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
 <script src="/socket.io/socket.io.js"></script>
 <script>
 /* ═══════════════════════════════════════════════════════════
-   MAGIZHAM RIDER v5.2 — JavaScript (PRODUCTION)
-   ✅ CORS fix: /api/weather?lat=&lon= backend proxy (primary) + 3 fallbacks
-   ✅ GPS: 1-second guaranteed emit interval (works on throttled Android devices)
-   ✅ GPS: watchPosition fires on every position change + includes speed+accuracy
-   ✅ GPS: retry with exponential back-off (3 attempts)
-   ✅ GPS: performance mode — kills heavy animations while tracking
+   MAGIZHAM RIDER v5.3 — JavaScript (PRODUCTION)
+   ✅ GPS: Adaptive frequency (1s to 4s) based on rider speed
+   ✅ GPS: Properly extracts & transmits speed + heading
+   ✅ GPS: watchPosition throttles emissions logically to save battery
+   ✅ CORS fix: /api/weather proxy (primary) + 3 fallbacks
    ✅ Offline: localStorage cache + queue flush on reconnect
-   ✅ Auto stage detection (restaurant + customer proximity)
-   ✅ Welfare check with auto-SOS + auto-transfer
-   ✅ Navigation: deep-link only (no deprecated Maps SDK)
-   ✅ All coords in named constants
+   ✅ Auto stage detection & Welfare checks
 ═══════════════════════════════════════════════════════════ */
 
 /* ─── BUILDING DATABASE ─────────────────────────────────── */
@@ -1038,14 +1036,14 @@ const VOICE_KW = {
 
 /* ─── STATE ─────────────────────────────────────────────── */
 let socket=null, isOnline=false, isTracking=false, watchId=null, gpsRetries=0;
-let gpsEmitInterval=null;   // guaranteed 1-second emit even between watchPosition callbacks
+let gpsTimeout=null;      // Replaces simple interval for adaptive loop
 let currentOrderId=null, currentOrder=null, stage=0;
 let pingCnt=0, todayDel=0, todayEarn=0;
 let custMsgArr=[], kitMsgArr=[];
 let podData=null, currentDocKey=null, withdrawnToday=false;
-let lastLat=null, lastLng=null, lastSpeed=null, lastAcc=null;
+let lastLat=null, lastLng=null, lastSpeed=null, lastHeading=null, lastAcc=null;
 let lastMoveLat=null, lastMoveLng=null;
-let lastMoveTime=Date.now();
+let lastMoveTime=Date.now(), lastEmitTime=0;
 let wfTimer=null, wfCDInt=null, wfActive=false;
 let stuckTimer=null;
 let fabOpen=false;
@@ -1061,126 +1059,56 @@ const DOC_IDS={rta:"rta",medical:"med",insurance:"ins",emirates:"em",driving:"dr
 
 /* ══════════════════════════════════════════════════════════
    LOCATION CONSTANTS — Al Karama, Dubai
-   Change these if Magizham relocates.
 ══════════════════════════════════════════════════════════ */
 const DUBAI_LAT = 25.2285;   // Al Karama latitude
 const DUBAI_LNG = 55.3088;   // Al Karama longitude
 
-/* ══════════════════════════════════════════════════════════
-   FIX 1: WEATHER — 4-tier fallback, zero CORS risk.
-
-   PRIMARY: Backend proxy at /api/weather?lat=&lon=
-   ─────────────────────────────────────────────────────────
-   Add this single route to your Node.js / Express backend:
-
-     app.get('/api/weather', async (req, res) => {
-       const { lat = 25.2285, lon = 55.3088 } = req.query;
-       try {
-         const r = await fetch(
-           `https://api.open-meteo.com/v1/forecast` +
-           `?latitude=${lat}&longitude=${lon}` +
-           `&current_weather=true&temperature_unit=celsius`
-         );
-         const data = await r.json();
-         res.json(data);
-       } catch (err) {
-         res.status(502).json({ error: 'Weather upstream failed' });
-       }
-     });
-
-   That one route eliminates ALL CORS issues permanently.
-   The three fallbacks below only run if your backend is down.
-══════════════════════════════════════════════════════════ */
+/* ─── WEATHER PROXY ─────────────────────────────────────── */
 async function fetchWeather() {
-
-  /* ── Try 1 (PRIMARY): Backend proxy — no CORS, always works ── */
+  /* Try 1: Proxy Backend */
   try {
-    const r = await fetch(
-      `/api/weather?lat=${DUBAI_LAT}&lon=${DUBAI_LNG}`,
-      { signal: AbortSignal.timeout(4000) }
-    );
+    const r = await fetch(`/api/weather?lat=${DUBAI_LAT}&lon=${DUBAI_LNG}`, { signal: AbortSignal.timeout(4000) });
     if (r.ok) {
-      const d = await r.json();
-      const t = d.current_weather?.temperature ?? d.current?.temperature_2m;
-      if (t != null) {
-        applyTemp(Math.round(t));
-        log(`Weather (proxy): ${Math.round(t)}°C`, "ok");
-        return;
-      }
+      const d = await r.json(); const t = d.current_weather?.temperature ?? d.current?.temperature_2m;
+      if (t != null) { applyTemp(Math.round(t)); log(`Weather (proxy): ${Math.round(t)}°C`, "ok"); return; }
     }
-  } catch(e) { /* backend down — fall through */ }
-
-  /* ── Try 2: Open-Meteo direct (browser CORS allowed on their CDN) ── */
+  } catch(e) {}
+  /* Try 2: Open-Meteo Direct */
   try {
-    const r = await fetch(
-      `https://api.open-meteo.com/v1/forecast` +
-      `?latitude=${DUBAI_LAT}&longitude=${DUBAI_LNG}` +
-      `&current_weather=true&temperature_unit=celsius`,
-      { signal: AbortSignal.timeout(5000), mode: "cors" }
-    );
+    const r = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${DUBAI_LAT}&longitude=${DUBAI_LNG}&current_weather=true&temperature_unit=celsius`, { signal: AbortSignal.timeout(5000), mode: "cors" });
     if (r.ok) {
-      const d = await r.json();
-      const t = d.current_weather?.temperature;
-      if (t != null) {
-        applyTemp(Math.round(t));
-        log(`Weather (open-meteo direct): ${Math.round(t)}°C`, "ok");
-        return;
-      }
+      const d = await r.json(); const t = d.current_weather?.temperature;
+      if (t != null) { applyTemp(Math.round(t)); log(`Weather (open-meteo): ${Math.round(t)}°C`, "ok"); return; }
     }
-  } catch(e) { /* CORS blocked in this env — fall through */ }
-
-  /* ── Try 3: wttr.in — separate free API, solid browser CORS support ── */
+  } catch(e) {}
+  /* Try 3: wttr.in */
   try {
-    const r = await fetch(
-      "https://wttr.in/Dubai?format=j1",
-      { signal: AbortSignal.timeout(5000) }
-    );
+    const r = await fetch("https://wttr.in/Dubai?format=j1", { signal: AbortSignal.timeout(5000) });
     if (r.ok) {
-      const d = await r.json();
-      const t = parseInt(d.current_condition?.[0]?.temp_C);
-      if (!isNaN(t)) {
-        applyTemp(t);
-        log(`Weather (wttr.in): ${t}°C`, "ok");
-        return;
-      }
+      const d = await r.json(); const t = parseInt(d.current_condition?.[0]?.temp_C);
+      if (!isNaN(t)) { applyTemp(t); log(`Weather (wttr.in): ${t}°C`, "ok"); return; }
     }
-  } catch(e) { /* also down — fall through */ }
-
-  /* ── Try 4 (FINAL FALLBACK): Seasonal Dubai estimate — never fails ── */
-  const hr = new Date().getHours();
-  const mo = new Date().getMonth(); // 0 = Jan, 11 = Dec
-  const isSummer = mo >= 4 && mo <= 9; // May–Oct
-  const est = isSummer
-    ? (hr >= 12 && hr <= 17 ? 45 : 38)   // peak afternoon vs morning/night
-    : (hr >= 12 && hr <= 16 ? 32 : 26);  // winter peak vs cooler hours
-  applyTemp(est);
-  log("Weather: all sources unavailable — using seasonal estimate", "w");
+  } catch(e) {}
+  /* Try 4: Fallback */
+  const hr = new Date().getHours(), mo = new Date().getMonth(), isSummer = mo >= 4 && mo <= 9;
+  const est = isSummer ? (hr >= 12 && hr <= 17 ? 45 : 38) : (hr >= 12 && hr <= 16 ? 32 : 26);
+  applyTemp(est); log("Weather: all sources failed — using estimate", "w");
 }
 
 function applyTemp(t) {
-  tempC = t;
-  const isHot = t >= 40;
-  // Header banner
+  tempC = t; const isHot = t >= 40;
   document.getElementById("heatTemp").textContent = t+"°C";
-  document.getElementById("heatMsg").textContent = t>=45
-    ? "⚠️ EXTREME HEAT — mandatory break now"
-    : t>=40 ? "Mandatory hydration break recommended"
-    : "Conditions safe · Stay hydrated";
+  document.getElementById("heatMsg").textContent = t>=45 ? "⚠️ EXTREME HEAT — mandatory break now" : t>=40 ? "Mandatory hydration break recommended" : "Conditions safe · Stay hydrated";
   document.getElementById("heatBanner").classList.toggle("show", isHot);
-  // Docs heat card
   document.getElementById("hdTemp").textContent = t+"°C";
-  document.getElementById("hdBody").textContent = isHot
-    ? `${t}°C — UAE law requires rest breaks above 40°C. Stop every 30 min. The station below is your nearest mandatory hydration point.`
-    : `${t}°C — Conditions are safe. Keep water with you and check back in 15 minutes.`;
+  document.getElementById("hdBody").textContent = isHot ? `${t}°C — UAE law requires rest breaks above 40°C. Stop every 30 min. The station below is your nearest mandatory hydration point.` : `${t}°C — Conditions are safe. Keep water with you and check back in 15 minutes.`;
   document.getElementById("heatDocsCard").classList.toggle("show", isHot);
-  // Stations: add urgent border + mandatory tag
   ["st0","st1","st2"].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     el.classList.toggle("hot-mode", isHot);
     let ht=el.querySelector(".stag.h.mandatory");
     if(isHot && !ht){
-      const s=document.createElement("span"); s.className="stag h mandatory";
-      s.textContent="🌡️ Mandatory"; el.querySelector(".stags").appendChild(s);
+      const s=document.createElement("span"); s.className="stag h mandatory"; s.textContent="🌡️ Mandatory"; el.querySelector(".stags").appendChild(s);
     } else if(!isHot && ht) ht.remove();
   });
   if(isHot) toast(`🌡️ ${t}°C in Al Karama — hydrate now!`,"hot");
@@ -1188,52 +1116,34 @@ function applyTemp(t) {
 
 function goHydration() { switchScreen("Docs"); setTimeout(()=>document.getElementById("stationCard").scrollIntoView({behavior:"smooth"}),250); }
 
-/* ══════════════════════════════════════════════════════════
-   FIX 2: NAVIGATION — Pure deep link, no deprecated SDK
-══════════════════════════════════════════════════════════ */
+/* ─── NAVIGATION ────────────────────────────────────────── */
 function openNavigation() {
   if (!currentOrder) { toast("Load an order first","w"); return; }
   const addr = encodeURIComponent(currentOrder.customer_address || "Al Karama, Dubai");
-  // iOS: prefers maps:// | Android: geo: | fallback: google.com URL
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const url = isIOS
-    ? `maps://?daddr=${addr}`
-    : `https://www.google.com/maps/dir/?api=1&destination=${addr}&travelmode=driving`;
+  const url = isIOS ? `maps://?daddr=${addr}` : `https://www.google.com/maps/dir/?api=1&destination=${addr}&travelmode=driving`;
   window.open(url, "_blank");
   log("Navigation opened: "+currentOrder.customer_address,"ok");
 }
 
-/* ══════════════════════════════════════════════════════════
-   FIX 3: AUTO GPS STAGE DETECTION
-   - Within 80m of restaurant lat/lng → suggest Pickup
-   - Within 60m of customer lat/lng  → suggest Arrived
-══════════════════════════════════════════════════════════ */
+/* ─── AUTO GPS STAGE DETECTION ──────────────────────────── */
 let autoStagePending=null;
-// Change these to your actual Magizham kitchen GPS coordinates.
-// DUBAI_LAT/LNG above are the delivery zone centre used for weather only.
-const RESTAURANT_LAT = 25.2305;  // Magizham kitchen latitude
-const RESTAURANT_LNG = 55.3082;  // Magizham kitchen longitude
+const RESTAURANT_LAT = 25.2305, RESTAURANT_LNG = 55.3082; 
 
 function checkAutoStage(lat, lng) {
   if (!currentOrderId || stage>=4) return;
-
-  // Near restaurant & at pickup stage
   if (stage===0) {
     const dRest = haversine(lat,lng,RESTAURANT_LAT,RESTAURANT_LNG);
     if (dRest < 80 && autoStagePending!=="pickup") {
-      autoStagePending="pickup";
-      showAutoHint("🍳","Near Magizham Kitchen","Confirm you've picked up the order?","pickup");
+      autoStagePending="pickup"; showAutoHint("🍳","Near Magizham Kitchen","Confirm you've picked up the order?","pickup");
     }
   }
-  // Near customer & at en-route stage
   if (stage===2 && currentOrder?.customer_lat && currentOrder?.customer_lng) {
     const dCust = haversine(lat,lng, parseFloat(currentOrder.customer_lat), parseFloat(currentOrder.customer_lng));
     if (dCust < 60 && autoStagePending!=="arrived") {
-      autoStagePending="arrived";
-      showAutoHint("📍","Near delivery address","You appear to have arrived — request OTP?","arrived");
+      autoStagePending="arrived"; showAutoHint("📍","Near delivery address","You appear to have arrived — request OTP?","arrived");
     }
   }
-  // Also check building database
   for (const bld of BUILDINGS) {
     if (haversine(lat,lng,bld.lat,bld.lng) < 50) { showBuildingGuide(bld); return; }
   }
@@ -1241,113 +1151,69 @@ function checkAutoStage(lat, lng) {
 }
 
 function showAutoHint(icon, title, sub, action) {
-  document.getElementById("ahIcon").textContent=icon;
-  document.getElementById("ahTitle").textContent=title;
-  document.getElementById("ahSub").textContent=sub;
-  document.getElementById("ahBtn").dataset.action=action;
-  document.getElementById("autoHint").classList.add("show");
-  toast(`📍 ${title}`, "b");
+  document.getElementById("ahIcon").textContent=icon; document.getElementById("ahTitle").textContent=title; document.getElementById("ahSub").textContent=sub; document.getElementById("ahBtn").dataset.action=action; document.getElementById("autoHint").classList.add("show"); toast(`📍 ${title}`, "b");
 }
 
 function acceptAutoStage() {
-  const action = document.getElementById("ahBtn").dataset.action;
-  document.getElementById("autoHint").classList.remove("show");
-  autoStagePending=null;
-  if (action==="pickup" && stage===0) { stage=1; updatePipeline(); updateActionBtn(); toast("✅ Pickup confirmed","ok"); }
-  else if (action==="arrived" && stage===2) { stage=3; updatePipeline(); updateActionBtn(); toast("✅ Arrived — request OTP","ok"); }
+  const action = document.getElementById("ahBtn").dataset.action; document.getElementById("autoHint").classList.remove("show"); autoStagePending=null;
+  if (action==="pickup" && stage===0) { stage=1; updatePipeline(); updateActBtn(); toast("✅ Pickup confirmed","ok"); }
+  else if (action==="arrived" && stage===2) { stage=3; updatePipeline(); updateActBtn(); toast("✅ Arrived — request OTP","ok"); }
 }
 
 function showBuildingGuide(bld) {
   document.getElementById("bldName").textContent=bld.name;
-  document.getElementById("bldSteps").innerHTML=bld.steps.map((s,i)=>
-    `<div class="bs"><div class="bs-n">${i+1}</div><div class="bs-body"><div class="bs-txt">${s.t}</div>${s.tip?`<div class="bs-tip">💡 ${s.tip}</div>`:""}</div></div>`
-  ).join("");
+  document.getElementById("bldSteps").innerHTML=bld.steps.map((s,i)=>`<div class="bs"><div class="bs-n">${i+1}</div><div class="bs-body"><div class="bs-txt">${s.t}</div>${s.tip?`<div class="bs-tip">💡 ${s.tip}</div>`:""}</div></div>`).join("");
   document.getElementById("bldCard").classList.add("show");
 }
 
 function haversine(a,b,c,d) {
   const R=6371000, r=x=>x*Math.PI/180;
-  const dl=r(c-a), dn=r(d-b);
-  const x=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;
+  const dl=r(c-a), dn=r(d-b), x=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;
   return R*2*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
 }
 
-/* ══════════════════════════════════════════════════════════
-   FIX 4: WELFARE CHECK
-══════════════════════════════════════════════════════════ */
+/* ─── WELFARE CHECK ─────────────────────────────────────── */
 function startWelfareMonitor() {
-  clearTimeout(stuckTimer);
-  if (!currentOrderId||!isTracking) return;
+  clearTimeout(stuckTimer); if (!currentOrderId||!isTracking) return;
   stuckTimer = setTimeout(triggerWelfare, 5*60*1000);
 }
-
 function resetWelfareTimer() {
-  clearTimeout(stuckTimer);
-  if (wfActive) { clearInterval(wfCDInt); document.getElementById("welfarePanel").classList.remove("open"); wfActive=false; }
+  clearTimeout(stuckTimer); if (wfActive) { clearInterval(wfCDInt); document.getElementById("welfarePanel").classList.remove("open"); wfActive=false; }
   startWelfareMonitor();
 }
-
 function triggerWelfare() {
   if (!currentOrderId || stage>=4) return;
-  wfActive=true; let s=60;
-  document.getElementById("wfCD").textContent=s;
-  document.getElementById("welfarePanel").classList.add("open");
-  log("Welfare check triggered","w");
+  wfActive=true; let s=60; document.getElementById("wfCD").textContent=s; document.getElementById("welfarePanel").classList.add("open"); log("Welfare check triggered","w");
   wfCDInt = setInterval(()=>{
     s--; document.getElementById("wfCD").textContent=s;
     if (s<=0) { clearInterval(wfCDInt); autoWelfareEscalate(); }
   },1000);
 }
-
 function autoWelfareEscalate() {
-  document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
-  sendSOS("no_response");
-  setTimeout(openTransfer,1500);
-  log("Auto-SOS: no welfare response","err");
-  toast("🆘 Auto-SOS sent","err");
+  document.getElementById("welfarePanel").classList.remove("open"); wfActive=false; sendSOS("no_response"); setTimeout(openTransfer,1500); log("Auto-SOS: no welfare response","err"); toast("🆘 Auto-SOS sent","err");
 }
-
 function confirmWelfare() {
-  clearInterval(wfCDInt);
-  document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
-  lastMoveTime=Date.now(); resetWelfareTimer();
-  toast("✅ Welfare confirmed — stay safe!","ok");
-  log("Welfare confirmed OK","ok");
+  clearInterval(wfCDInt); document.getElementById("welfarePanel").classList.remove("open"); wfActive=false; lastMoveTime=Date.now(); resetWelfareTimer(); toast("✅ Welfare confirmed — stay safe!","ok"); log("Welfare confirmed OK","ok");
 }
-
 function welfareSOSNow() {
-  clearInterval(wfCDInt);
-  document.getElementById("welfarePanel").classList.remove("open"); wfActive=false;
-  sendSOS("welfare");
+  clearInterval(wfCDInt); document.getElementById("welfarePanel").classList.remove("open"); wfActive=false; sendSOS("welfare");
 }
 
-/* ══════════════════════════════════════════════════════════
-   FIX 5: OFFLINE QUEUE & CACHE
-══════════════════════════════════════════════════════════ */
+/* ─── OFFLINE QUEUE ─────────────────────────────────────── */
 let netOnline=navigator.onLine;
 window.addEventListener("online", ()=>{ netOnline=true; document.getElementById("offlineBar").classList.remove("show"); flushQ(); if(isOnline&&!socket?.connected) initSocket(); log("Network restored","ok"); });
 window.addEventListener("offline",()=>{ netOnline=false; document.getElementById("offlineBar").classList.add("show"); log("Network lost — offline mode","w"); });
 
 function emit(ev, data) {
-  if (socket?.connected && netOnline) { socket.emit(ev,data); }
-  else { offlineQ.push({ev,data}); log("Queued: "+ev,"w"); }
+  if (socket?.connected && netOnline) { socket.emit(ev,data); } else { offlineQ.push({ev,data}); log("Queued: "+ev,"w"); }
 }
-
 function flushQ() {
-  if (!offlineQ.length) return;
-  offlineQ.forEach(i=>{ if(socket?.connected) socket.emit(i.ev,i.data); });
-  offlineQ=[]; log("Offline queue flushed","ok");
+  if (!offlineQ.length) return; offlineQ.forEach(i=>{ if(socket?.connected) socket.emit(i.ev,i.data); }); offlineQ=[]; log("Offline queue flushed","ok");
 }
+function cacheOrder(id, data) { try { localStorage.setItem("oc_"+id, JSON.stringify({data,ts:Date.now()})); } catch(e) {} }
+function getCached(id) { try { const c=JSON.parse(localStorage.getItem("oc_"+id)||"null"); return c?.data||null; } catch(e){return null;} }
 
-function cacheOrder(id, data) {
-  try { localStorage.setItem("oc_"+id, JSON.stringify({data,ts:Date.now()})); } catch(e) {}
-}
-function getCached(id) {
-  try { const c=JSON.parse(localStorage.getItem("oc_"+id)||"null"); return c?.data||null; } catch(e){return null;} }
-
-/* ══════════════════════════════════════════════════════════
-   FIX 6: GPS WITH RETRY LOGIC
-══════════════════════════════════════════════════════════ */
+/* ─── GPS: ADAPTIVE FREQUENCY + HEADING ─────────────────── */
 function toggleGPS(){ isTracking?stopGPS():startGPS(); }
 
 function startGPS() {
@@ -1358,24 +1224,12 @@ function startGPS() {
   document.getElementById("gpsBtn").classList.add("stop");
   document.body.classList.add("gps-active");
   totalRideMeters=0; orderStartTime=Date.now(); orderStartLat=lastLat; orderStartLng=lastLng;
-  startWelfareMonitor();
-  log("GPS started","ok");
+  startWelfareMonitor(); log("GPS started","ok");
   doWatch();
 
-  // Guaranteed 1-second emit: sends last known position every second.
-  // This ensures the server receives updates even when watchPosition
-  // fires less frequently (e.g. on throttled Android devices or in basements).
-  if (gpsEmitInterval) clearInterval(gpsEmitInterval);
-  gpsEmitInterval = setInterval(() => {
-    if (!isTracking || lastLat === null || !currentOrderId) return;
-    emit("riderLocationUpdate", {
-      orderId:  currentOrderId,
-      lat:      lastLat,
-      lng:      lastLng,
-      speed:    lastSpeed || 0,
-      accuracy: lastAcc   || 40
-    });
-  }, 1000);
+  // Clear interval loop and start adaptive GPS frequency engine
+  if (gpsTimeout) clearTimeout(gpsTimeout);
+  scheduleNextEmit();
 }
 
 function doWatch() {
@@ -1386,55 +1240,85 @@ function doWatch() {
 function stopGPS() {
   isTracking=false; clearTimeout(stuckTimer);
   if (watchId!==null) { navigator.geolocation.clearWatch(watchId); watchId=null; }
-  if (gpsEmitInterval) { clearInterval(gpsEmitInterval); gpsEmitInterval=null; }
+  if (gpsTimeout) { clearTimeout(gpsTimeout); gpsTimeout=null; }
   document.getElementById("gpsBtn").innerHTML="📡 Start GPS Tracking";
   document.getElementById("gpsBtn").classList.remove("stop");
   document.body.classList.remove("gps-active");
   log("GPS stopped","w"); setSig(socket?.connected?2:0);
 }
 
+function scheduleNextEmit() {
+  if (!isTracking || !currentOrderId) return;
+  // Adaptive Frequency Logic
+  let delay = 1000; 
+  if (lastSpeed !== null) {
+    if (lastSpeed < 2) delay = 4000;       // Stationary/Traffic -> Slow Emit (4s)
+    else if (lastSpeed < 15) delay = 2500; // Moderate Move -> Medium Emit (2.5s)
+    else delay = 1000;                     // Fast -> Fast Emit (1s)
+  }
+  document.getElementById("gpsMode").textContent = (delay/1000).toFixed(1) + "s loop";
+
+  gpsTimeout = setTimeout(() => {
+    if (isTracking && lastLat !== null) { emitLocation(); }
+    scheduleNextEmit();
+  }, delay);
+}
+
+function emitLocation() {
+  // Transmit heading + speed properly alongside coordinates
+  emit("riderLocationUpdate", {
+    orderId:  currentOrderId,
+    lat:      lastLat,
+    lng:      lastLng,
+    speed:    lastSpeed || 0,
+    heading:  lastHeading || 0,
+    accuracy: lastAcc || 40
+  });
+  pingCnt++; document.getElementById("pingCnt").textContent=pingCnt;
+  flashPing(); setSig(lastAcc<10?4:lastAcc<25?3:lastAcc<50?2:1);
+  lastEmitTime = Date.now();
+}
+
 function onPos(pos) {
   gpsRetries=0; // Reset retry counter on success
   const lat=pos.coords.latitude, lng=pos.coords.longitude;
-  const speed=pos.coords.speed, acc=pos.coords.accuracy;
+  const speed=pos.coords.speed, acc=pos.coords.accuracy, heading=pos.coords.heading;
   const kmh = speed!=null&&speed>=0 ? speed*3.6 : null;
 
-  // Track distance for earnings popup
   if (lastLat!==null) {
     const d=haversine(lastLat,lastLng,lat,lng);
     if(d>3) totalRideMeters+=d;
-    // Welfare movement tracking
     if(d>5) { lastMoveTime=Date.now(); resetWelfareTimer(); }
   }
+  
   lastLat=lat; lastLng=lng;
-  lastSpeed=kmh; lastAcc=acc; // kept for the 1-second guaranteed emit interval
+  lastSpeed=kmh; lastAcc=acc; lastHeading=heading;
 
   document.getElementById("dLat").textContent=lat.toFixed(6);
   document.getElementById("dLng").textContent=lng.toFixed(6);
   document.getElementById("dSpeed").textContent=kmh!=null?kmh.toFixed(1)+" km/h":"0.0 km/h";
+  document.getElementById("dHeading").textContent=heading!=null?Math.round(heading)+"°":"—";
   document.getElementById("dAcc").textContent=acc!=null?Math.round(acc)+" m":"—";
 
-  checkAutoStage(lat,lng); // Auto stage detection
+  checkAutoStage(lat,lng);
 
-  emit("riderLocationUpdate",{orderId:currentOrderId,lat,lng,speed:kmh,accuracy:acc||40});
-  pingCnt++; document.getElementById("pingCnt").textContent=pingCnt;
-  flashPing(); setSig(acc<10?4:acc<25?3:acc<50?2:1);
+  // If movement exceeds adaptive expectations, emit immediately instead of waiting for timer
+  let expectedDelay = (lastSpeed === null || lastSpeed < 2) ? 4000 : (lastSpeed < 15 ? 2500 : 1000);
+  if (Date.now() - lastEmitTime >= expectedDelay) {
+    clearTimeout(gpsTimeout);
+    emitLocation();
+    scheduleNextEmit();
+  }
 }
 
 function onGPSErr(err) {
   const m={1:"GPS permission denied",2:"Position unavailable",3:"GPS timeout"};
   const msg=m[err.code]||err.message;
   log("GPS: "+msg,"err");
-  // Retry logic — up to 3 retries for timeout/unavailable
   if (err.code!==1 && gpsRetries<3) {
-    gpsRetries++;
-    log(`GPS retry ${gpsRetries}/3...`,"w");
-    setTimeout(doWatch, 2000*gpsRetries); // Exponential back-off
-  } else if (err.code!==1) {
-    toast("GPS unavailable — check location permissions","err");
-  } else {
-    toast("GPS permission denied","err");
-  }
+    gpsRetries++; log(`GPS retry ${gpsRetries}/3...`,"w"); setTimeout(doWatch, 2000*gpsRetries);
+  } else if (err.code!==1) toast("GPS unavailable — check location permissions","err");
+  else toast("GPS permission denied","err");
 }
 
 function flashPing() { const e=document.getElementById("pf"); e.classList.add("on"); setTimeout(()=>e.classList.remove("on"),180); }
@@ -1457,9 +1341,7 @@ function setConn(c) {
 
 /* ─── ONLINE TOGGLE ──────────────────────────────────────── */
 function toggleOnline() {
-  isOnline=!isOnline;
-  document.getElementById("onlineTog").classList.toggle("on",isOnline);
-  document.getElementById("togLbl").textContent=isOnline?"Online":"Go Online";
+  isOnline=!isOnline; document.getElementById("onlineTog").classList.toggle("on",isOnline); document.getElementById("togLbl").textContent=isOnline?"Online":"Go Online";
   if(isOnline){ initSocket(); toast("You are online 🟢"); log("Online","ok"); fetchWeather(); }
   else { if(isTracking) stopGPS(); clearTimeout(stuckTimer); toast("Offline","w"); log("Offline","w"); }
 }
@@ -1468,21 +1350,15 @@ function toggleOnline() {
 async function loadOrder() {
   const id=document.getElementById("orderInput").value.trim();
   if (!id) { toast("Enter an Order ID","w"); return; }
-  log("Loading order #"+id);
-  let data=null, fromCache=false;
+  log("Loading order #"+id); let data=null, fromCache=false;
   if (!netOnline) {
-    data=getCached(id);
-    if (!data) { toast("Offline — order not in cache","err"); return; }
-    fromCache=true;
+    data=getCached(id); if (!data) { toast("Offline — order not in cache","err"); return; } fromCache=true;
   } else {
     try {
-      const r=await fetch("/api/orders/"+id+"/track");
-      if (!r.ok) throw new Error("HTTP "+r.status);
+      const r=await fetch("/api/orders/"+id+"/track"); if (!r.ok) throw new Error("HTTP "+r.status);
       data=await r.json(); cacheOrder(id,data);
     } catch(e) {
-      data=getCached(id);
-      if (data) { fromCache=true; }
-      else { toast("Order not found: "+e.message,"err"); log("❌ "+e.message,"err"); return; }
+      data=getCached(id); if (data) { fromCache=true; } else { toast("Order not found: "+e.message,"err"); log("❌ "+e.message,"err"); return; }
     }
   }
   if (fromCache) { document.getElementById("offlineBar").classList.add("show"); }
@@ -1491,45 +1367,25 @@ async function loadOrder() {
   document.getElementById("ordCust").textContent=data.customer_name||"Customer";
   document.getElementById("ordAddr").textContent=data.customer_address||"Al Karama, Dubai";
   const af=document.getElementById("ordFloor");
-  if ((data.customer_address||"").match(/flat|floor|villa|apt/i)) {
-    af.textContent="🏢 "+data.customer_address; af.style.display="block";
-  } else af.style.display="none";
+  if ((data.customer_address||"").match(/flat|floor|villa|apt/i)) { af.textContent="🏢 "+data.customer_address; af.style.display="block"; } else af.style.display="none";
   document.getElementById("mAmt").textContent=data.total_amount||data.total||"—";
   document.getElementById("mStat").textContent=(data.status||"pending").toUpperCase();
   document.getElementById("callBtn").href="tel:"+(data.customer_phone||"");
   document.getElementById("custChatName").textContent=data.customer_name||"Customer";
-  // Items
   let items=data.items||[]; if(typeof items==="string"){try{items=JSON.parse(items);}catch(e){items=[];}}
   document.getElementById("itemsList").innerHTML=items.length
     ?items.map(it=>`<div class="item-row"><div class="idot"></div><div class="inm">${it.name||it}</div><div class="iqty mono">×${it.qty||1}</div></div>`).join("")
     :`<div class="item-row"><div class="idot"></div><div class="inm" style="color:var(--tx2)">Items not listed</div></div>`;
-  updatePipeline(); updateActBtn();
-  document.getElementById("orderPanel").style.display="block";
-  document.getElementById("gpsBtn").disabled=false;
-  document.getElementById("bldCard").classList.remove("show");
-  document.getElementById("autoHint").classList.remove("show");
-  if(socket){try{socket.disconnect();}catch(e){}}socket=null;
-  if(isOnline) initSocket();
-  toast("Order #"+id+" loaded ✅"+(fromCache?" (cache)":""));
-  log("Order #"+id+" — "+(data.customer_name||"")+(fromCache?" [cache]":""),"ok");
+  updatePipeline(); updateActBtn(); document.getElementById("orderPanel").style.display="block"; document.getElementById("gpsBtn").disabled=false; document.getElementById("bldCard").classList.remove("show"); document.getElementById("autoHint").classList.remove("show");
+  if(socket){try{socket.disconnect();}catch(e){}}socket=null; if(isOnline) initSocket();
+  toast("Order #"+id+" loaded ✅"+(fromCache?" (cache)":"")); log("Order #"+id+" — "+(data.customer_name||"")+(fromCache?" [cache]":""),"ok");
 }
 
 /* ─── PIPELINE ───────────────────────────────────────────── */
-const STAGES=[
-  {lbl:"▶ Confirm Pickup",cls:"go",next:1},
-  {lbl:"📍 Mark En Route",cls:"go",next:2},
-  {lbl:"🏁 I've Arrived — Get OTP",cls:"warn",next:3},
-  null,
-  {lbl:"✅ Confirm Delivery + Photo",cls:"done",next:5},
-];
+const STAGES=[ {lbl:"▶ Confirm Pickup",cls:"go",next:1}, {lbl:"📍 Mark En Route",cls:"go",next:2}, {lbl:"🏁 I've Arrived — Get OTP",cls:"warn",next:3}, null, {lbl:"✅ Confirm Delivery + Photo",cls:"done",next:5} ];
 
 function updatePipeline() {
-  for(let i=0;i<=4;i++){
-    const e=document.getElementById("p"+i);
-    e.classList.remove("done","active");
-    if(i<stage) e.classList.add("done");
-    if(i===stage) e.classList.add("active");
-  }
+  for(let i=0;i<=4;i++){ const e=document.getElementById("p"+i); e.classList.remove("done","active"); if(i<stage) e.classList.add("done"); if(i===stage) e.classList.add("active"); }
 }
 function updateActBtn() {
   const btn=document.getElementById("actBtn"),otp=document.getElementById("otpSec"),pod=document.getElementById("podSec");
@@ -1537,326 +1393,136 @@ function updateActBtn() {
   if(stage===3){btn.style.display="none";otp.style.display="block";}
   else if(stage===4){
     pod.style.display="block"; btn.style.display="none";
-    document.getElementById("podPrev").querySelector(".pod-ico").style.display="block";
-    document.getElementById("podPrev").querySelector(".pod-lbl").style.display="block";
-    document.getElementById("podSubmit").style.display="none";
+    document.getElementById("podPrev").querySelector(".pod-ico").style.display="block"; document.getElementById("podPrev").querySelector(".pod-lbl").style.display="block"; document.getElementById("podSubmit").style.display="none";
     const img=document.getElementById("podPrev").querySelector("img"); if(img) img.remove();
   }
   else if(stage>=5){btn.style.display="none";}
-  else {
-    const s=STAGES[stage]; if(s){btn.textContent=s.lbl;btn.className="act-btn syne "+s.cls;}
-  }
+  else { const s=STAGES[stage]; if(s){btn.textContent=s.lbl;btn.className="act-btn syne "+s.cls;} }
 }
 function advanceStage() {
   if(!currentOrderId){toast("Load an order first","w");return;}
   if(stage===1) emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"});
-  stage=STAGES[stage]?.next||stage+1;
-  updatePipeline(); updateActBtn();
-  document.getElementById("autoHint").classList.remove("show"); autoStagePending=null;
+  stage=STAGES[stage]?.next||stage+1; updatePipeline(); updateActBtn(); document.getElementById("autoHint").classList.remove("show"); autoStagePending=null;
 }
 
-/* ─── OTP ────────────────────────────────────────────────── */
+/* ─── OTP + POD ──────────────────────────────────────────── */
 function verifyOTP() {
-  const v=document.getElementById("otpIn").value;
-  if(v.length!==4){toast("Enter 4-digit OTP","w");return;}
-  toast("OTP verified ✅"); log("OTP "+v+" verified","ok");
-  stage=4; updatePipeline(); updateActBtn();
+  const v=document.getElementById("otpIn").value; if(v.length!==4){toast("Enter 4-digit OTP","w");return;}
+  toast("OTP verified ✅"); log("OTP "+v+" verified","ok"); stage=4; updatePipeline(); updateActBtn();
 }
-
-/* ─── POD ────────────────────────────────────────────────── */
 function capturePhoto(){document.getElementById("podFile").click();}
 function handlePhoto(inp) {
   const f=inp.files[0]; if(!f) return;
   const r=new FileReader();
   r.onload=e=>{
-    podData=e.target.result;
-    const prev=document.getElementById("podPrev");
-    let img=prev.querySelector("img");
+    podData=e.target.result; const prev=document.getElementById("podPrev"); let img=prev.querySelector("img");
     if(!img){img=document.createElement("img");prev.appendChild(img);}
-    img.src=podData;
-    prev.querySelector(".pod-ico").style.display="none";
-    prev.querySelector(".pod-lbl").style.display="none";
-    document.getElementById("podSubmit").style.display="block";
-    toast("Photo captured ✅");
-  };
-  r.readAsDataURL(f);
+    img.src=podData; prev.querySelector(".pod-ico").style.display="none"; prev.querySelector(".pod-lbl").style.display="none"; document.getElementById("podSubmit").style.display="block"; toast("Photo captured ✅");
+  }; r.readAsDataURL(f);
 }
 function submitPoD() {
   if(!podData){toast("Take a photo first","w");return;}
-  toast("✅ Proof submitted!"); log("PoD submitted for #"+currentOrderId,"ok");
-  document.getElementById("podSec").style.display="none";
-  setTimeout(showDone,400);
+  toast("✅ Proof submitted!"); log("PoD submitted for #"+currentOrderId,"ok"); document.getElementById("podSec").style.display="none"; setTimeout(showDone,400);
 }
 
 /* ─── DELIVERY DONE ──────────────────────────────────────── */
 function showDone() {
   emit("orderStatusUpdate",{orderId:currentOrderId,status:"delivered"});
-  todayDel++; todayEarn+=15;
-  clearTimeout(stuckTimer); clearInterval(wfCDInt);
-  // Earnings breakdown
-  const mins = orderStartTime ? Math.round((Date.now()-orderStartTime)/60000) : 0;
-  const km   = (totalRideMeters/1000).toFixed(1);
-  document.getElementById("ddEarn").textContent="+AED 15";
-  document.getElementById("ddDist").textContent=km+" km";
-  document.getElementById("ddTime").textContent=mins+"min";
-  document.getElementById("ddCount").textContent=todayDel;
-  // Achievement
+  todayDel++; todayEarn+=15; clearTimeout(stuckTimer); clearInterval(wfCDInt);
+  const mins = orderStartTime ? Math.round((Date.now()-orderStartTime)/60000) : 0, km = (totalRideMeters/1000).toFixed(1);
+  document.getElementById("ddEarn").textContent="+AED 15"; document.getElementById("ddDist").textContent=km+" km"; document.getElementById("ddTime").textContent=mins+"min"; document.getElementById("ddCount").textContent=todayDel;
   const all=312+todayDel, tier=TIERS.find(t=>all>=t.t&&all-1<t.t);
-  document.getElementById("ddAchieve").style.display=tier?"block":"none";
-  if(tier) document.getElementById("ddAchieve").textContent="🏆 "+tier.n+" unlocked! +"+tier.r;
-  document.getElementById("delDone").classList.add("show");
-  updateStats(); updateWallet(); renderRewards();
+  document.getElementById("ddAchieve").style.display=tier?"block":"none"; if(tier) document.getElementById("ddAchieve").textContent="🏆 "+tier.n+" unlocked! +"+tier.r;
+  document.getElementById("delDone").classList.add("show"); updateStats(); updateWallet(); renderRewards();
 }
-
 function resetDelivery() {
-  document.getElementById("delDone").classList.remove("show");
-  document.getElementById("orderPanel").style.display="none";
-  document.getElementById("orderInput").value="";
-  document.getElementById("otpIn").value="";
-  document.getElementById("gpsBtn").disabled=true;
-  document.getElementById("bldCard").classList.remove("show");
-  document.getElementById("autoHint").classList.remove("show");
-  currentOrderId=null; currentOrder=null; stage=0; pingCnt=0; podData=null; autoStagePending=null;
-  document.getElementById("pingCnt").textContent="0";
-  totalRideMeters=0; orderStartTime=null;
+  document.getElementById("delDone").classList.remove("show"); document.getElementById("orderPanel").style.display="none"; document.getElementById("orderInput").value=""; document.getElementById("otpIn").value=""; document.getElementById("gpsBtn").disabled=true; document.getElementById("bldCard").classList.remove("show"); document.getElementById("autoHint").classList.remove("show");
+  currentOrderId=null; currentOrder=null; stage=0; pingCnt=0; podData=null; autoStagePending=null; document.getElementById("pingCnt").textContent="0"; totalRideMeters=0; orderStartTime=null;
   if(isTracking) stopGPS();
-  if(gpsEmitInterval){clearInterval(gpsEmitInterval);gpsEmitInterval=null;}
-  clearTimeout(stuckTimer); clearInterval(wfCDInt);
+  if(gpsTimeout){clearTimeout(gpsTimeout);gpsTimeout=null;} clearTimeout(stuckTimer); clearInterval(wfCDInt);
   toast("Ready for next delivery 🏍"); log("Reset — ready","ok");
 }
 
 /* ─── SOS + TRANSFER ─────────────────────────────────────── */
 function openSOS(){document.getElementById("sosPanel").classList.add("open");}
 function closeSOS(){document.getElementById("sosPanel").classList.remove("open");}
-function sendSOS(type) {
-  closeSOS();
-  emit("riderSOS",{type,orderId:currentOrderId,lat:lastLat,lng:lastLng});
-  const m={accident:"🚑 SOS sent — ambulance alerted",breakdown:"🔧 Breakdown SOS sent",flat:"🛞 Flat tyre SOS sent",welfare:"🆘 Welfare SOS sent",no_response:"🆘 Auto-SOS after no welfare response"};
-  toast(m[type]||"SOS sent","err"); log("SOS: "+type,"err");
-}
+function sendSOS(type) { closeSOS(); emit("riderSOS",{type,orderId:currentOrderId,lat:lastLat,lng:lastLng}); const m={accident:"🚑 SOS sent — ambulance alerted",breakdown:"🔧 Breakdown SOS sent",flat:"🛞 Flat tyre SOS sent",welfare:"🆘 Welfare SOS sent",no_response:"🆘 Auto-SOS after no welfare response"}; toast(m[type]||"SOS sent","err"); log("SOS: "+type,"err"); }
 const RIDERS=[{n:"Arun K.",d:"0.4 km",id:"r2"},{n:"Mohammed S.",d:"0.7 km",id:"r3"},{n:"Ravi P.",d:"1.1 km",id:"r4"}];
-function openTransfer() {
-  if(!currentOrderId){toast("No active order","w");return;}
-  document.getElementById("nearbyRiders").innerHTML=RIDERS.map(r=>`
-    <div class="nr"><div class="nr-av">🏍</div>
-    <div style="flex:1"><div class="nr-nm">${r.n}</div><div class="nr-d">${r.d} away</div></div>
-    <button class="xfr-btn" onclick="confirmXfer('${r.id}','${r.n}')">Transfer</button></div>`).join("");
-  document.getElementById("xferPanel").classList.add("open");
-}
+function openTransfer() { if(!currentOrderId){toast("No active order","w");return;} document.getElementById("nearbyRiders").innerHTML=RIDERS.map(r=>`<div class="nr"><div class="nr-av">🏍</div><div style="flex:1"><div class="nr-nm">${r.n}</div><div class="nr-d">${r.d} away</div></div><button class="xfr-btn" onclick="confirmXfer('${r.id}','${r.n}')">Transfer</button></div>`).join(""); document.getElementById("xferPanel").classList.add("open"); }
 function closeTransfer(){document.getElementById("xferPanel").classList.remove("open");}
-function confirmXfer(id,name) {
-  closeTransfer();
-  emit("orderTransfer",{orderId:currentOrderId,toRider:id});
-  toast("Transferred to "+name+" ✅"); log("Xfer → "+name,"w"); resetDelivery();
-}
+function confirmXfer(id,name) { closeTransfer(); emit("orderTransfer",{orderId:currentOrderId,toRider:id}); toast("Transferred to "+name+" ✅"); log("Xfer → "+name,"w"); resetDelivery(); }
 
 /* ─── FAB ────────────────────────────────────────────────── */
-function toggleFAB() { fabOpen=!fabOpen; document.getElementById("fabItems").classList.toggle("hidden",!fabOpen); document.getElementById("fabMain").textContent=fabOpen?"✕":"🆘"; if(fabOpen) {} else {closeSOS();} if(!fabOpen){ /* default: SOS */ } if(fabOpen){toast("SOS · Voice · Transfer","b");} else openSOS(); }
-/* Simplified: SOS tapped = open SOS direct; long-tap or hold = expand FAB */
+function toggleFAB() { fabOpen=!fabOpen; document.getElementById("fabItems").classList.toggle("hidden",!fabOpen); document.getElementById("fabMain").textContent=fabOpen?"✕":"🆘"; if(fabOpen){toast("SOS · Voice · Transfer","b");} else openSOS(); }
 document.getElementById("fabMain").addEventListener("click",()=>{ if(!fabOpen) openSOS(); else { fabOpen=false; document.getElementById("fabItems").classList.add("hidden"); document.getElementById("fabMain").textContent="🆘"; }});
 
-/* ─── CHAT ───────────────────────────────────────────────── */
-function openChat(t) {
-  if(t==="cust"&&!currentOrder){toast("No active order","w");return;}
-  document.getElementById(t==="cust"?"chatCust":"chatKit").classList.add("open");
-  renderChat(t);
-}
+/* ─── CHAT + VOICE ───────────────────────────────────────── */
+function openChat(t) { if(t==="cust"&&!currentOrder){toast("No active order","w");return;} document.getElementById(t==="cust"?"chatCust":"chatKit").classList.add("open"); renderChat(t); }
 function closeChat(t){document.getElementById(t==="cust"?"chatCust":"chatKit").classList.remove("open");}
-function renderChat(t) {
-  const msgs=t==="cust"?custMsgArr:kitMsgArr;
-  const el=document.getElementById(t==="cust"?"custMsgs":"kitMsgs");
-  el.innerHTML=msgs.map(m=>`<div class="msg ${m.f}"><div class="mbub">${m.t}</div><div class="mt">${m.ts}</div></div>`).join("");
-  el.scrollTop=el.scrollHeight;
-}
-function sendChat(t) {
-  const inp=document.getElementById(t==="cust"?"custCI":"kitCI");
-  const txt=inp.value.trim(); if(!txt) return;
-  addMsg(t,"rider",txt); inp.value="";
-}
+function renderChat(t) { const msgs=t==="cust"?custMsgArr:kitMsgArr; const el=document.getElementById(t==="cust"?"custMsgs":"kitMsgs"); el.innerHTML=msgs.map(m=>`<div class="msg ${m.f}"><div class="mbub">${m.t}</div><div class="mt">${m.ts}</div></div>`).join(""); el.scrollTop=el.scrollHeight; }
+function sendChat(t) { const inp=document.getElementById(t==="cust"?"custCI":"kitCI"); const txt=inp.value.trim(); if(!txt) return; addMsg(t,"rider",txt); inp.value=""; }
 function qr(t,txt){addMsg(t,"rider",txt);}
-function addMsg(t,f,txt) {
-  const now=new Date(), ts=(now.getHours()%12||12)+":"+String(now.getMinutes()).padStart(2,"0")+" "+(now.getHours()>=12?"PM":"AM");
-  (t==="cust"?custMsgArr:kitMsgArr).push({f,t:txt,ts}); renderChat(t);
-}
+function addMsg(t,f,txt) { const now=new Date(), ts=(now.getHours()%12||12)+":"+String(now.getMinutes()).padStart(2,"0")+" "+(now.getHours()>=12?"PM":"AM"); (t==="cust"?custMsgArr:kitMsgArr).push({f,t:txt,ts}); renderChat(t); }
 
-/* ─── VOICE ──────────────────────────────────────────────── */
 let voiceRec=null;
 function startVoice() {
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){toast("Voice not supported here","w");return;}
-  voiceRec=new SR();
-  voiceRec.lang={en:"en-US",ar:"ar-AE",hi:"hi-IN",ur:"ur-PK"}[currentLang]||"en-US";
-  voiceRec.continuous=false; voiceRec.interimResults=false;
-  voiceRec.onresult=e=>{
-    const cmd=e.results[0][0].transcript.toLowerCase().trim();
-    document.getElementById("vText").textContent='"'+cmd+'"';
-    handleVoice(cmd); setTimeout(stopVoice,1300);
-  };
-  voiceRec.onerror=()=>stopVoice();
-  voiceRec.onend=()=>document.getElementById("voiceBar").classList.remove("on");
-  voiceRec.start();
-  document.getElementById("voiceBar").classList.add("on");
-  document.getElementById("vText").textContent="Listening...";
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR){toast("Voice not supported here","w");return;}
+  voiceRec=new SR(); voiceRec.lang={en:"en-US",ar:"ar-AE",hi:"hi-IN",ur:"ur-PK"}[currentLang]||"en-US"; voiceRec.continuous=false; voiceRec.interimResults=false;
+  voiceRec.onresult=e=>{ const cmd=e.results[0][0].transcript.toLowerCase().trim(); document.getElementById("vText").textContent='"'+cmd+'"'; handleVoice(cmd); setTimeout(stopVoice,1300); };
+  voiceRec.onerror=()=>stopVoice(); voiceRec.onend=()=>document.getElementById("voiceBar").classList.remove("on"); voiceRec.start(); document.getElementById("voiceBar").classList.add("on"); document.getElementById("vText").textContent="Listening...";
 }
 function stopVoice(){try{if(voiceRec)voiceRec.stop();}catch(e){} document.getElementById("voiceBar").classList.remove("on");}
 function handleVoice(cmd) {
-  const kw=VOICE_KW[currentLang]||VOICE_KW.en;
-  const m=arr=>arr.some(k=>cmd.includes(k));
-  if(m(kw.sos)){openSOS();return;}
-  if(m(kw.arrived)){emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"});toast("🎙 Arrived — updated!","ok");log("Voice: arrived","ok");return;}
+  const kw=VOICE_KW[currentLang]||VOICE_KW.en, m=arr=>arr.some(k=>cmd.includes(k));
+  if(m(kw.sos)){openSOS();return;} if(m(kw.arrived)){emit("orderStatusUpdate",{orderId:currentOrderId,status:"on_the_way"});toast("🎙 Arrived — updated!","ok");log("Voice: arrived","ok");return;}
   if(m(kw.picked)){if(stage===0){stage=1;updatePipeline();updateActBtn();}toast("🎙 Pickup confirmed!","ok");log("Voice: picked","ok");return;}
   if(m(kw.delivered)){toast("🎙 Delivered!","ok");log("Voice: delivered","ok");return;}
   if(m(kw.gps)){if(!isTracking&&currentOrderId)startGPS();toast("🎙 GPS started","ok");return;}
   toast(`🎙 "${cmd}" — not recognised`,"w");
 }
 
-/* ─── NAVIGATION ─────────────────────────────────────────── */
-function switchScreen(n) {
-  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
-  document.querySelectorAll(".nb").forEach(b=>b.classList.remove("on"));
-  document.getElementById("scr"+n).classList.add("active");
-  document.getElementById("nb-"+n.toLowerCase()).classList.add("on");
-}
+/* ─── NAVIGATION + STATS + DOCS ──────────────────────────── */
+function switchScreen(n) { document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active")); document.querySelectorAll(".nb").forEach(b=>b.classList.remove("on")); document.getElementById("scr"+n).classList.add("active"); document.getElementById("nb-"+n.toLowerCase()).classList.add("on"); }
+function updateStats() { document.getElementById("tEarn").textContent="AED "+todayEarn; document.getElementById("tDel").textContent=todayDel; document.getElementById("pToday").textContent=todayDel; document.getElementById("pWeek").textContent=todayDel; }
+function updateWallet() { document.getElementById("wBal").textContent="AED "+todayEarn; document.getElementById("wDelSub").textContent=todayDel+" deliveries"; document.getElementById("wAvg").textContent=todayDel?"AED "+Math.floor(todayEarn/todayDel):"AED 0"; document.getElementById("wWeek").textContent="AED "+(WEEK.reduce((a,b)=>a+b,0)+todayEarn); }
+function renderChart() { const max=Math.max(...WEEK,1); document.getElementById("chartRow").innerHTML=WEEK.map((v,i)=>`<div class="cb-w"><div class="cb ${i===6?"today":""}" style="height:${(v/max)*100}%"></div></div>`).join(""); document.getElementById("chartLbls").innerHTML=WDAYS.map((d,i)=>`<div style="flex:1;text-align:center;font-size:8px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`).join(""); }
+function renderRewards() { const all=312+todayDel; document.getElementById("tiers").innerHTML=TIERS.map(t=>{ const pct=Math.min((all/t.t)*100,100), done=all>=t.t; return `<div class="tr"><div class="ti-icon">${done?"🏆":"🎯"}</div><div class="ti-info"><div class="ti-name">${t.n}</div><div class="ti-desc">${t.t} deliveries · ${t.r} bonus</div><div class="tp-w"><div class="tp-b" style="width:${pct}%"></div></div></div><div class="tbadge ${t.c}">${done?"✓":Math.min(all,t.t)+"/"+t.t}</div></div>`; }).join(""); }
 
-/* ─── STATS ──────────────────────────────────────────────── */
-function updateStats() {
-  document.getElementById("tEarn").textContent="AED "+todayEarn;
-  document.getElementById("tDel").textContent=todayDel;
-  document.getElementById("pToday").textContent=todayDel;
-  document.getElementById("pWeek").textContent=todayDel;
-}
-function updateWallet() {
-  document.getElementById("wBal").textContent="AED "+todayEarn;
-  document.getElementById("wDelSub").textContent=todayDel+" deliveries";
-  document.getElementById("wAvg").textContent=todayDel?"AED "+Math.floor(todayEarn/todayDel):"AED 0";
-  document.getElementById("wWeek").textContent="AED "+(WEEK.reduce((a,b)=>a+b,0)+todayEarn);
-}
-function renderChart() {
-  const max=Math.max(...WEEK,1);
-  document.getElementById("chartRow").innerHTML=WEEK.map((v,i)=>`<div class="cb-w"><div class="cb ${i===6?"today":""}" style="height:${(v/max)*100}%"></div></div>`).join("");
-  document.getElementById("chartLbls").innerHTML=WDAYS.map((d,i)=>`<div style="flex:1;text-align:center;font-size:8px;font-weight:700;color:${i===6?"var(--amber)":"var(--tx3)"};">${d}</div>`).join("");
-}
-function renderRewards() {
-  const all=312+todayDel;
-  document.getElementById("tiers").innerHTML=TIERS.map(t=>{
-    const pct=Math.min((all/t.t)*100,100), done=all>=t.t;
-    return `<div class="tr"><div class="ti-icon">${done?"🏆":"🎯"}</div><div class="ti-info"><div class="ti-name">${t.n}</div><div class="ti-desc">${t.t} deliveries · ${t.r} bonus</div><div class="tp-w"><div class="tp-b" style="width:${pct}%"></div></div></div><div class="tbadge ${t.c}">${done?"✓":Math.min(all,t.t)+"/"+t.t}</div></div>`;
-  }).join("");
-}
-
-/* ─── DOCUMENTS ──────────────────────────────────────────── */
 const DMAP={rta:{exp:"rtaExp",cd:"rtaCD",stat:"rtaStat"},medical:{exp:"medExp",cd:"medCD",stat:"medStat"},insurance:{exp:"insExp",cd:"insCD",stat:"insStat"},emirates:{exp:"emExp",cd:"emCD",stat:"emStat"},driving:{exp:"drExp",cd:"drCD",stat:"drStat"}};
 const DNAME={rta:"RTA Permit",medical:"Medical Fitness",insurance:"Vehicle Insurance",emirates:"Emirates ID",driving:"Driving Licence"};
 function loadDocs(){Object.keys(DMAP).forEach(k=>refreshDoc(k,localStorage.getItem("doc_"+k)));}
 function refreshDoc(k,v) {
-  const m=DMAP[k];
-  const expEl=document.getElementById(m.exp), cdEl=document.getElementById(m.cd), stEl=document.getElementById(m.stat);
-  if(!expEl) return;
+  const m=DMAP[k], expEl=document.getElementById(m.exp), cdEl=document.getElementById(m.cd), stEl=document.getElementById(m.stat); if(!expEl) return;
   if(!v){expEl.textContent="Expires: Not set";stEl.textContent="?";stEl.className="dstat w";cdEl.textContent="";return;}
-  const exp=new Date(v), days=Math.ceil((exp-new Date())/86400000);
-  expEl.textContent="Expires: "+exp.toLocaleDateString("en-AE",{day:"2-digit",month:"short",year:"numeric"});
-  if(days<0){stEl.textContent="Expired";stEl.className="dstat exp";cdEl.textContent="⛔ Expired "+Math.abs(days)+"d ago";cdEl.className="doc-cd exp";}
-  else if(days<30){stEl.textContent=days+"d left";stEl.className="dstat w";cdEl.textContent="⚠️ "+days+" days left";cdEl.className="doc-cd w";}
-  else{stEl.textContent="Valid";stEl.className="dstat ok";cdEl.textContent="✓ "+days+" days left";cdEl.className="doc-cd ok";}
+  const exp=new Date(v), days=Math.ceil((exp-new Date())/86400000); expEl.textContent="Expires: "+exp.toLocaleDateString("en-AE",{day:"2-digit",month:"short",year:"numeric"});
+  if(days<0){stEl.textContent="Expired";stEl.className="dstat exp";cdEl.textContent="⛔ Expired "+Math.abs(days)+"d ago";cdEl.className="doc-cd exp";} else if(days<30){stEl.textContent=days+"d left";stEl.className="dstat w";cdEl.textContent="⚠️ "+days+" days left";cdEl.className="doc-cd w";} else{stEl.textContent="Valid";stEl.className="dstat ok";cdEl.textContent="✓ "+days+" days left";cdEl.className="doc-cd ok";}
 }
-function editDoc(k) {
-  currentDocKey=k;
-  document.getElementById("docModalTitle").textContent="📋 Update "+DNAME[k];
-  document.getElementById("docDate").value=localStorage.getItem("doc_"+k)||"";
-  document.getElementById("docModal").classList.add("open");
-}
-function saveDoc() {
-  const v=document.getElementById("docDate").value;
-  if(!v){toast("Pick a date","w");return;}
-  localStorage.setItem("doc_"+currentDocKey,v);
-  refreshDoc(currentDocKey,v); closeDocModal(); toast("Document updated ✅");
-}
+function editDoc(k) { currentDocKey=k; document.getElementById("docModalTitle").textContent="📋 Update "+DNAME[k]; document.getElementById("docDate").value=localStorage.getItem("doc_"+k)||""; document.getElementById("docModal").classList.add("open"); }
+function saveDoc() { const v=document.getElementById("docDate").value; if(!v){toast("Pick a date","w");return;} localStorage.setItem("doc_"+currentDocKey,v); refreshDoc(currentDocKey,v); closeDocModal(); toast("Document updated ✅"); }
 function closeDocModal(){document.getElementById("docModal").classList.remove("open");}
 
-/* ─── WALLET ─────────────────────────────────────────────── */
-function doWithdraw() {
-  if(todayEarn<=0){toast("No earnings yet","w");return;}
-  if(withdrawnToday){toast("Already withdrawn today","w");return;}
-  withdrawnToday=true; document.getElementById("wDrawBtn").disabled=true;
-  toast("AED "+todayEarn+" sent to wallet! 💸"); log("Withdrawal: AED "+todayEarn,"ok");
-}
-function startWTimer() {
-  function tick(){
-    const now=new Date(),m=new Date(now); m.setHours(24,0,0,0);
-    const d=m-now, h=String(Math.floor(d/3600000)).padStart(2,"0"), mn=String(Math.floor((d%3600000)/60000)).padStart(2,"0"), s=String(Math.floor((d%60000)/1000)).padStart(2,"0");
-    const e=document.getElementById("wTimer"); if(e) e.textContent=`${h}:${mn}:${s}`;
-  }
-  tick(); setInterval(tick,1000);
-}
+function doWithdraw() { if(todayEarn<=0){toast("No earnings yet","w");return;} if(withdrawnToday){toast("Already withdrawn today","w");return;} withdrawnToday=true; document.getElementById("wDrawBtn").disabled=true; toast("AED "+todayEarn+" sent to wallet! 💸"); log("Withdrawal: AED "+todayEarn,"ok"); }
+function startWTimer() { function tick(){ const now=new Date(),m=new Date(now); m.setHours(24,0,0,0); const d=m-now, h=String(Math.floor(d/3600000)).padStart(2,"0"), mn=String(Math.floor((d%3600000)/60000)).padStart(2,"0"), s=String(Math.floor((d%60000)/1000)).padStart(2,"0"); const e=document.getElementById("wTimer"); if(e) e.textContent=`${h}:${mn}:${s}`; } tick(); setInterval(tick,1000); }
 
-/* ─── LANGUAGE ───────────────────────────────────────────── */
-function setLang(l) {
-  currentLang=l; localStorage.setItem("rLang",l);
-  const map={en:"EN",ar:"عربي",hi:"हिंदी",ur:"اردو"};
-  document.querySelectorAll(".lb").forEach(b=>b.classList.toggle("on",b.textContent.trim()===map[l]));
-  document.documentElement.dir=(l==="ar"||l==="ur")?"rtl":"ltr";
-  toast(map[l]+" ✓");
-}
-
-/* ─── LOG + TOAST ────────────────────────────────────────── */
-function log(msg,type=""){
-  const w=document.getElementById("logW"), now=new Date();
-  const t=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0")+":"+String(now.getSeconds()).padStart(2,"0");
-  const d=document.createElement("div"); d.className="ll "+(type||"");
-  d.innerHTML=`<span class="lt">${t}</span><span class="lm">${msg}</span>`;
-  w.prepend(d); while(w.children.length>60) w.removeChild(w.lastChild);
-}
+/* ─── LOGGING & MISC ─────────────────────────────────────── */
+function setLang(l) { currentLang=l; localStorage.setItem("rLang",l); const map={en:"EN",ar:"عربي",hi:"हिंदी",ur:"اردو"}; document.querySelectorAll(".lb").forEach(b=>b.classList.toggle("on",b.textContent.trim()===map[l])); document.documentElement.dir=(l==="ar"||l==="ur")?"rtl":"ltr"; toast(map[l]+" ✓"); }
+function log(msg,type=""){ const w=document.getElementById("logW"), now=new Date(), t=String(now.getHours()).padStart(2,"0")+":"+String(now.getMinutes()).padStart(2,"0")+":"+String(now.getSeconds()).padStart(2,"0"); const d=document.createElement("div"); d.className="ll "+(type||""); d.innerHTML=`<span class="lt">${t}</span><span class="lm">${msg}</span>`; w.prepend(d); while(w.children.length>60) w.removeChild(w.lastChild); }
 let toastTO=null;
-function toast(msg,type=""){
-  const e=document.getElementById("toast");
-  e.textContent=msg; e.className="on "+(type||"");
-  if(toastTO) clearTimeout(toastTO);
-  toastTO=setTimeout(()=>e.className="",3000);
-}
+function toast(msg,type=""){ const e=document.getElementById("toast"); e.textContent=msg; e.className="on "+(type||""); if(toastTO) clearTimeout(toastTO); toastTO=setTimeout(()=>e.className="",3000); }
 
 /* ─── BOOT ───────────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded",()=>{
-  setLang(currentLang);
-  renderChart(); updateWallet(); renderRewards(); loadDocs(); startWTimer();
+  setLang(currentLang); renderChart(); updateWallet(); renderRewards(); loadDocs(); startWTimer();
   document.getElementById("offlineBar").classList.toggle("show",!navigator.onLine);
-  // Weather: fetch immediately + every 15 min
   fetchWeather(); setInterval(fetchWeather,15*60*1000);
-  // FAB: short tap = SOS; hold 500ms = expand voice + transfer
-  // Fix: longPressHappened flag prevents the click event from
-  // immediately closing the menu after a long-press opens it.
-  const fab = document.getElementById("fabMain");
-  let pressTimer = null;
-  let longPressHappened = false;
 
-  fab.addEventListener("pointerdown", () => {
-    longPressHappened = false;
-    pressTimer = setTimeout(() => {
-      longPressHappened = true;
-      fabOpen = true;
-      document.getElementById("fabItems").classList.remove("hidden");
-      fab.textContent = "✕";
-      toast("SOS · Voice · Transfer", "b");
-    }, 500);
-  });
-  fab.addEventListener("pointerup",     () => clearTimeout(pressTimer));
-  fab.addEventListener("pointercancel", () => clearTimeout(pressTimer));
-  fab.addEventListener("click", () => {
-    if (longPressHappened) { longPressHappened = false; return; } // swallow post-hold click
-    if (!fabOpen) openSOS();
-    else closeFAB();
-  });
+  const fab = document.getElementById("fabMain"); let pressTimer = null, longPressHappened = false;
+  fab.addEventListener("pointerdown", () => { longPressHappened = false; pressTimer = setTimeout(() => { longPressHappened = true; fabOpen = true; document.getElementById("fabItems").classList.remove("hidden"); fab.textContent = "✕"; toast("SOS · Voice · Transfer", "b"); }, 500); });
+  fab.addEventListener("pointerup", () => clearTimeout(pressTimer)); fab.addEventListener("pointercancel", () => clearTimeout(pressTimer));
+  fab.addEventListener("click", () => { if (longPressHappened) { longPressHappened = false; return; } if (!fabOpen) openSOS(); else toggleFAB(); });
 
-  // When app returns to foreground, attempt socket reconnect if needed.
-  // The GPS interval already resumes automatically (document.hidden = false).
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && isOnline && !socket?.connected) {
-      log("App visible — reconnecting socket","ok");
-      initSocket();
-    }
-  });
-
-  log("Magizham Rider v5.3 ready ✅","ok");
-  log("v5.3: background GPS opt · FAB fix · visibility reconnect","ok");
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && isOnline && !socket?.connected) { log("App visible — reconnecting socket","ok"); initSocket(); } });
+  log("Magizham Rider v5.3 ready ✅","ok"); log("v5.3: Adaptive GPS · Heading Transmit","ok");
 });
 </script>
 </body>
