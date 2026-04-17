@@ -364,6 +364,9 @@
 
   // ETA & Trail
   let dynamicDelaySecs = 0;
+  let trafficDelaySecs = 0;
+  let smoothedETA = null;
+  const ETA_ALPHA = 0.3;
   let pastPositions = [];
   let trailPolyline = null;
 
@@ -505,8 +508,8 @@
 
   // Smart ETA logic rendering
   function renderCountdown() {
-    // Add dynamic delay if stalled
-    const totalSecs = countdownSecs + dynamicDelaySecs;
+    // Add dynamic delay (stall + traffic congestion)
+    const totalSecs = countdownSecs + dynamicDelaySecs + trafficDelaySecs;
     const m = Math.floor(totalSecs/60), s = totalSecs%60;
     document.getElementById("countdown").innerText = String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
     if (totalSecs <= 0) return;
@@ -698,12 +701,10 @@
         const latDelta = (speedFactor * dt * Math.cos(rad)) / 111111;
         const lngDelta = (speedFactor * dt * Math.sin(rad)) / (111111 * Math.cos(currentPos.lat * Math.PI / 180));
         
+        if (timeSinceUpdate > 10) currentSpeedKmh *= 0.95;
         currentPos.lat += latDelta;
         currentPos.lng += lngDelta;
-        
-        // Push target forward so we don't snap back when data resumes
-        targetPos.lat += latDelta;
-        targetPos.lng += lngDelta;
+        // targetPos stays at last known real position — smooth catch-up on resume
 
       } else if (currentSpeedKmh < 1.0 && dist < 5) {
         // 🔥 FIX 5: Idle Vibration Fix
@@ -729,6 +730,7 @@
           if (camDist > 50) {
              map.panTo({ lat: currentPos.lat, lng: currentPos.lng });
           }
+          map.setHeading(currentGeographicHeading);
       }
     }
 
@@ -737,11 +739,14 @@
         const distToCustomer = getDistanceMeters(currentPos, customerPos);
         
         if (currentSpeedKmh < 2 && distToCustomer > 500) {
-            // Rider is stopped, increment dynamic delay to simulate real-world wait
             dynamicDelaySecs += 1;
         }
 
-        // 🔥 BONUS A: Waiting at Door logic 
+        if (distToCustomer < 100 && currentSpeedKmh > 1) {
+            currentSpeedKmh *= 0.8;
+        }
+
+        // 🔥 BONUS A: Waiting at Door logic
         if (distToCustomer < 50 && currentSpeedKmh < 2 && lastStatus !== "delivered") {
             setStatusHero("waiting");
         }
@@ -767,11 +772,15 @@
     }, (result, status) => {
       if (status!=="OK"||!result.routes.length) { console.warn("Route:",status); return; }
       const leg = result.routes[0].legs[0];
+      let newTrafficDelay = 0;
       leg.steps.forEach(step=>{
         const kmh=(step.distance.value/Math.max(step.duration.value,1))*3.6;
         const color=kmh<15?"#ef4444":kmh<35?"#f97316":"#22c55e";
         trafficPolylines.push(new google.maps.Polyline({ path:step.path, strokeColor:color, strokeWeight:6, strokeOpacity:.9, map, zIndex:10 }));
+        if (kmh < 15) newTrafficDelay += 2;
+        else if (kmh < 30) newTrafficDelay += 1;
       });
+      trafficDelaySecs = newTrafficDelay;
       document.getElementById("trafficLegend").style.display="block";
       document.getElementById("distance").innerText=(leg.distance.value/1000).toFixed(2)+" km";
       document.getElementById("pillDistance").classList.add("live");
@@ -873,7 +882,7 @@
       if (targetPos) {
         const bearing = getBearing(targetPos, newTarget);
         if (getDistanceMeters(targetPos, newTarget) > 1.0) {
-          currentGeographicHeading = bearing; // Save actual physics heading
+          currentGeographicHeading = currentGeographicHeading * 0.8 + bearing * 0.2; // EMA heading smoothing
           updateBikeHeading(bearing);         // Run UI spin easing
         }
       }
@@ -910,7 +919,7 @@
 
     // 🔥 BONUS C: Path Trail rendering
     pastPositions.push(newTarget);
-    if (pastPositions.length > 15) pastPositions.shift();
+    if (pastPositions.length > 10) pastPositions.shift();
     if (trailPolyline) trailPolyline.setPath(pastPositions);
 
     if (data.accuracy) updateAccuracyCircle(newTarget, data.accuracy);
