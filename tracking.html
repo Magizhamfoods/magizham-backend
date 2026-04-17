@@ -881,7 +881,7 @@
     } else {
       if (targetPos) {
         const bearing = getBearing(targetPos, newTarget);
-        if (getDistanceMeters(targetPos, newTarget) > 1.0) {
+        if (getDistanceMeters(targetPos, newTarget) > 3.0) {
           currentGeographicHeading = currentGeographicHeading * 0.8 + bearing * 0.2; // EMA heading smoothing
           updateBikeHeading(bearing);         // Run UI spin easing
         }
@@ -895,7 +895,7 @@
     if (data.speed != null && parseFloat(data.speed) >= 0) {
       incomingSpeed = parseFloat(data.speed);
     } 
-    currentSpeedKmh = currentSpeedKmh * 0.7 + incomingSpeed * 0.3;
+    currentSpeedKmh = Math.min(currentSpeedKmh * 0.7 + incomingSpeed * 0.3, 80);
 
     // 🔥 BONUS A: Rider Visual Activity Status Updates
     let activityStatus = "Moving";
