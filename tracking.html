@@ -346,8 +346,10 @@
   let customerPos = { ...DEFAULT_CUSTOMER_POS };
   let directionalWrap = null, bikeSvgEl = null, riderWrapEl = null;
   let isArrivingState = false, proximityAlertShown = false;
-  let reconnectAttempt = 0; 
+  let reconnectAttempt = 0;
   let currentSpeedKmh = 0;
+  let userInteracting = false;
+  let userInteractTimer = null;
 
   // 🚀 New Physics & Tracking State
   let currentPos = null;       // Visual marker position
@@ -399,7 +401,7 @@
         const banner = document.getElementById("offlineBanner");
         
         // Show low power / idle warnings
-        if (idleTime > 6000) {
+        if (idleTime > 12000) {
           if (badge.style.display !== "block") badge.style.display = "block";
           if (!socketInstance || !socketInstance.connected) {
             if (banner.style.display !== "block") banner.style.display = "block";
@@ -678,6 +680,14 @@
           zIndex: 1
       });
       
+      map.addListener("dragstart", () => {
+        userInteracting = true;
+        clearTimeout(userInteractTimer);
+      });
+      map.addListener("dragend", () => {
+        userInteractTimer = setTimeout(() => { userInteracting = false; }, 5000);
+      });
+
       updateAccuracyCircle(riderPos);
       drawTrafficRoute(riderPos, custPos);
     } catch (e) {
@@ -742,7 +752,7 @@
       // 🔥 FIX 3: Cinematic Uber-Style Camera (Soft follow)
       if (map && map.getCenter) {
           const camDist = getDistanceMeters(map.getCenter().toJSON(), currentPos);
-          if (camDist > 50) {
+          if (camDist > 50 && !userInteracting) {
              map.panTo({ lat: currentPos.lat, lng: currentPos.lng });
           }
           try { if (map.setHeading) map.setHeading(currentGeographicHeading); } catch(e) {}
