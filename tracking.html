@@ -434,6 +434,21 @@
     return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
   }
 
+  // Decodes a Google encoded polyline string without needing the geometry library
+  function decodePoly(encoded) {
+    const pts = []; let idx = 0, lat = 0, lng = 0;
+    while (idx < encoded.length) {
+      let b, shift = 0, result = 0;
+      do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+      shift = 0; result = 0;
+      do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+      pts.push({ lat: lat / 1e5, lng: lng / 1e5 });
+    }
+    return pts;
+  }
+
   /* ── Directional UI Easing ────────────────────────────────── */
   function updateBikeHeading(targetBearing) {
     if (!directionalWrap) return;
@@ -763,46 +778,72 @@
     return Math.round(smoothedETA);
   }
 
-  function drawTrafficRoute(origin, destination) {
-    if (!routesLib || !map) return;
-    const svc = new routesLib.DirectionsService();
-    trafficPolylines.forEach(p=>p.setMap(null)); trafficPolylines=[];
-    svc.route({ origin, destination, travelMode:google.maps.TravelMode.DRIVING,
-      drivingOptions:{departureTime:new Date(),trafficModel:google.maps.TrafficModel.BEST_GUESS}
-    }, (result, status) => {
-      if (status!=="OK"||!result.routes.length) { console.warn("Route:",status); return; }
-      const leg = result.routes[0].legs[0];
+  async function drawTrafficRoute(origin, destination) {
+    if (!map) return;
+    trafficPolylines.forEach(p => p.setMap(null)); trafficPolylines = [];
+
+    try {
+      const { RoutesService, RouteTravelMode, RoutingPreference } = await google.maps.importLibrary("routes");
+      const svc = new RoutesService();
+      const response = await svc.computeRoutes({
+        origin:      { location: { latLng: new google.maps.LatLng(origin.lat, origin.lng) } },
+        destination: { location: { latLng: new google.maps.LatLng(destination.lat, destination.lng) } },
+        travelMode:               RouteTravelMode.DRIVE,
+        routingPreference:        RoutingPreference.TRAFFIC_AWARE,
+        computeAlternativeRoutes: false
+      });
+
+      if (!response?.routes?.length) { console.warn("Routes API: no routes returned"); return; }
+
+      const leg = response.routes[0].legs[0];
       let newTrafficDelay = 0;
-      leg.steps.forEach(step=>{
-        const kmh=(step.distance.value/Math.max(step.duration.value,1))*3.6;
-        const color=kmh<15?"#ef4444":kmh<35?"#f97316":"#22c55e";
-        trafficPolylines.push(new google.maps.Polyline({ path:step.path, strokeColor:color, strokeWeight:6, strokeOpacity:.9, map, zIndex:10 }));
+
+      (leg.steps || []).forEach(step => {
+        const durSecs = parseInt(step.duration || step.staticDuration) || 1;
+        const kmh = ((step.distanceMeters || 0) / durSecs) * 3.6;
+        const color = kmh < 15 ? "#ef4444" : kmh < 35 ? "#f97316" : "#22c55e";
+        if (step.polyline?.encodedPolyline) {
+          trafficPolylines.push(new google.maps.Polyline({
+            path: decodePoly(step.polyline.encodedPolyline),
+            strokeColor: color, strokeWeight: 6, strokeOpacity: .9, map, zIndex: 10
+          }));
+        }
         if (kmh < 15) newTrafficDelay += 2;
         else if (kmh < 30) newTrafficDelay += 1;
       });
       trafficDelaySecs = newTrafficDelay;
-      document.getElementById("trafficLegend").style.display="block";
-      document.getElementById("distance").innerText=(leg.distance.value/1000).toFixed(2)+" km";
+
+      document.getElementById("trafficLegend").style.display = "block";
+      const totalDist = leg.distanceMeters || 0;
+      document.getElementById("distance").innerText = (totalDist / 1000).toFixed(2) + " km";
       document.getElementById("pillDistance").classList.add("live");
-      if (leg.duration?.value) {
-        const smoothed=getSmoothedETA(leg.duration.value);
+
+      const legDurSecs = parseInt(leg.duration || leg.staticDuration) || 0;
+      if (legDurSecs > 0) {
         document.getElementById("pillEta").classList.add("live");
-        setArrivalInfo(smoothed);
+        setArrivalInfo(getSmoothedETA(legDurSecs));
       }
+
       if (!mapFitted) {
-        const bounds=new google.maps.LatLngBounds(); bounds.extend(origin); bounds.extend(destination);
-        map.fitBounds(bounds,{bottom:360,top:80,left:20,right:20}); mapFitted=true;
+        const bounds = new google.maps.LatLngBounds();
+        bounds.extend(origin); bounds.extend(destination);
+        map.fitBounds(bounds, { bottom: 360, top: 80, left: 20, right: 20 });
+        mapFitted = true;
       }
-      const dist=leg.distance.value; let newStatus="";
-      if (dist<200) { newStatus="delivered"; updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); updateTimeline("delivered"); }
-      else if (dist<500) { newStatus="arriving"; updateStatusBadge("arriving","arrived"); setStatusHero("arriving"); updateTimeline("on_the_way"); triggerArrivingState(); triggerProximityAlert(); }
-      else { newStatus="onTheWay"; updateStatusBadge("onTheWay","connected"); if(dist>=500) clearArrivingState(); }
-      if (newStatus!==lastStatus) {
-        if (newStatus==="arriving") speak("speechArriving");
-        if (newStatus==="delivered") { speak("speechDelivered"); if(!popupShown){popupShown=true;clearArrivingState();triggerDelivery();} }
-        lastStatus=newStatus;
+
+      let newStatus = "";
+      if (totalDist < 200) { newStatus = "delivered"; updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); updateTimeline("delivered"); }
+      else if (totalDist < 500) { newStatus = "arriving"; updateStatusBadge("arriving","arrived"); setStatusHero("arriving"); updateTimeline("on_the_way"); triggerArrivingState(); triggerProximityAlert(); }
+      else { newStatus = "onTheWay"; updateStatusBadge("onTheWay","connected"); clearArrivingState(); }
+
+      if (newStatus !== lastStatus) {
+        if (newStatus === "arriving") speak("speechArriving");
+        if (newStatus === "delivered") { speak("speechDelivered"); if (!popupShown) { popupShown = true; clearArrivingState(); triggerDelivery(); } }
+        lastStatus = newStatus;
       }
-    });
+    } catch(e) {
+      console.warn("Routes API error:", e);
+    }
   }
 
   function triggerDelivery() {
