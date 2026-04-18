@@ -351,6 +351,8 @@
   let currentSpeedKmh = 0;
   let userInteracting = false;
   let userInteractTimer = null;
+  let _routeFailCount = 0;
+  let _routeFailCooldown = 0;
   let _lastHeadingUpdate = 0;
 
   // 🚀 New Physics & Tracking State
@@ -490,18 +492,14 @@
 
   function shouldUpdateRoute(pos) {
     const now = Date.now();
-    if (now - lastRouteTime < 4000) return false;
+    if (now < _routeFailCooldown) return false;
+    if (now - lastRouteTime < 5000) return false;
     if (!lastRoutePos) { lastRoutePos=pos; lastRouteTime=now; return true; }
-    
-    // 🔥 BONUS B: Deviation Detection check 
     const distDelta = getDistanceMeters(lastRoutePos, pos);
-    if (distDelta > 50) { 
-      lastRoutePos = pos; 
-      lastRouteTime = now;
-      if (lastStatus === "onTheWay" && isTrackingLive) {
-         showToast("📍 Route deviated. Recalculating...", 3000);
-      }
-      return true; 
+    if (distDelta > 40) {
+      lastRoutePos = pos; lastRouteTime = now;
+      if (lastStatus === "onTheWay" && isTrackingLive) showToast("📍 Recalculating route...", 2000);
+      return true;
     }
     return false;
   }
@@ -759,10 +757,8 @@
           if (camDist > 200 && !userInteracting) {
              map.panTo({ lat: currentPos.lat, lng: currentPos.lng });
           }
-          // Only update heading every 3s and never while user is interacting
-          if (!userInteracting && (now - (_lastHeadingUpdate||0)) > 3000) {
-            try { if (map.setHeading) map.setHeading(currentGeographicHeading); } catch(e) {}
-            _lastHeadingUpdate = now;
+          if (!userInteracting && (now - _lastHeadingUpdate) > 4000) {
+            try { if (map.setHeading) map.setHeading(currentGeographicHeading); _lastHeadingUpdate = now; } catch(e) {}
           }
       }
     }
@@ -818,16 +814,23 @@
       const data = await res.json();
       if (!data.routes?.length) {
         console.warn("Routes API: no routes returned");
-        // Show straight-line distance as fallback
+        _routeFailCount++;
+        // Exponential backoff: 30s, 60s, 120s max
+        _routeFailCooldown = Date.now() + Math.min(30000 * _routeFailCount, 120000);
         if (origin && destination) {
           const d = getDistanceMeters(origin, destination);
-          document.getElementById("distance").innerText = (d/1000).toFixed(2) + " km*";
-          document.getElementById("pillDistance").classList.add("live");
-          const estSecs = Math.round((d / 1000 / 30) * 3600);
-          setArrivalInfo(estSecs);
+          if (d > 50) {
+            document.getElementById("distance").innerText = (d/1000).toFixed(2) + " km";
+            document.getElementById("pillDistance").classList.add("live");
+            const estSecs = Math.round((d / 1000 / 25) * 3600);
+            setArrivalInfo(estSecs);
+          }
         }
         return;
       }
+      // Reset fail count on success
+      _routeFailCount = 0;
+      _routeFailCooldown = 0;
 
       const route = data.routes[0];
       const parseSecs = s => { const m = String(s || "").match(/(\d+)/); return m ? parseInt(m[1], 10) : 0; };
