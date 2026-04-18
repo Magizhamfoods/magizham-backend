@@ -281,7 +281,7 @@ app.get("/api/route", async (req, res) => {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
           "X-Goog-FieldMask":
-            "routes.duration,routes.staticDuration,routes.distanceMeters,routes.legs.steps.polyline.encodedPolyline"
+            "routes.duration,routes.staticDuration,routes.distanceMeters,routes.legs.steps.distanceMeters,routes.legs.steps.staticDuration,routes.legs.steps.polyline.encodedPolyline"
         },
         body: JSON.stringify({
           origin: {
