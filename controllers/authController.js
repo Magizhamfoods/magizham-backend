@@ -2,45 +2,29 @@ const pool = require("../config/db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
-exports.register = async (req, res) => {
-  const { name, email, password } = req.body;
-
-  try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const result = await pool.query(
-      "INSERT INTO users (name, email, password) VALUES ($1,$2,$3) RETURNING *",
-      [name, email, hashedPassword]
-    );
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  const { phone, password } = req.body;  // ← was "email"
 
   try {
     const user = await pool.query(
       "SELECT * FROM users WHERE phone = $1",
-      [email]
+      [phone]  // ← was "email"
     );
 
     if (user.rows.length === 0) {
       return res.status(400).json({ message: "User not found" });
     }
 
-    const valid = await bcrypt.compare(password, user.rows[0].password);
+    // Plain text compare for now (password in DB is not hashed)
+    const valid = user.rows[0].password === password;
 
     if (!valid) {
       return res.status(400).json({ message: "Invalid password" });
     }
 
     const token = jwt.sign(
-      { id: user.rows[0].id },
-      process.env.JWT_SECRET
+      { id: user.rows[0].id, phone: user.rows[0].phone, role: user.rows[0].role },
+      process.env.JWT_SECRET || "magizham-dev-secret-2025"
     );
 
     res.json({ token });
