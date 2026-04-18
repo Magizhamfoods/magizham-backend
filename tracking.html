@@ -681,11 +681,13 @@
       const _setInteracting = () => {
         userInteracting = true;
         clearTimeout(userInteractTimer);
-        userInteractTimer = setTimeout(() => { userInteracting = false; }, 5000);
+        userInteractTimer = setTimeout(() => { userInteracting = false; }, 15000);
       };
-      map.addListener("dragstart", _setInteracting);
-      map.addListener("dragend",   _setInteracting);
+      map.addListener("dragstart",    _setInteracting);
+      map.addListener("drag",         _setInteracting);
+      map.addListener("dragend",      _setInteracting);
       map.addListener("zoom_changed", _setInteracting);
+      map.addListener("mousedown",    _setInteracting);
 
       updateAccuracyCircle(riderPos);
       drawTrafficRoute(riderPos, custPos);
