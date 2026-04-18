@@ -24,7 +24,7 @@ exports.login = async (req, res) => {
 
   try {
     const user = await pool.query(
-      "SELECT * FROM users WHERE email=$1",
+      "SELECT * FROM users WHERE phone = $1",
       [email]
     );
 
