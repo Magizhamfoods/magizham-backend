@@ -7,21 +7,30 @@
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root {
-      --green:#1a7a4a; --green2:#25a066; --white:#ffffff;
-      --gray:#6b7280; --dgray:#374151; --red:#e53935;
-      --shadow:0 -2px 20px rgba(0,0,0,0.10);
+      --green:  #1a7a4a; --green2: #25a066; --white: #ffffff;
+      --gray: #6b7280; --dgray: #374151; --red: #e53935;
+      --shadow: 0 -2px 20px rgba(0,0,0,0.10);
     }
-    *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+    * { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
     body { font-family:"Nunito",sans-serif; background:#f0f2f0; overflow:hidden; height:100vh; }
     #map { position:fixed; top:0; left:0; right:0; bottom:0; width:100vw; height:100vh; z-index:0; }
     #confettiCanvas { position:fixed; inset:0; z-index:9995; pointer-events:none; display:none; }
 
     #offlineBanner { display:none; position:fixed; top:0; left:0; right:0; background:var(--red); color:white; text-align:center; padding:10px 16px; font-size:13px; font-weight:700; z-index:9999; }
-    #predictionBadge { display:none; position:fixed; top:56px; left:50%; transform:translateX(-50%); background:rgba(249,115,22,0.92); color:white; border-radius:20px; padding:5px 14px; font-size:11px; font-weight:800; z-index:9998; white-space:nowrap; backdrop-filter:blur(4px); }
+    #predictionBadge { display:none; position:fixed; top:56px; left:50%; transform:translateX(-50%); background:rgba(249,115,22,0.92); color:white; border-radius:20px; padding:5px 14px; font-size:11px; font-weight:800; z-index:9998; white-space:nowrap; backdrop-filter:blur(4px); transition: opacity 0.3s; }
 
-    #reconnectBanner { display:none; position:fixed; top:0; left:0; right:0; background:#854d0e; color:white; text-align:center; padding:9px 16px; font-size:12px; font-weight:800; z-index:9998; align-items:center; justify-content:center; gap:8px; }
+    /* ── Reconnect banner — shown on socket disconnect ── */
+    #reconnectBanner {
+      display:none; position:fixed; top:0; left:0; right:0;
+      background:#854d0e; color:white; text-align:center;
+      padding:9px 16px; font-size:12px; font-weight:800; z-index:9998;
+      align-items:center; justify-content:center; gap:8px;
+    }
     #reconnectBanner.show { display:flex; }
-    .reconnect-dot { width:8px; height:8px; border-radius:50%; background:white; animation:rcPulse 1s ease-in-out infinite; }
+    .reconnect-dot {
+      width:8px; height:8px; border-radius:50%; background:white;
+      animation:rcPulse 1s ease-in-out infinite;
+    }
     @keyframes rcPulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
 
     #proximityBanner { display:none; position:fixed; top:12px; left:12px; right:12px; background:var(--green); color:white; border-radius:16px; padding:12px 16px; z-index:9997; align-items:center; gap:12px; box-shadow:0 4px 20px rgba(26,122,74,0.4); animation:slideDown .4s cubic-bezier(.34,1.56,.64,1); }
@@ -41,23 +50,12 @@
     .top-badge { background:white; border-radius:20px; padding:6px 14px; font-size:12px; font-weight:800; color:var(--dgray); box-shadow:0 2px 12px rgba(0,0,0,.12); display:flex; align-items:center; gap:6px; }
     .gps-badge { display:flex; align-items:center; gap:4px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px; padding-left:8px; border-left:1px solid #e5e7eb; margin-left:4px; }
     .gps-dot { width:8px; height:8px; border-radius:50%; }
-    .gps-high { background:#22c55e; box-shadow:0 0 6px rgba(34,197,94,0.6); }
-    .gps-med  { background:#eab308; box-shadow:0 0 6px rgba(234,179,8,0.6); }
-    .gps-low  { background:#ef4444; box-shadow:0 0 6px rgba(239,68,68,0.6); }
+    .gps-high { background-color: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
+    .gps-med { background-color: #eab308; box-shadow: 0 0 6px rgba(234,179,8,0.6); }
+    .gps-low { background-color: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.6); }
+    
     .top-actions { display:flex; gap:8px; }
     .top-action-btn { width:36px; height:36px; background:white; border:none; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:16px; cursor:pointer; box-shadow:0 2px 12px rgba(0,0,0,.12); }
-
-    /* ── Re-centre button ── */
-    #recenterBtn {
-      display:none; position:fixed; bottom:340px; right:14px; z-index:600;
-      width:44px; height:44px; border-radius:50%;
-      background:white; border:none; cursor:pointer; font-size:18px;
-      box-shadow:0 3px 16px rgba(0,0,0,0.22);
-      align-items:center; justify-content:center;
-      transition:transform .2s;
-    }
-    #recenterBtn.show { display:flex; }
-    #recenterBtn:active { transform:scale(.9); }
 
     .eta-bubble { background:#111827; color:white; border-radius:8px; padding:5px 10px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,.3); position:relative; }
     .eta-bubble::after { content:""; position:absolute; bottom:-5px; left:50%; transform:translateX(-50%); border-left:5px solid transparent; border-right:5px solid transparent; border-top:5px solid #111827; }
@@ -66,9 +64,12 @@
     .rider-pulse-ring  { position:absolute; inset:0; border-radius:50%; background:rgba(26,122,74,0.2); animation:ringPulse 1.8s ease-out infinite; }
     .rider-pulse-ring2 { position:absolute; inset:4px; border-radius:50%; background:rgba(26,122,74,0.15); animation:ringPulse 1.8s ease-out infinite .4s; }
     .rider-icon-circle { width:44px; height:44px; border-radius:50%; background:white; border:3px solid var(--green); display:flex; align-items:center; justify-content:center; position:relative; z-index:2; box-shadow:0 2px 8px rgba(0,0,0,.2); }
-    .rider-directional-wrap { transition:transform 0.6s cubic-bezier(0.4,0,0.2,1); display:flex; align-items:center; justify-content:center; width:100%; height:100%; position:relative; }
+    
+    /* 🚀 Directional CSS logic */
+    .rider-directional-wrap { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); display:flex; align-items:center; justify-content:center; width:100%; height:100%; position:relative; }
     .rider-bike-svg { font-size:22px; z-index:2; }
     .rider-arrow { position:absolute; top:-6px; font-size:12px; color:var(--green); text-shadow:0 -1px 2px rgba(0,0,0,0.3); z-index:1; }
+
     @keyframes ringPulse { 0%{transform:scale(.8);opacity:1;} 70%{transform:scale(1.9);opacity:0;} 100%{transform:scale(.8);opacity:0;} }
     .rider-marker-wrap.arriving .rider-pulse-ring  { animation:ringPulse .7s ease-out infinite; background:rgba(37,160,102,.35); }
     .rider-marker-wrap.arriving .rider-pulse-ring2 { animation:ringPulse .7s ease-out infinite .2s; }
@@ -112,7 +113,7 @@
     .info-pill { flex:1; background:#f9fafb; border-radius:10px; padding:8px 6px; text-align:center; transition:background .3s; }
     .info-pill.live { background:#f0fdf4; }
     .info-pill .ip-label { font-size:9px; color:var(--gray); font-weight:700; text-transform:uppercase; letter-spacing:.3px; }
-    .info-pill .ip-value { font-size:14px; font-weight:900; color:#111; margin-top:1px; transition:color 0.3s; }
+    .info-pill .ip-value { font-size:14px; font-weight:900; color:#111; margin-top:1px; transition: color 0.3s ease; }
 
     #riderSection { padding:10px 18px 14px; }
     .rider-row { display:flex; align-items:center; gap:12px; }
@@ -174,8 +175,9 @@
 <div id="offlineBanner">⚠️ Signal lost — predicting movement.
   <button onclick="retryConnection()" style="margin-left:8px;background:white;color:var(--red);border:none;padding:3px 10px;border-radius:20px;font-weight:800;cursor:pointer;">Retry</button>
 </div>
-<div id="predictionBadge">🔮 Predicting position...</div>
+<div id="predictionBadge">🔮 Offline prediction mode</div>
 
+<!-- ── Reconnect banner — shown on socket disconnect ── -->
 <div id="reconnectBanner">
   <div class="reconnect-dot"></div>
   <span id="reconnectText">Connection lost — reconnecting...</span>
@@ -195,9 +197,6 @@
 <div id="toast"></div>
 <div id="map"></div>
 
-<!-- Re-centre button: shows when user drags the map freely -->
-<button id="recenterBtn" title="Re-centre on rider" onclick="recentreMap()">📍</button>
-
 <div id="trafficLegend">
   <div class="legend-row"><div class="legend-dot" style="background:#22c55e"></div> Free flow</div>
   <div class="legend-row"><div class="legend-dot" style="background:#f97316"></div> Slow</div>
@@ -207,7 +206,7 @@
 <div id="topBar">
   <div class="top-badge">
     <span id="statusBadge" class="pulse">Connecting...</span>
-    <div class="gps-badge" title="Rider GPS accuracy">
+    <div class="gps-badge" title="Rider GPS Signal Confidence">
       <div id="gpsDot" class="gps-dot gps-low"></div>
       <span id="gpsText">GPS</span>
     </div>
@@ -275,10 +274,8 @@
   <h2>Order Delivered!</h2>
   <p>Your Magizham order has arrived!<br>How was your delivery experience?</p>
   <div class="star-rating">
-    <span class="star" onclick="rateStar(1)">⭐</span>
-    <span class="star" onclick="rateStar(2)">⭐</span>
-    <span class="star" onclick="rateStar(3)">⭐</span>
-    <span class="star" onclick="rateStar(4)">⭐</span>
+    <span class="star" onclick="rateStar(1)">⭐</span><span class="star" onclick="rateStar(2)">⭐</span>
+    <span class="star" onclick="rateStar(3)">⭐</span><span class="star" onclick="rateStar(4)">⭐</span>
     <span class="star" onclick="rateStar(5)">⭐</span>
   </div>
   <div class="rating-label" id="ratingLabel">Tap to rate your rider</div>
@@ -290,61 +287,58 @@
     window._googleMapsReady = true;
     if (window._mapReadyResolve) window._mapReadyResolve();
   }
+  
+  // Catches Google Maps Referrer/Auth errors gracefully
   function gm_authFailure() {
     window._mapAuthFailed = true;
     window._googleMapsReady = true;
     if (window._mapReadyResolve) window._mapReadyResolve();
-    const d = document.getElementById("map");
-    if (d) {
-      d.style.cssText = "display:flex;flex-direction:column;align-items:center;justify-content:center;background:#e5e7eb;";
-      d.innerHTML = `<div style="text-align:center;padding:20px;margin-bottom:25vh;">
-        <div style="font-size:40px;margin-bottom:10px;">🗺️</div>
-        <div style="font-weight:800;color:#374151;font-size:16px;">Map Preview Restricted</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:6px;max-width:280px;line-height:1.4;">
-          Google Maps API key restricts this domain.<br><br>
-          <b>All tracking features still work.</b> Deploy to your Railway domain for the live map.
+    
+    const mapDiv = document.getElementById("map");
+    if(mapDiv) {
+      mapDiv.style.display = "flex";
+      mapDiv.style.flexDirection = "column";
+      mapDiv.style.alignItems = "center";
+      mapDiv.style.justifyContent = "center";
+      mapDiv.style.background = "#e5e7eb";
+      mapDiv.innerHTML = `
+        <div style="text-align:center; padding:20px; z-index:1; margin-bottom: 25vh;">
+          <div style="font-size:40px; margin-bottom:10px;">🗺️</div>
+          <div style="font-weight:800; color:#374151; font-size:16px;">Map Preview Restricted</div>
+          <div style="font-size:12px; color:#6b7280; margin-top:6px; max-width: 280px; line-height: 1.4;">
+            Your Google Maps API key restricts access from this preview environment.<br><br>
+            <b>The rest of the app will still function normally.</b> Deploy to your allowed domain to see the live map.
+          </div>
         </div>
-      </div>`;
+      `;
     }
   }
 </script>
-<!-- FIX 1: routes library added to the script tag -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8&loading=async&libraries=maps,marker,routes&v=weekly&callback=initMapCallback" async></script>
-<script src="/socket.io/socket.io.js"></script>
-
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8&loading=async&libraries=maps,marker,geometry&v=weekly&callback=initMapCallback" async></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════
-   MAGIZHAM TRACKING — PRODUCTION v3.2
-   ✅ FIX 1 — Routes API: RoutesService.computeRoutes replaces
-              deprecated DirectionsService. Traffic-aware, faster,
-              future-proof. DirectionsService kept as silent fallback.
-   ✅ FIX 2 — Route throttle: 4000 → 7000ms (~40% cost saving)
-   ✅ FIX 3 — map.setTilt(60) on arriving — cinematic Uber view
-   ✅ FIX 4 — Map drag fully unlocked: gestureHandling:"greedy",
-              camera follow paused on dragstart, re-centre button
-              appears, auto-resume after 8s or on button tap
-   ✅ FIX 5 — Physics prediction engine (dead reckoning)
-   ✅ FIX 6 — EMA GPS jitter filter (0.8/0.2)
-   ✅ FIX 7 — Path trail, GPS confidence badge, rider status text
-   ✅ FIX 8 — Socket reconnect banner + attempt counter
-   All existing features preserved. None removed.
+   MAGIZHAM TRACKING — PRODUCTION v3.1 (NATIVE TIER UPGRADE)
+   ✅ Seamless interpolation rendering with 0.8/0.2 EMA Smoothing
+   ✅ Accurate rotational headings using Geographic Prediction Match
+   ✅ Explicit physics-based Prediction Engine (Dead Reckoning)
+   ✅ Smart ETA System & Idle Rider Check
+   ✅ Geofence UX: "Waiting at Door" & Route Deviation Alerts
+   ✅ Uber-Style Path Trail & Cinematic Map Camera (PanTo only > 50m)
+   ✅ Rider Live Status Text (Moving/Stopped/Slow)
 ═══════════════════════════════════════════════════════════════ */
 
-  /* ── Order ID from URL ────────────────────────────────────── */
-  const pathParts = window.location.pathname.split("/");
-  const pathId    = pathParts[pathParts.length - 1];
-  const orderId   = (pathId && pathId !== "" && pathId !== "tracking.html")
-    ? pathId
-    : new URLSearchParams(window.location.search).get("orderId");
-  const validOrder = !!(orderId && orderId.length > 0);
+  const pathParts  = window.location.pathname.split("/");
+  const pathId     = pathParts[pathParts.length - 1];
+  const orderId    = (pathId && pathId !== "" && pathId !== "tracking.html")
+    ? pathId : new URLSearchParams(window.location.search).get("orderId");
 
-  const RESTAURANT_POS       = { lat: 25.2426266, lng: 55.3026453 };
+  const validOrder = orderId && orderId.length > 0;
+
+  const RESTAURANT_POS   = { lat: 25.2426266, lng: 55.3026453 };
   const DEFAULT_CUSTOMER_POS = { lat: 25.2320,    lng: 55.3120    };
 
-  /* ── State ────────────────────────────────────────────────── */
-  let map, riderMarker, etaMarker, customerMarker, restaurantMarker;
-  let accuracyCircle = null, trafficPolylines = [], trailPolyline = null;
-  let socketInstance = null;
+  let map, riderMarker, etaMarker, customerMarker, restaurantMarker, routesLib;
+  let accuracyCircle = null, trafficPolylines = [], socketInstance = null;
   let lastStatus = "", popupShown = false, mapFitted = false;
   let lastRoutePos = null, lastRouteTime = 0;
   let countdownSecs = 0, countdownTimer = null;
@@ -353,145 +347,159 @@
   let directionalWrap = null, bikeSvgEl = null, riderWrapEl = null;
   let isArrivingState = false, proximityAlertShown = false;
   let reconnectAttempt = 0;
-
-  // Physics state
-  let currentPos  = null;
-  let targetPos   = null;
   let currentSpeedKmh = 0;
-  let currentCumulativeRotation = 0;
-  let currentGeographicHeading  = 0;
-  let isTrackingLive = false;
-  let lastRenderTime = Date.now();
-  let lastSocketMsgTime = Date.now();
-
-  // FIX 4 — map drag state
-  let userInteracting   = false;
+  let userInteracting = false;
   let userInteractTimer = null;
 
-  // Watchdog timers
+  // 🚀 New Physics & Tracking State
+  let currentPos = null;       // Visual marker position
+  let targetPos = null;        // The actual server-reported position
+  let lastRenderTime = performance.now();
+  let isTrackingLive = false;
+  let currentCumulativeRotation = 0;
+  let currentGeographicHeading = 0; // True actual geographic direction for prediction
+
+  // Network State
+  let lastSocketMessageTime = Date.now();
   let fallbackPollingTimer = null;
-  let uiWatchdogTimer      = null;
+  let uiWatchdogTimer = null;
 
-  // ETA
-  let smoothedETA = null, dynamicDelaySecs = 0, trafficDelaySecs = 0;
+  // ETA & Trail
+  let dynamicDelaySecs = 0;
+  let trafficDelaySecs = 0;
+  let smoothedETA = null;
   const ETA_ALPHA = 0.3;
-
-  // Trail
   let pastPositions = [];
+  let trailPolyline = null;
 
-  /* ── Watchdogs ───────────────────────────────────────────── */
+  // Watchdogs to handle offline UI and Fallback API polling
   function startWatchdogs() {
     if (!fallbackPollingTimer) {
       fallbackPollingTimer = setInterval(async () => {
-        if (Date.now() - lastSocketMsgTime > 12000) {
+        const timeSinceLastUpdate = Date.now() - lastSocketMessageTime;
+        // Trigger fallback API poll if 12s pass with no socket data
+        if (timeSinceLastUpdate > 12000) {
           try {
+            if (window.location.protocol === 'blob:' || window.location.protocol === 'data:' || window.location.origin === "null") return;
             const res = await fetch("/api/orders/" + orderId + "/track");
             if (res.ok) {
-              const d = await res.json();
-              if (d.lat && d.lng) handleLocationUpdate(d);
-              if (d.status)       handleStatusUpdate({ status: d.status, orderId });
+              const data = await res.json();
+              if (data.lat && data.lng) handleLocationUpdate(data);
+              if (data.status) handleStatusUpdate({ status: data.status, orderId: orderId });
             }
-          } catch(e) {}
+          } catch (e) {
+            console.warn("Fallback polling failed", e);
+          }
         }
-      }, 8000);
+      }, 8000); // Check every 8 seconds
     }
+
     if (!uiWatchdogTimer) {
       uiWatchdogTimer = setInterval(() => {
-        const idle = Date.now() - lastSocketMsgTime;
-        document.getElementById("predictionBadge").style.display = idle > 12000 ? "block" : "none";
-        document.getElementById("offlineBanner").style.display   = (idle > 12000 && !socketInstance?.connected) ? "block" : "none";
+        const idleTime = Date.now() - lastSocketMessageTime;
+        const badge = document.getElementById("predictionBadge");
+        const banner = document.getElementById("offlineBanner");
+        
+        // Show low power / idle warnings
+        if (idleTime > 12000) {
+          if (badge.style.display !== "block") badge.style.display = "block";
+          if (!socketInstance || !socketInstance.connected) {
+            if (banner.style.display !== "block") banner.style.display = "block";
+          }
+        } else {
+          if (badge.style.display !== "none") badge.style.display = "none";
+          if (banner.style.display !== "none") banner.style.display = "none";
+        }
       }, 1000);
     }
   }
 
-  /* ── Reconnect banner ────────────────────────────────────── */
+  /* ── showReconnectBanner / hideReconnectBanner ────────────── */
   function showReconnectBanner(attempt) {
-    document.getElementById("reconnectText").innerText = attempt > 0
+    const banner = document.getElementById("reconnectBanner");
+    const text   = document.getElementById("reconnectText");
+    text.innerText = attempt > 0
       ? `Connection lost — reconnecting (attempt ${attempt})...`
       : "Connection lost — reconnecting...";
-    document.getElementById("reconnectBanner").classList.add("show");
+    banner.classList.add("show");
   }
+
   function hideReconnectBanner() {
     document.getElementById("reconnectBanner").classList.remove("show");
     reconnectAttempt = 0;
   }
 
-  /* ── Geometry helpers ────────────────────────────────────── */
   function getBearing(p1, p2) {
     const r = x => x * Math.PI / 180;
     const y = Math.sin(r(p2.lng-p1.lng)) * Math.cos(r(p2.lat));
     const x = Math.cos(r(p1.lat)) * Math.sin(r(p2.lat)) - Math.sin(r(p1.lat)) * Math.cos(r(p2.lat)) * Math.cos(r(p2.lng-p1.lng));
-    return (Math.atan2(y,x) * 180/Math.PI + 360) % 360;
-  }
-  function getDistanceMeters(p1, p2) {
-    const R=6371000, r=x=>x*Math.PI/180;
-    const dLat=r(p2.lat-p1.lat), dLng=r(p2.lng-p1.lng);
-    const a=Math.sin(dLat/2)**2+Math.cos(r(p1.lat))*Math.cos(r(p2.lat))*Math.sin(dLng/2)**2;
-    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
   }
 
-  // Decode Google encoded polyline string
+  // Decodes a Google encoded polyline string without needing the geometry library
   function decodePoly(encoded) {
-    const pts=[]; let idx=0, lat=0, lng=0;
+    const pts = []; let idx = 0, lat = 0, lng = 0;
     while (idx < encoded.length) {
-      let b,shift=0,result=0;
-      do { b=encoded.charCodeAt(idx++)-63; result|=(b&0x1f)<<shift; shift+=5; } while(b>=0x20);
-      lat += (result&1)?~(result>>1):(result>>1);
-      shift=0; result=0;
-      do { b=encoded.charCodeAt(idx++)-63; result|=(b&0x1f)<<shift; shift+=5; } while(b>=0x20);
-      lng += (result&1)?~(result>>1):(result>>1);
-      pts.push({ lat:lat/1e5, lng:lng/1e5 });
+      let b, shift = 0, result = 0;
+      do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lat += (result & 1) ? ~(result >> 1) : (result >> 1);
+      shift = 0; result = 0;
+      do { b = encoded.charCodeAt(idx++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+      lng += (result & 1) ? ~(result >> 1) : (result >> 1);
+      pts.push({ lat: lat / 1e5, lng: lng / 1e5 });
     }
     return pts;
   }
 
-  /* ── Directional heading ─────────────────────────────────── */
+  /* ── Directional UI Easing ────────────────────────────────── */
   function updateBikeHeading(targetBearing) {
     if (!directionalWrap) return;
-    const mod  = ((currentCumulativeRotation % 360) + 360) % 360;
-    let delta  = targetBearing - mod;
-    if (delta >  180) delta -= 360;
+    const currentMod = ((currentCumulativeRotation % 360) + 360) % 360;
+    let delta = targetBearing - currentMod;
+    if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
     currentCumulativeRotation += delta;
+    
+    // Rotate the wrapper that holds both the bike SVG and the directional arrow
     directionalWrap.style.transform = `rotate(${currentCumulativeRotation - 90}deg)`;
   }
 
-  /* ── FIX 4: Re-centre ────────────────────────────────────── */
-  function showRecenterBtn() { document.getElementById("recenterBtn").classList.add("show"); }
-  function hideRecenterBtn() { document.getElementById("recenterBtn").classList.remove("show"); }
-  function recentreMap() {
-    userInteracting = false;
-    clearTimeout(userInteractTimer);
-    hideRecenterBtn();
-    if (map && currentPos) { map.panTo(currentPos); map.setZoom(15); }
-  }
-
-  /* ── Status messages ─────────────────────────────────────── */
   const STATUS_MESSAGES = {
-    placed:    { icon:"📋", main:"Order placed!",    sub:"We received your order" },
-    confirmed: { icon:"🍳", main:"Being prepared",   sub:"The kitchen is working on it" },
-    on_the_way:{ icon:"🛵", main:"On the way!",      sub:"Your rider has picked up your order" },
-    arriving:  { icon:"🏁", main:"Almost there!",    sub:"Your rider is less than 500m away" },
-    waiting:   { icon:"⏳", main:"Arrived",          sub:"Rider is waiting outside!" },
-    delivered: { icon:"🎉", main:"Delivered!",       sub:"Your order has arrived. Enjoy!" },
+    placed:     { icon:"📋", main:"Order placed!",    sub:"We received your order" },
+    confirmed:  { icon:"🍳", main:"Being prepared",   sub:"The kitchen is working on it" },
+    on_the_way: { icon:"🛵", main:"On the way!",      sub:"Your rider has picked up your order" },
+    arriving:   { icon:"🏁", main:"Almost there!",    sub:"Your rider is less than 500m away" },
+    waiting:    { icon:"⏳", main:"Arrived",          sub:"Rider is waiting outside!" },
+    delivered:  { icon:"🎉", main:"Delivered!",       sub:"Your order has arrived. Enjoy!" }
   };
-  function setStatusHero(k, sub) {
+
+  function setStatusHero(k, subOverride) {
     const m = STATUS_MESSAGES[k] || STATUS_MESSAGES.placed;
     document.getElementById("statusIcon").innerText     = m.icon;
     document.getElementById("statusMainText").innerText = m.main;
-    document.getElementById("statusSubText").innerText  = sub || m.sub;
+    document.getElementById("statusSubText").innerText  = subOverride || m.sub;
   }
 
-  /* ── Route update guard ──────────────────────────────────── */
-  // FIX 2: throttle raised from 4000 → 7000ms
+  function getDistanceMeters(p1, p2) {
+    const R=6371000, r=x=>x*Math.PI/180, dLat=r(p2.lat-p1.lat), dLng=r(p2.lng-p1.lng);
+    const a=Math.sin(dLat/2)**2+Math.cos(r(p1.lat))*Math.cos(r(p2.lat))*Math.sin(dLng/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+
   function shouldUpdateRoute(pos) {
     const now = Date.now();
-    if (now - lastRouteTime < 7000) return false;
-    if (!lastRoutePos) { lastRoutePos = pos; lastRouteTime = now; return true; }
-    if (getDistanceMeters(lastRoutePos, pos) > 50) {
-      if (lastStatus === "onTheWay" && isTrackingLive) showToast("📍 Route updated");
-      lastRoutePos = pos; lastRouteTime = now;
-      return true;
+    if (now - lastRouteTime < 4000) return false;
+    if (!lastRoutePos) { lastRoutePos=pos; lastRouteTime=now; return true; }
+    
+    // 🔥 BONUS B: Deviation Detection check 
+    const distDelta = getDistanceMeters(lastRoutePos, pos);
+    if (distDelta > 50) { 
+      lastRoutePos = pos; 
+      lastRouteTime = now;
+      if (lastStatus === "onTheWay" && isTrackingLive) {
+         showToast("📍 Route deviated. Recalculating...", 3000);
+      }
+      return true; 
     }
     return false;
   }
@@ -504,71 +512,77 @@
     });
   }
 
-  /* ── Countdown ───────────────────────────────────────────── */
   function startCountdown(seconds) {
     if (countdownTimer) clearInterval(countdownTimer);
-    countdownSecs = Math.max(0, seconds); dynamicDelaySecs = 0;
+    countdownSecs = Math.max(0, seconds);
+    dynamicDelaySecs = 0; // reset local delay counter
     renderCountdown();
     countdownTimer = setInterval(() => {
       if (countdownSecs > 0) { countdownSecs--; renderCountdown(); }
       else { clearInterval(countdownTimer); document.getElementById("countdown").innerText = "🏠"; }
     }, 1000);
   }
+
+  // Smart ETA logic rendering
   function renderCountdown() {
-    const total = countdownSecs + dynamicDelaySecs + trafficDelaySecs;
-    const m = Math.floor(total/60), s = total%60;
+    // Add dynamic delay (stall + traffic congestion)
+    const totalSecs = countdownSecs + dynamicDelaySecs + trafficDelaySecs;
+    const m = Math.floor(totalSecs/60), s = totalSecs%60;
     document.getElementById("countdown").innerText = String(m).padStart(2,"0")+":"+String(s).padStart(2,"0");
-    if (total <= 0) return;
-    const minsLeft = Math.ceil(total/60);
-    document.getElementById("eta").innerText = minsLeft<=1 ? "1 min" : minsLeft+" min";
+    if (totalSecs <= 0) return;
+    
+    const minsLeft = Math.ceil(totalSecs/60);
+    document.getElementById("eta").innerText = minsLeft <= 1 ? "1 min" : minsLeft+" min";
     document.getElementById("arrivalText").innerText = minsLeft<=1 ? "Arriving now! 🏁" : "Arriving in "+minsLeft+" min"+(minsLeft!==1?"s":"");
-    const arr=new Date(Date.now()+total*1000), h12=arr.getHours()%12||12, ampm=arr.getHours()>=12?"PM":"AM";
-    document.getElementById("arrivalClock").innerText = "By "+h12+":"+String(arr.getMinutes()).padStart(2,"0")+" "+ampm;
-    if (etaMarker?.content) etaMarker.content.innerText = minsLeft<=1 ? "ETA: NOW" : "ETA: "+minsLeft+" MINS";
-  }
-  function getSmoothedETA(rawSecs) {
-    if (smoothedETA===null) { smoothedETA=rawSecs; return rawSecs; }
-    smoothedETA = Math.abs(rawSecs-smoothedETA)>120 ? rawSecs : ETA_ALPHA*rawSecs+(1-ETA_ALPHA)*smoothedETA;
-    return Math.round(smoothedETA);
+    const arrDate=new Date(Date.now()+totalSecs*1000), h=arrDate.getHours(), min=String(arrDate.getMinutes()).padStart(2,"0"), h12=h%12||12, ampm=h>=12?"PM":"AM";
+    document.getElementById("arrivalClock").innerText = "By "+h12+":"+min+" "+ampm;
+    if (etaMarker && etaMarker.content) etaMarker.content.innerText = minsLeft<=1 ? "ETA: NOW" : "ETA: "+minsLeft+" MINS";
   }
 
-  /* ── GPS accuracy circle + badge ────────────────────────── */
+  function setArrivalInfo(secs) { if (secs && secs > 0) startCountdown(secs); }
+
   function updateAccuracyCircle(pos, accuracy) {
     accuracy = accuracy || 40;
-    document.getElementById("gpsDot").className = "gps-dot " + (accuracy<20?"gps-high":accuracy<50?"gps-med":"gps-low");
+    
+    // 🔥 BONUS C: Confidence UI Update (Battery/Signal aware)
+    const dot = document.getElementById("gpsDot");
+    if (accuracy < 20) {
+      dot.className = "gps-dot gps-high";
+    } else if (accuracy < 50) {
+      dot.className = "gps-dot gps-med";
+    } else {
+      dot.className = "gps-dot gps-low";
+    }
+
     if (!map) return;
     if (accuracyCircle) { accuracyCircle.setCenter(pos); accuracyCircle.setRadius(accuracy); }
-    else accuracyCircle = new google.maps.Circle({ map, center:pos, radius:accuracy, fillColor:"#1a7a4a", fillOpacity:.08, strokeColor:"#25a066", strokeOpacity:.4, strokeWeight:1.5 });
+    else { accuracyCircle = new google.maps.Circle({ map, center:pos, radius:accuracy, fillColor:"#1a7a4a", fillOpacity:.08, strokeColor:"#25a066", strokeOpacity:.4, strokeWeight:1.5 }); }
   }
 
-  /* ── Confetti ────────────────────────────────────────────── */
   function launchConfetti() {
     const canvas = document.getElementById("confettiCanvas");
-    canvas.style.display="block"; canvas.width=innerWidth; canvas.height=innerHeight;
-    const ctx=canvas.getContext("2d");
-    const colors=["#1a7a4a","#25a066","#fbbf24","#f87171","#60a5fa","#a78bfa","#fb923c","#34d399"];
-    const pieces=Array.from({length:220},()=>({ x:Math.random()*innerWidth, y:-20-Math.random()*120, w:Math.random()*12+5, h:Math.random()*6+3, color:colors[Math.floor(Math.random()*colors.length)], vx:(Math.random()-.5)*5, vy:Math.random()*4+2, rot:Math.random()*360, vr:(Math.random()-.5)*10, opacity:1 }));
-    let frame,elapsed=0;
-    (function animate() {
+    canvas.style.display = "block"; canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+    const ctx = canvas.getContext("2d");
+    const colors = ["#1a7a4a","#25a066","#fbbf24","#f87171","#60a5fa","#a78bfa","#fb923c","#34d399"];
+    const pieces = Array.from({length:220},()=>({ x:Math.random()*canvas.width, y:-20-Math.random()*120, w:Math.random()*12+5, h:Math.random()*6+3, color:colors[Math.floor(Math.random()*colors.length)], vx:(Math.random()-.5)*5, vy:Math.random()*4+2, rot:Math.random()*360, vr:(Math.random()-.5)*10, opacity:1 }));
+    let frame, elapsed=0;
+    function animate() {
       ctx.clearRect(0,0,canvas.width,canvas.height); elapsed++;
       let alive=false;
       pieces.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; if(elapsed>120) p.opacity=Math.max(0,p.opacity-.012); if(p.y<canvas.height&&p.opacity>0) alive=true; ctx.save(); ctx.globalAlpha=p.opacity; ctx.translate(p.x,p.y); ctx.rotate(p.rot*Math.PI/180); ctx.fillStyle=p.color; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore(); });
       if(alive) frame=requestAnimationFrame(animate); else canvas.style.display="none";
-    })();
+    }
+    animate();
     setTimeout(()=>{ canvas.style.display="none"; cancelAnimationFrame(frame); },5500);
   }
 
-  /* ── Arriving + proximity ────────────────────────────────── */
   function triggerArrivingState() {
     if (isArrivingState) return; isArrivingState=true;
     document.getElementById("arrivingOverlay").style.display="block";
     document.getElementById("arrivingBanner").style.display="block";
     document.getElementById("arrivalRow").classList.add("arriving-mode");
     if (riderWrapEl) riderWrapEl.classList.add("arriving");
-    if (map) {
-      map.setZoom(17);
-      try { map.setTilt(60); } catch(e) {}   // FIX 3: cinematic tilt
-    }
+    if (map) map.setZoom(17);
     setTimeout(()=>{ document.getElementById("arrivingBanner").style.display="none"; },5000);
   }
   function clearArrivingState() {
@@ -576,279 +590,252 @@
     document.getElementById("arrivingBanner").style.display="none";
     document.getElementById("arrivalRow").classList.remove("arriving-mode");
     if (riderWrapEl) riderWrapEl.classList.remove("arriving");
-    if (map) { try { map.setTilt(0); } catch(e) {} }
     isArrivingState=false;
   }
   function triggerProximityAlert() {
     if (proximityAlertShown) return; proximityAlertShown=true;
-    document.getElementById("proxCallBtn").href=document.getElementById("callBtn").href;
+    document.getElementById("proxCallBtn").href = document.getElementById("callBtn").href;
     document.getElementById("proximityBanner").style.display="flex";
     setTimeout(()=>{ document.getElementById("proximityBanner").style.display="none"; },12000);
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     MAP INIT
-  ═══════════════════════════════════════════════════════════ */
   async function initMap(riderPos, custPos) {
-    currentPos = { lat:riderPos.lat, lng:riderPos.lng };
-    targetPos  = { lat:riderPos.lat, lng:riderPos.lng };
+    // Seed initial positions
+    currentPos = { lat: riderPos.lat, lng: riderPos.lng };
+    targetPos = { lat: riderPos.lat, lng: riderPos.lng };
+
     await waitForGoogleMaps();
-    if (window._mapAuthFailed) { startUnifiedRenderLoop(); return; }
+
+    if (window._mapAuthFailed) {
+      startUnifiedRenderLoop();
+      return; 
+    }
 
     try {
-      const { Map }                   = await google.maps.importLibrary("maps");
+      const { Map } = await google.maps.importLibrary("maps");
       const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
-
+      routesLib = await google.maps.importLibrary("routes");
+      
       try {
-        map = new Map(document.getElementById("map"), {
-          zoom:15, center:riderPos,
-          mapId:"78097e3a5f61cdda88affacb",
-          mapTypeControl:false, fullscreenControl:false,
-          streetViewControl:false, zoomControl:false,
-          colorScheme:"DARK",
-          gestureHandling:"greedy",   // FIX 4: single-finger pan works on mobile
+        map = new Map(document.getElementById("map"), { 
+            zoom:15, 
+            center:riderPos, 
+            mapId:"78097e3a5f61cdda88affacb", 
+            mapTypeControl:false, 
+            fullscreenControl:false, 
+            streetViewControl:false, 
+            zoomControl:false, 
+            colorScheme:"DARK",
+            tilt: 45 // 3D Perspective angle
         });
       } catch(e) {
-        map = new Map(document.getElementById("map"), {
-          zoom:15, center:riderPos,
-          mapTypeControl:false, fullscreenControl:false,
-          streetViewControl:false, zoomControl:false,
-          gestureHandling:"greedy",
-        });
+        map = new Map(document.getElementById("map"), { zoom:15, center:riderPos, mapTypeControl:false, fullscreenControl:false, streetViewControl:false, zoomControl:false });
       }
-
-      /* FIX 4: Drag listeners — pause camera follow when user interacts ── */
-      map.addListener("dragstart", () => {
-        userInteracting = true;
-        clearTimeout(userInteractTimer);
-        showRecenterBtn();
-      });
-      map.addListener("dragend", () => {
-        clearTimeout(userInteractTimer);
-        // Auto-resume after 8 seconds of no further interaction
-        userInteractTimer = setTimeout(() => {
-          userInteracting = false;
-          hideRecenterBtn();
-        }, 8000);
-      });
-
-      /* ── Rider marker ─────────────────────────────────────── */
+      
       riderWrapEl = document.createElement("div"); riderWrapEl.className="rider-marker-wrap";
       const ring1=document.createElement("div"); ring1.className="rider-pulse-ring";
       const ring2=document.createElement("div"); ring2.className="rider-pulse-ring2";
       const circle=document.createElement("div"); circle.className="rider-icon-circle";
-      directionalWrap=document.createElement("div"); directionalWrap.className="rider-directional-wrap";
-      const arrow=document.createElement("div"); arrow.className="rider-arrow"; arrow.innerText="▲";
-      bikeSvgEl=document.createElement("span"); bikeSvgEl.className="rider-bike-svg"; bikeSvgEl.innerText="🛵";
-      directionalWrap.appendChild(arrow); directionalWrap.appendChild(bikeSvgEl);
+      
+      // Setup structural directional DOM
+      directionalWrap = document.createElement("div"); 
+      directionalWrap.className = "rider-directional-wrap";
+      
+      const arrow = document.createElement("div");
+      arrow.className = "rider-arrow";
+      arrow.innerText = "▲";
+      
+      bikeSvgEl = document.createElement("span"); 
+      bikeSvgEl.className="rider-bike-svg"; 
+      bikeSvgEl.innerText="🛵";
+      
+      directionalWrap.appendChild(arrow);
+      directionalWrap.appendChild(bikeSvgEl);
       circle.appendChild(directionalWrap);
-      riderWrapEl.appendChild(ring1); riderWrapEl.appendChild(ring2); riderWrapEl.appendChild(circle);
-      riderMarker = new AdvancedMarkerElement({ position:currentPos, map, content:riderWrapEl, title:"Rider", zIndex:4 });
 
-      // ETA bubble
+      riderWrapEl.appendChild(ring1); 
+      riderWrapEl.appendChild(ring2); 
+      riderWrapEl.appendChild(circle);
+      
+      riderMarker = new AdvancedMarkerElement({ position:currentPos, map, content:riderWrapEl, title:"Rider", zIndex:4 });
       const etaEl=document.createElement("div"); etaEl.className="eta-bubble"; etaEl.innerText="ETA: --";
       etaMarker = new AdvancedMarkerElement({ position:{lat:riderPos.lat+.0004,lng:riderPos.lng}, map, content:etaEl, title:"ETA", zIndex:5 });
-
-      // Customer home marker
       const homeWrap=document.createElement("div"); homeWrap.className="home-marker";
       const homeBody=document.createElement("div"); homeBody.className="home-marker-body";
       const homeIcon=document.createElement("div"); homeIcon.className="home-marker-icon"; homeIcon.innerText="🏠";
       homeBody.appendChild(homeIcon); homeWrap.appendChild(homeBody);
       customerMarker = new AdvancedMarkerElement({ position:custPos, map, content:homeWrap, title:"Delivery location", zIndex:3 });
-
-      // Restaurant marker
       const restEl=document.createElement("div"); restEl.className="restaurant-marker"; restEl.innerHTML="<span>🏪</span><span>Magizham</span>";
       restaurantMarker = new AdvancedMarkerElement({ position:RESTAURANT_POS, map, content:restEl, title:"Magizham", zIndex:2 });
 
-      // Uber-style path trail
-      trailPolyline = new google.maps.Polyline({ map, path:[], strokeColor:"#25a066", strokeOpacity:.55, strokeWeight:5, zIndex:1 });
+      // 🔥 BONUS D: Uber Style Path Trail Setup
+      trailPolyline = new google.maps.Polyline({
+          map: map,
+          path: [],
+          strokeColor: '#25a066',
+          strokeOpacity: 0.6,
+          strokeWeight: 5,
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
+          zIndex: 1
+      });
+      
+      map.addListener("dragstart", () => {
+        userInteracting = true;
+        clearTimeout(userInteractTimer);
+      });
+      map.addListener("dragend", () => {
+        userInteractTimer = setTimeout(() => { userInteracting = false; }, 5000);
+      });
 
       updateAccuracyCircle(riderPos);
       drawTrafficRoute(riderPos, custPos);
-    } catch(e) {
-      console.warn("Map init error:", e.message);
+    } catch (e) {
+      console.warn("Map setup aborted due to library load error:", e);
       gm_authFailure();
     }
+
     startUnifiedRenderLoop();
   }
 
-  /* ── Physics + interpolation render loop ────────────────── */
+  /* ── Unified Animation & Prediction Engine ────────────────────
+     Handles pixel-perfect interpolation and explicit speed*dt Prediction Math
+  ─────────────────────────────────────────────────────────────── */
   function startUnifiedRenderLoop() {
     if (isTrackingLive) return;
-    isTrackingLive=true; lastRenderTime=Date.now();
+    isTrackingLive = true;
+    lastRenderTime = Date.now();
     requestAnimationFrame(unifiedRenderLoop);
   }
 
   function unifiedRenderLoop() {
-    const now=Date.now(), dt=(now-lastRenderTime)/1000;
-    lastRenderTime=now;
+    const now = Date.now();
+    const dt = (now - lastRenderTime) / 1000; 
+    lastRenderTime = now;
 
     if (currentPos && targetPos) {
-      const dist=getDistanceMeters(currentPos,targetPos);
-      const idle=(now-lastSocketMsgTime)/1000;
+      const dist = getDistanceMeters(currentPos, targetPos);
+      const timeSinceUpdate = (now - lastSocketMessageTime) / 1000;
+      
+      // 🔥 FIX 1: EXPLICIT PREDICTION MATH
+      if (timeSinceUpdate > 2.0 && currentSpeedKmh > 1) {
+        // Use exact geographic heading for accurate prediction over the earth's curve
+        const rad = currentGeographicHeading * Math.PI / 180;
+        const speedFactor = (currentSpeedKmh / 3.6); 
+        
+        const latDelta = (speedFactor * dt * Math.cos(rad)) / 111111;
+        const lngDelta = (speedFactor * dt * Math.sin(rad)) / (111111 * Math.cos(currentPos.lat * Math.PI / 180));
+        
+        if (timeSinceUpdate > 10) currentSpeedKmh *= 0.95;
+        currentPos.lat += latDelta;
+        currentPos.lng += lngDelta;
+        // targetPos stays at last known real position — smooth catch-up on resume
 
-      if (idle>2.0 && currentSpeedKmh>1) {
-        // Dead-reckoning when data is stale
-        const rad=currentGeographicHeading*Math.PI/180;
-        const spd=currentSpeedKmh/3.6;
-        currentPos.lat += (spd*dt*Math.cos(rad))/111111;
-        currentPos.lng += (spd*dt*Math.sin(rad))/(111111*Math.cos(currentPos.lat*Math.PI/180));
-        if (idle>10) currentSpeedKmh*=0.95;
-      } else if (currentSpeedKmh<1 && dist<5) {
-        currentPos.lat=targetPos.lat; currentPos.lng=targetPos.lng;
-      } else if (dist>0.5) {
-        const factor=Math.min(Math.max(2,currentSpeedKmh/10)*dt,1.0);
-        currentPos.lat+=(targetPos.lat-currentPos.lat)*factor;
-        currentPos.lng+=(targetPos.lng-currentPos.lng)*factor;
+      } else if (currentSpeedKmh < 1.0 && dist < 5) {
+        // 🔥 FIX 5: Idle Vibration Fix
+        currentPos.lat = targetPos.lat;
+        currentPos.lng = targetPos.lng;
+      } else if (dist > 0.5) {
+        // 🔥 FIX 4: Speed-based animation tuning
+        const speedFactor = Math.max(2, currentSpeedKmh / 10); 
+        const factor = Math.min(speedFactor * dt, 1.0);
+        
+        currentPos.lat += (targetPos.lat - currentPos.lat) * factor;
+        currentPos.lng += (targetPos.lng - currentPos.lng) * factor;
       }
 
-      if (riderMarker) riderMarker.position={lat:currentPos.lat,lng:currentPos.lng};
-      if (etaMarker)   etaMarker.position={lat:currentPos.lat+.0004,lng:currentPos.lng};
-      if (accuracyCircle) accuracyCircle.setCenter({lat:currentPos.lat,lng:currentPos.lng});
-
-      // FIX 4: camera follows ONLY when user is not dragging
-      if (map && !userInteracting) {
-        try {
-          const c=map.getCenter();
-          if (c && getDistanceMeters(c.toJSON(),currentPos)>50) map.panTo({lat:currentPos.lat,lng:currentPos.lng});
-          if (map.setHeading) map.setHeading(currentGeographicHeading);
-        } catch(e) {}
+      // Update Render Objects
+      if (riderMarker) riderMarker.position = currentPos;
+      if (etaMarker) etaMarker.position = { lat: currentPos.lat + 0.0004, lng: currentPos.lng };
+      if (accuracyCircle) accuracyCircle.setCenter(currentPos);
+      
+      // 🔥 FIX 3: Cinematic Uber-Style Camera (Soft follow)
+      if (map && map.getCenter) {
+          const camDist = getDistanceMeters(map.getCenter().toJSON(), currentPos);
+          if (camDist > 50 && !userInteracting) {
+             map.panTo({ lat: currentPos.lat, lng: currentPos.lng });
+          }
+          try { if (map.setHeading) map.setHeading(currentGeographicHeading); } catch(e) {}
       }
-
-      // Smart ETA: penalise when rider is stuck
-      if (currentSpeedKmh<2 && getDistanceMeters(currentPos,customerPos)>500) dynamicDelaySecs+=dt;
-
-      // Waiting at door
-      if (getDistanceMeters(currentPos,customerPos)<50 && currentSpeedKmh<2 && lastStatus!=="delivered") setStatusHero("waiting");
     }
+
+    // Smart ETA Engine (Bonus Feature) - run every ~1 sec implicitly
+    if (countdownTimer && isTrackingLive && (now % 1000 < 20)) {
+        const distToCustomer = getDistanceMeters(currentPos, customerPos);
+        
+        if (currentSpeedKmh < 2 && distToCustomer > 500) {
+            dynamicDelaySecs += 1;
+        }
+
+        if (distToCustomer < 100 && currentSpeedKmh > 1) {
+            currentSpeedKmh *= 0.8;
+        }
+
+        // 🔥 BONUS A: Waiting at Door logic
+        if (distToCustomer < 50 && currentSpeedKmh < 2 && lastStatus !== "delivered") {
+            setStatusHero("waiting");
+        }
+    }
+
     requestAnimationFrame(unifiedRenderLoop);
   }
 
-  /* ═══════════════════════════════════════════════════════════
-     FIX 1: ROUTES API — replaces deprecated DirectionsService
-     Uses RoutesService.computeRoutes with TRAFFIC_AWARE routing.
-     Falls back to DirectionsService silently if needed.
-  ═══════════════════════════════════════════════════════════ */
-  async function drawTrafficRoute(origin, destination) {
-    if (window._mapAuthFailed || !map) return;
-    trafficPolylines.forEach(p=>p.setMap(null)); trafficPolylines=[]; trafficDelaySecs=0;
-
-    try {
-      const { RoutesService } = await google.maps.importLibrary("routes");
-      const svc = new RoutesService();
-
-      const response = await svc.computeRoutes(
-        {
-          origin:      { location: { latLng: { latitude:origin.lat,      longitude:origin.lng      } } },
-          destination: { location: { latLng: { latitude:destination.lat, longitude:destination.lng } } },
-          travelMode:        "DRIVE",
-          routingPreference: "TRAFFIC_AWARE",
-          computeAlternativeRoutes: false,
-          routeModifiers: { avoidHighways:false, avoidTolls:false },
-          languageCode: "en-US",
-          units: "METRIC",
-        },
-        {
-          otherArgs: {
-            headers: {
-              "X-Goog-FieldMask":
-                "routes.legs.steps.polyline," +
-                "routes.legs.steps.distanceMeters," +
-                "routes.legs.steps.staticDuration," +
-                "routes.legs.distanceMeters," +
-                "routes.legs.duration," +
-                "routes.polyline.encodedPolyline"
-            }
-          }
-        }
-      );
-
-      if (!response?.routes?.length) { console.warn("Routes API: no routes"); return; }
-      const route = response.routes[0];
-      const leg   = route.legs?.[0];
-      if (!leg) return;
-
-      // Draw step-level coloured traffic polylines
-      (leg.steps || []).forEach(step => {
-        if (!step.polyline?.encodedPolyline) return;
-        const pts  = decodePoly(step.polyline.encodedPolyline);
-        const dist = step.distanceMeters || 1;
-        const dur  = parseInt((step.staticDuration || "30s").replace("s",""), 10) || 30;
-        const kmh  = (dist / Math.max(dur,1)) * 3.6;
-        const color = kmh<15 ? "#ef4444" : kmh<35 ? "#f97316" : "#22c55e";
-        if (kmh<15) trafficDelaySecs+=2; else if (kmh<30) trafficDelaySecs+=1;
-        trafficPolylines.push(new google.maps.Polyline({ path:pts, strokeColor:color, strokeWeight:6, strokeOpacity:.9, map, zIndex:10 }));
-      });
-      document.getElementById("trafficLegend").style.display="block";
-
-      // Distance pill
-      document.getElementById("distance").innerText = ((leg.distanceMeters||0)/1000).toFixed(2)+" km";
-      document.getElementById("pillDistance").classList.add("live");
-
-      // Duration → ETA
-      const durSecs = parseInt((leg.duration||"0s").replace("s",""),10)||0;
-      if (durSecs>0) { document.getElementById("pillEta").classList.add("live"); startCountdown(getSmoothedETA(durSecs)); }
-
-      // Fit bounds on first route load
-      if (!mapFitted) {
-        const pts = decodePoly(route.polyline?.encodedPolyline||"");
-        if (pts.length>0) {
-          const b=new google.maps.LatLngBounds();
-          pts.forEach(p=>b.extend(p));
-          map.fitBounds(b,{bottom:360,top:80,left:20,right:20});
-        }
-        mapFitted=true;
-      }
-
-      // Proximity status
-      const dist=leg.distanceMeters||0;
-      const newStatus = dist<200?"delivered":dist<500?"arriving":"onTheWay";
-      applyProximityStatus(newStatus);
-    } catch(e) {
-      console.warn("Routes API failed ("+e.message+"), using DirectionsService fallback");
-      drawTrafficRouteFallback(origin, destination);
-    }
+  // Helper for rendering ETA based on google maps response
+  function getSmoothedETA(rawSecs) {
+    if (smoothedETA === null) { smoothedETA = rawSecs; return rawSecs; }
+    const delta = Math.abs(rawSecs - smoothedETA);
+    smoothedETA = delta > 120 ? rawSecs : ETA_ALPHA * rawSecs + (1 - ETA_ALPHA) * smoothedETA;
+    return Math.round(smoothedETA);
   }
 
-  // Apply proximity-based status (shared by both route methods)
-  function applyProximityStatus(newStatus) {
-    if (newStatus==="delivered") {
-      updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); updateTimeline("delivered");
-    } else if (newStatus==="arriving") {
-      updateStatusBadge("arriving","arrived"); setStatusHero("arriving"); updateTimeline("on_the_way");
-      triggerArrivingState(); triggerProximityAlert();
-    } else {
-      updateStatusBadge("onTheWay","connected");
-      if (newStatus==="onTheWay") clearArrivingState();
-    }
-    if (newStatus!==lastStatus) {
-      if (newStatus==="arriving")  speak("speechArriving");
-      if (newStatus==="delivered" && !popupShown) { popupShown=true; clearArrivingState(); speak("speechDelivered"); triggerDelivery(); }
-      lastStatus=newStatus;
-    }
-  }
-
-  // Silent fallback when Routes API is unavailable
-  function drawTrafficRouteFallback(origin, destination) {
+  function drawTrafficRoute(origin, destination) {
     if (!map) return;
-    const svc=new google.maps.DirectionsService();
-    svc.route({ origin, destination, travelMode:google.maps.TravelMode.DRIVING, drivingOptions:{departureTime:new Date(),trafficModel:google.maps.TrafficModel.BEST_GUESS} }, (result,status)=>{
-      if (status!=="OK"||!result.routes.length) return;
-      const leg=result.routes[0].legs[0];
-      leg.steps.forEach(step=>{
-        const kmh=(step.distance.value/Math.max(step.duration.value,1))*3.6;
-        trafficPolylines.push(new google.maps.Polyline({ path:step.path, strokeColor:kmh<15?"#ef4444":kmh<35?"#f97316":"#22c55e", strokeWeight:6, strokeOpacity:.9, map, zIndex:10 }));
+    trafficPolylines.forEach(p => p.setMap(null)); trafficPolylines = [];
+
+    const svc = new google.maps.DirectionsService();
+    svc.route({
+      origin, destination,
+      travelMode: google.maps.TravelMode.DRIVING,
+      drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel.BEST_GUESS }
+    }, (result, status) => {
+      if (status !== "OK" || !result.routes.length) { console.warn("Directions:", status); return; }
+      const leg = result.routes[0].legs[0];
+      trafficDelaySecs = 0;
+      leg.steps.forEach(step => {
+        const kmh = (step.distance.value / Math.max(step.duration.value, 1)) * 3.6;
+        const color = kmh < 15 ? "#ef4444" : kmh < 35 ? "#f97316" : "#22c55e";
+        trafficPolylines.push(new google.maps.Polyline({
+          path: step.path, strokeColor: color, strokeWeight: 6, strokeOpacity: .9, map, zIndex: 10
+        }));
+        if (kmh < 15) trafficDelaySecs += 2;
+        else if (kmh < 30) trafficDelaySecs += 1;
       });
-      document.getElementById("distance").innerText=(leg.distance.value/1000).toFixed(2)+" km";
+      document.getElementById("trafficLegend").style.display = "block";
+      document.getElementById("distance").innerText = (leg.distance.value / 1000).toFixed(2) + " km";
       document.getElementById("pillDistance").classList.add("live");
-      if (leg.duration?.value) { document.getElementById("pillEta").classList.add("live"); startCountdown(getSmoothedETA(leg.duration.value)); }
-      if (!mapFitted) { const b=new google.maps.LatLngBounds(); b.extend(origin); b.extend(destination); map.fitBounds(b,{bottom:360,top:80,left:20,right:20}); mapFitted=true; }
-      const d=leg.distance.value;
-      applyProximityStatus(d<200?"delivered":d<500?"arriving":"onTheWay");
+      if (leg.duration?.value) {
+        document.getElementById("pillEta").classList.add("live");
+        setArrivalInfo(getSmoothedETA(leg.duration.value));
+      }
+      if (!mapFitted) {
+        const b = new google.maps.LatLngBounds();
+        b.extend(origin); b.extend(destination);
+        map.fitBounds(b, { bottom: 360, top: 80, left: 20, right: 20 });
+        mapFitted = true;
+      }
+      const dist = leg.distance.value;
+      let newStatus = dist < 200 ? "delivered" : dist < 500 ? "arriving" : "onTheWay";
+      if (newStatus === "delivered") { updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); updateTimeline("delivered"); }
+      else if (newStatus === "arriving") { updateStatusBadge("arriving","arrived"); setStatusHero("arriving"); updateTimeline("on_the_way"); triggerArrivingState(); triggerProximityAlert(); }
+      else { updateStatusBadge("onTheWay","connected"); clearArrivingState(); }
+      if (newStatus !== lastStatus) {
+        if (newStatus === "arriving") speak("speechArriving");
+        if (newStatus === "delivered" && !popupShown) { popupShown = true; clearArrivingState(); speak("speechDelivered"); triggerDelivery(); }
+        lastStatus = newStatus;
+      }
     });
   }
 
-  /* ── Delivery done ───────────────────────────────────────── */
   function triggerDelivery() {
     if (map&&customerPos) { map.setZoom(18); map.panTo(customerPos); }
     if (countdownTimer) clearInterval(countdownTimer);
@@ -859,10 +846,10 @@
     setTimeout(()=>{ launchConfetti(); setTimeout(showDeliveryPopup,600); },800);
   }
 
-  const SPEECH_TEXT={
-    speechArriving:"Your rider is almost there! Get ready to receive your order.",
-    speechDelivered:"Your order has been delivered. Enjoy your meal!",
-    speechOnTheWay:"Your rider has picked up your order and is on the way!",
+  const SPEECH_TEXT = {
+    speechArriving:  "Your rider is almost there! Get ready to receive your order.",
+    speechDelivered: "Your order has been delivered. Enjoy your meal!",
+    speechOnTheWay:  "Your rider has picked up your order and is on the way!",
   };
   function speak(key) {
     if ("speechSynthesis" in window) {
@@ -871,21 +858,20 @@
     }
   }
 
-  let toastTimer=null;
   function showToast(msg,dur) {
     dur=dur||2800; const el=document.getElementById("toast");
-    el.innerText=msg; el.style.display="block";
-    clearTimeout(toastTimer); toastTimer=setTimeout(()=>el.style.display="none",dur);
+    el.innerText=msg; el.style.display="block"; setTimeout(()=>el.style.display="none",dur);
   }
+
   function shareTracking() {
     const url=window.location.href;
-    if(navigator.share) navigator.share({title:"Track my Magizham order",url}).catch(()=>{});
-    else if(navigator.clipboard) navigator.clipboard.writeText(url).then(()=>showToast("🔗 Link copied!"));
+    if(navigator.share){navigator.share({title:"Track my Magizham order",text:"Follow my delivery live!",url}).catch(()=>{});}
+    else if(navigator.clipboard){navigator.clipboard.writeText(url).then(()=>showToast("🔗 Tracking link copied!"));}
     else showToast("🔗 "+url);
   }
 
   const ratingLabels=["","Poor","Fair","Good","Great","Excellent!"];
-  function rateStar(v){selectedRating=v;document.querySelectorAll(".star").forEach((s,i)=>s.classList.toggle("active",i<v));document.getElementById("ratingLabel").innerText=ratingLabels[v]||"";}
+  function rateStar(val){selectedRating=val;document.querySelectorAll(".star").forEach((s,i)=>s.classList.toggle("active",i<val));document.getElementById("ratingLabel").innerText=ratingLabels[val]||"";}
   function submitRating(){if(selectedRating>0)showToast("Thanks for rating "+ratingLabels[selectedRating]+"!");closePopup();}
   function showDeliveryPopup(){document.getElementById("popupOverlay").style.display="block";document.getElementById("deliveryPopup").style.display="block";}
   function closePopup(){document.getElementById("popupOverlay").style.display="none";document.getElementById("deliveryPopup").style.display="none";}
@@ -897,86 +883,147 @@
     STATUS_STEPS.forEach((s,i)=>{ const el=document.getElementById("tl-"+s); if(!el) return; el.classList.remove("done","active"); if(i<idx) el.classList.add("done"); if(i===idx) el.classList.add("active"); });
     document.getElementById("tlProgress").style.width=PROGRESS_PCTS[status]||"5%";
   }
+
   const STATUS_BADGE_LABELS={delivered:"Delivered 🎉",arriving:"Almost there! 🏁",onTheWay:"Live tracking 🛵",serverOffline:"Server offline",connectionLost:"Connection lost",reconnecting:"Reconnecting...",connecting:"Connecting...",confirmed:"Confirmed 🏪"};
   function updateStatusBadge(key,type){ const el=document.getElementById("statusBadge"); el.innerText=STATUS_BADGE_LABELS[key]||key; el.className=type||""; }
 
-  /* ── Core handlers ───────────────────────────────────────── */
+  /* ── Core Unified Handlers for Location and Status ───────────── */
+
   function handleLocationUpdate(data) {
-    if (!data||!data.lat||!data.lng) return;
-    lastSocketMsgTime=Date.now();
-    let newLat=parseFloat(data.lat), newLng=parseFloat(data.lng);
-    if (isNaN(newLat)||isNaN(newLng)) return;
+    if (!data || !data.lat || !data.lng) return;
+    lastSocketMessageTime = Date.now(); // Ping watchdog
 
-    // EMA jitter filter 0.8/0.2
-    if (targetPos) { newLat=targetPos.lat*0.8+newLat*0.2; newLng=targetPos.lng*0.8+newLng*0.2; }
-    const newTarget={lat:newLat,lng:newLng};
+    let newLat = parseFloat(data.lat);
+    let newLng = parseFloat(data.lng);
+    if (isNaN(newLat) || isNaN(newLng)) return;
 
-    if (!currentPos) {
-      currentPos={lat:newLat,lng:newLng}; targetPos={lat:newLat,lng:newLng};
-      if (map?.panTo) map.panTo(currentPos);
-    } else {
-      if (targetPos && getDistanceMeters(targetPos,newTarget)>3) {
-        const bearing=getBearing(targetPos,newTarget);
-        currentGeographicHeading=currentGeographicHeading*0.8+bearing*0.2;
-        updateBikeHeading(bearing);
-      }
-      targetPos=newTarget;
+    // 🔥 FIX 2: SMOOTHING GPS JITTER (0.8 / 0.2 EMA filter)
+    if (targetPos) {
+      newLat = targetPos.lat * 0.8 + newLat * 0.2;
+      newLng = targetPos.lng * 0.8 + newLng * 0.2;
     }
 
-    // EMA speed
-    let incoming=15;
-    if (data.speed!=null&&parseFloat(data.speed)>=0) incoming=parseFloat(data.speed);
-    currentSpeedKmh=Math.min(currentSpeedKmh*0.7+incoming*0.3,80);
+    const newTarget = { lat: newLat, lng: newLng };
 
-    // Rider status in speed pill
-    const se=document.getElementById("speed"), sl=document.getElementById("speedLabel");
-    if (currentSpeedKmh<1)  { sl.innerText="Stopped";      se.style.color="#ef4444"; }
-    else if (currentSpeedKmh<10) { sl.innerText="Slow traffic"; se.style.color="#f97316"; }
-    else                    { sl.innerText="Moving fast";  se.style.color="#22c55e"; }
-    se.innerText=currentSpeedKmh<1?"0.0 km/h":currentSpeedKmh.toFixed(1)+" km/h";
+    if (!currentPos) {
+      currentPos = { lat: newLat, lng: newLng };
+      targetPos = { lat: newLat, lng: newLng };
+      if (map && map.panTo) map.panTo(currentPos);
+    } else {
+      if (targetPos) {
+        const bearing = getBearing(targetPos, newTarget);
+        if (getDistanceMeters(targetPos, newTarget) > 3.0) {
+          currentGeographicHeading = currentGeographicHeading * 0.8 + bearing * 0.2; // EMA heading smoothing
+          updateBikeHeading(bearing);         // Run UI spin easing
+        }
+      }
+
+      targetPos = newTarget;
+    }
+
+    // 🔥 FIX 2: SMOOTH ACCELERATION (EMA on Speed)
+    let incomingSpeed = 15;
+    if (data.speed != null && parseFloat(data.speed) >= 0) {
+      incomingSpeed = parseFloat(data.speed);
+    } 
+    currentSpeedKmh = Math.min(currentSpeedKmh * 0.7 + incomingSpeed * 0.3, 80);
+
+    // 🔥 BONUS A: Rider Visual Activity Status Updates
+    let activityStatus = "Moving";
+    let speedEl = document.getElementById("speed");
+    let speedLabelEl = document.getElementById("speedLabel");
+    
+    if (currentSpeedKmh < 1) {
+        activityStatus = "Stopped";
+        speedEl.style.color = "#ef4444";
+    } else if (currentSpeedKmh < 10) {
+        activityStatus = "Slow traffic";
+        speedEl.style.color = "#f97316";
+    } else {
+        activityStatus = "Moving fast";
+        speedEl.style.color = "#22c55e";
+    }
+    
+    speedLabelEl.innerText = activityStatus;
+    speedEl.innerText = (currentSpeedKmh < 1) ? "0.0 km/h" : currentSpeedKmh.toFixed(1) + " km/h";
     document.getElementById("pillSpeed").classList.add("live");
 
-    if (data.accuracy) updateAccuracyCircle(newTarget,data.accuracy);
-
-    // Trail
+    // 🔥 BONUS C: Path Trail rendering
     pastPositions.push(newTarget);
-    if (pastPositions.length>10) pastPositions.shift();
+    if (pastPositions.length > 10) pastPositions.shift();
     if (trailPolyline) trailPolyline.setPath(pastPositions);
 
-    if (shouldUpdateRoute(newTarget)) drawTrafficRoute(newTarget,customerPos);
+    if (data.accuracy) updateAccuracyCircle(newTarget, data.accuracy);
+    if (shouldUpdateRoute(newTarget)) drawTrafficRoute(newTarget, customerPos);
   }
 
   function handleStatusUpdate(data) {
-    if (String(data.orderId)!==String(orderId)) return;
-    const s=data.status; updateTimeline(s);
-    if (s==="delivered") { updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); speak("speechDelivered"); if(!popupShown){popupShown=true;triggerDelivery();} }
-    else if (s==="on_the_way") { updateStatusBadge("onTheWay","connected"); setStatusHero("on_the_way",riderName+" picked up your order!"); speak("speechOnTheWay"); showToast("🛵 "+riderName+" is on the way!"); }
-    else if (s==="confirmed") { updateStatusBadge("confirmed",""); setStatusHero("confirmed","Kitchen is preparing your order"); showToast("🏪 Your order has been confirmed!"); }
+    if (String(data.orderId) !== String(orderId)) return;
+    const s = data.status;
+    updateTimeline(s);
+    if (s === "delivered") {
+      updateStatusBadge("delivered", "delivered");
+      setStatusHero("delivered");
+      speak("speechDelivered");
+      if (!popupShown) { popupShown = true; triggerDelivery(); }
+    } else if (s === "on_the_way") {
+      updateStatusBadge("onTheWay", "connected");
+      setStatusHero("on_the_way", riderName + " picked up your order!");
+      speak("speechOnTheWay");
+      showToast("🛵 " + riderName + " is on the way!");
+    } else if (s === "confirmed") {
+      updateStatusBadge("confirmed", "");
+      setStatusHero("confirmed", "Kitchen is preparing your order");
+      showToast("🏪 Your order has been confirmed!");
+    }
   }
 
-  /* ── Load order ──────────────────────────────────────────── */
+
   async function loadOrder() {
     document.getElementById("loadingText").innerText="Fetching your order...";
     try {
-      const res=await fetch("/api/orders/"+orderId+"/track");
-      if (!res.ok) throw new Error("Not found");
-      const data=await res.json();
+      let data;
+      if (window.location.protocol === 'blob:' || window.location.protocol === 'data:' || window.location.origin === "null") {
+        console.log("Local/Blob preview environment detected. Using demo data.");
+        data = {
+          id: "DEMO-" + String(orderId || "1234").substring(0, 4),
+          rider_name: "Alex (Demo)",
+          rider_phone: "+971501234567",
+          status: "on_the_way",
+          lat: RESTAURANT_POS.lat - 0.003,
+          lng: RESTAURANT_POS.lng - 0.003,
+          delivery_lat: DEFAULT_CUSTOMER_POS.lat,
+          delivery_lng: DEFAULT_CUSTOMER_POS.lng
+        };
+      } else {
+        const res = await fetch("/api/orders/" + orderId + "/track");
+        if(!res.ok) throw new Error("Not found");
+        data = await res.json();
+      }
+      
       riderName=data.rider_name||"Your rider";
       document.getElementById("riderName").innerText=riderName;
       document.getElementById("riderPhone").innerText="📞 "+(data.rider_phone||"--");
       document.getElementById("callBtn").href="tel:"+(data.rider_phone||"");
       const waPhone=(data.rider_phone||"").replace(/\D/g,"");
       document.getElementById("whatsappBtn").href="https://wa.me/"+waPhone+"?text=Hi, I'm tracking order %23"+data.id;
+      
       const dbStatus=(data.status||"placed").toLowerCase().replace(/ /g,"_");
       updateTimeline(dbStatus); setStatusHero(dbStatus,"Order #"+data.id+" · "+riderName);
       document.getElementById("statusSubText").innerText="Order #"+data.id+" · "+riderName;
+      
       const riderPos=(data.lat&&data.lng)?{lat:parseFloat(data.lat),lng:parseFloat(data.lng)}:{...RESTAURANT_POS};
       customerPos=(data.delivery_lat&&data.delivery_lng)?{lat:parseFloat(data.delivery_lat),lng:parseFloat(data.delivery_lng)}:{...DEFAULT_CUSTOMER_POS};
+      
       await initMap(riderPos,customerPos);
-      handleLocationUpdate({lat:riderPos.lat,lng:riderPos.lng});
+      
+      // Seed first location to initiate animation engine safely
+      handleLocationUpdate({ lat: riderPos.lat, lng: riderPos.lng });
+
       document.getElementById("loadingScreen").style.display="none";
       connectSocket();
       startWatchdogs();
+
     } catch(err) {
       console.error(err);
       document.getElementById("loadingText").innerText="❌ Order not found. Check the link.";
@@ -984,30 +1031,99 @@
     }
   }
 
-  /* ── Socket ──────────────────────────────────────────────── */
+  /* ═══════════════════════════════════════════════════════════
+     connectSocket — Socket Event Handling
+  ═══════════════════════════════════════════════════════════ */
   function connectSocket() {
-    if (typeof io==="undefined") { updateStatusBadge("serverOffline","error"); return; }
-    if (socketInstance?.connected) return;
+    const isLocal = window.location.protocol === 'blob:' || window.location.protocol === 'data:' || window.location.origin === "null";
+    
+    if (isLocal) {
+        console.log("Mocking socket connection for preview environment.");
+        updateStatusBadge("onTheWay", "connected");
+        // Simulated tracking movement for preview to test predictions & geofences
+        setInterval(() => {
+            if (targetPos) {
+                const r = 0.0004;
+                const simSpeed = Math.random() > 0.8 ? 0.5 : (Math.random() * 15 + 20); // Randomly drop speed
+                handleLocationUpdate({ 
+                    lat: targetPos.lat + r, 
+                    lng: targetPos.lng + r,
+                    speed: simSpeed,
+                    accuracy: Math.random() > 0.5 ? 15 : 45 
+                });
+            }
+        }, 3000);
+        return;
+    }
+
+    if (typeof io === "undefined") {
+      const s = document.createElement("script"); 
+      s.src = "/socket.io/socket.io.js"; 
+      s.onload = doConnectSocket; 
+      s.onerror = () => updateStatusBadge("serverOffline","error"); 
+      document.body.appendChild(s);
+      return;
+    }
+    
+    doConnectSocket();
+  }
+
+  function doConnectSocket() {
+    if (socketInstance && socketInstance.connected) return;
     if (socketInstance) socketInstance.disconnect();
-    socketInstance=io("/",{ query:{type:"customer",orderId}, reconnection:true, reconnectionDelay:1000, reconnectionDelayMax:5000, reconnectionAttempts:20 });
-    socketInstance.on("connect",()=>{ hideReconnectBanner(); document.getElementById("retryBtn").style.display="none"; updateStatusBadge("onTheWay","connected"); if(reconnectAttempt>0) showToast("✅ Live tracking restored",2500); lastSocketMsgTime=Date.now(); });
-    socketInstance.on("disconnect",(reason)=>{ showReconnectBanner(0); updateStatusBadge("reconnecting","pulse"); console.log("Disconnected:",reason); });
-    socketInstance.on("reconnect_attempt",(attempt)=>{ reconnectAttempt=attempt; showReconnectBanner(attempt); });
-    socketInstance.on("reconnect_failed",()=>{ hideReconnectBanner(); updateStatusBadge("connectionLost","error"); document.getElementById("retryBtn").style.display="inline-block"; showToast("❌ Could not reconnect — tap Retry",4000); });
-    socketInstance.on("connect_error",()=>{ updateStatusBadge("connectionLost","error"); document.getElementById("retryBtn").style.display="inline-block"; });
+
+    socketInstance = io("/", {
+      query: { type: "customer", orderId: orderId },
+      reconnection:        true,
+      reconnectionDelay:   1000,   // wait 1s before first retry
+      reconnectionDelayMax:5000,   // cap at 5s between retries
+      reconnectionAttempts:20      // try up to 20 times (~90s total)
+    });
+
+    socketInstance.on("connect", () => {
+      hideReconnectBanner();
+      document.getElementById("retryBtn").style.display = "none";
+      updateStatusBadge("onTheWay", "connected");
+      if (reconnectAttempt > 0) showToast("✅ Live tracking restored", 2500);
+      lastSocketMessageTime = Date.now(); // Reset watchdog
+    });
+
+    socketInstance.on("disconnect", (reason) => {
+      showReconnectBanner(0);
+      updateStatusBadge("reconnecting", "pulse");
+      console.log("Socket disconnected:", reason);
+    });
+
+    socketInstance.on("reconnect_attempt", (attempt) => {
+      reconnectAttempt = attempt;
+      showReconnectBanner(attempt);
+    });
+
+    socketInstance.on("reconnect_failed", () => {
+      hideReconnectBanner();
+      updateStatusBadge("connectionLost", "error");
+      document.getElementById("retryBtn").style.display = "inline-block";
+      showToast("❌ Could not reconnect — tap Retry", 4000);
+    });
+
+    socketInstance.on("connect_error", () => {
+      updateStatusBadge("connectionLost", "error");
+      document.getElementById("retryBtn").style.display = "inline-block";
+    });
+
     socketInstance.on("orderLocationUpdate", handleLocationUpdate);
-    socketInstance.on("orderStatusUpdate",   handleStatusUpdate);
+    socketInstance.on("orderStatusUpdate", handleStatusUpdate);
   }
 
   function retryConnection() {
-    hideReconnectBanner(); updateStatusBadge("connecting","pulse");
+    hideReconnectBanner();
+    updateStatusBadge("connecting","pulse");
     document.getElementById("retryBtn").style.display="none";
-    if (socketInstance) { socketInstance.disconnect(); socketInstance=null; }
     connectSocket();
   }
 
-  /* ── Boot ────────────────────────────────────────────────── */
-  if (!orderId||!validOrder) {
+  // ── Boot ─────────────────────────────────────────────────
+  if (!orderId || !validOrder) {
     document.getElementById("loadingText").innerText="❌ Invalid order ID. Use /track/123";
     document.getElementById("retryBtn").style.display="none";
   } else {
