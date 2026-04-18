@@ -213,6 +213,7 @@
   </div>
   <div class="top-actions">
     <button class="top-action-btn" onclick="shareTracking()" title="Share">🔗</button>
+    <button class="top-action-btn" onclick="recenterMap()" title="Re-center">🎯</button>
   </div>
 </div>
 
@@ -350,6 +351,7 @@
   let currentSpeedKmh = 0;
   let userInteracting = false;
   let userInteractTimer = null;
+  let _lastHeadingUpdate = 0;
 
   // 🚀 New Physics & Tracking State
   let currentPos = null;       // Visual marker position
@@ -754,10 +756,14 @@
       // 🔥 FIX 3: Cinematic Uber-Style Camera (Soft follow)
       if (map && map.getCenter) {
           const camDist = getDistanceMeters(map.getCenter().toJSON(), currentPos);
-          if (camDist > 50 && !userInteracting) {
+          if (camDist > 200 && !userInteracting) {
              map.panTo({ lat: currentPos.lat, lng: currentPos.lng });
           }
-          try { if (map.setHeading) map.setHeading(currentGeographicHeading); } catch(e) {}
+          // Only update heading every 3s and never while user is interacting
+          if (!userInteracting && (now - (_lastHeadingUpdate||0)) > 3000) {
+            try { if (map.setHeading) map.setHeading(currentGeographicHeading); } catch(e) {}
+            _lastHeadingUpdate = now;
+          }
       }
     }
 
@@ -810,7 +816,18 @@
 
       if (!res.ok) { console.warn("Routes API error:", res.status); return; }
       const data = await res.json();
-      if (!data.routes?.length) { console.warn("Routes API: no routes returned"); return; }
+      if (!data.routes?.length) {
+        console.warn("Routes API: no routes returned");
+        // Show straight-line distance as fallback
+        if (origin && destination) {
+          const d = getDistanceMeters(origin, destination);
+          document.getElementById("distance").innerText = (d/1000).toFixed(2) + " km*";
+          document.getElementById("pillDistance").classList.add("live");
+          const estSecs = Math.round((d / 1000 / 30) * 3600);
+          setArrivalInfo(estSecs);
+        }
+        return;
+      }
 
       const route = data.routes[0];
       const parseSecs = s => { const m = String(s || "").match(/(\d+)/); return m ? parseInt(m[1], 10) : 0; };
@@ -1146,6 +1163,15 @@
     updateStatusBadge("connecting","pulse");
     document.getElementById("retryBtn").style.display="none";
     connectSocket();
+  }
+
+  function recenterMap() {
+    userInteracting = false;
+    clearTimeout(userInteractTimer);
+    if (map && currentPos) {
+      map.panTo({ lat: currentPos.lat, lng: currentPos.lng });
+      map.setZoom(16);
+    }
   }
 
   // ── Boot ─────────────────────────────────────────────────
