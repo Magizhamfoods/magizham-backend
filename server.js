@@ -272,6 +272,7 @@ app.get("/api/weather", (req, res) => {
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat}&longitude=${lon}` +
+    `&current_weather=true` +
     `&current=temperature_2m,apparent_temperature,weathercode,windspeed_10m,relative_humidity_2m` +
     `&timezone=Asia%2FDubai`;
 
@@ -357,6 +358,7 @@ io.on("connection", async (socket) => {
     // 1. Lazy-load delivery coordinates if not in memory
     if (!activeDeliveries[oId] && !fetchingDeliveries[oId]) {
         fetchingDeliveries[oId] = true;
+        const lockTimeout = setTimeout(() => { delete fetchingDeliveries[oId]; }, 10000);
         pool.query('SELECT delivery_lat, delivery_lng FROM orders WHERE id = $1', [oId])
             .then(res => {
                 if(res.rows.length && res.rows[0].delivery_lat) {
@@ -369,7 +371,10 @@ io.on("connection", async (socket) => {
                 }
             })
             .catch(e => console.error("Delivery fetch error:", e))
-            .finally(() => delete fetchingDeliveries[oId]);
+            .finally(() => {
+                clearTimeout(lockTimeout);
+                delete fetchingDeliveries[oId];
+            });
     }
 
     let payloadEnrichments = {};

@@ -142,9 +142,9 @@ body::before { content:""; position:fixed; inset:0; z-index:0; pointer-events:no
 #navBtn.hide { display:none; }
 
 /* ── Auto-stage hint ── */
-#autoStageHint { display:none; background:rgba(0,255,136,.08); border:1.5px solid rgba(0,255,136,.22);
+#autoHint { display:none; background:rgba(0,255,136,.08); border:1.5px solid rgba(0,255,136,.22);
   border-radius:11px; padding:10px 13px; margin-bottom:10px; }
-#autoStageHint.show { display:flex; align-items:center; gap:9px; }
+#autoHint.show { display:flex; align-items:center; gap:9px; }
 .ash-icon { font-size:20px; flex-shrink:0; }
 .ash-body { flex:1; }
 .ash-title { font-size:12px; font-weight:800; color:var(--neon); }
@@ -707,8 +707,8 @@ body:not(.gps-active) #gpsBtn::before { content:""; position:absolute; top:0; le
       <!-- Contact row -->
       <div class="cta-row">
         <a class="ctb call" id="callBtn" href="#">📞 Call</a>
-        <button class="ctb msg" onclick="openChat('customer')">💬 Message</button>
-        <button class="ctb kitchen" onclick="openChat('kitchen')">🍳 Kitchen</button>
+        <button class="ctb msg" onclick="openChat('cust')">💬 Message</button>
+        <button class="ctb kitchen" onclick="openChat('kit')">🍳 Kitchen</button>
       </div>
     </div>
   </div>
