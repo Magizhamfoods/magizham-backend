@@ -148,6 +148,23 @@ pool.connect()
       ON CONFLICT (id) DO NOTHING
     `);
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id           SERIAL PRIMARY KEY,
+        name         VARCHAR(100),
+        phone        VARCHAR(20) UNIQUE NOT NULL,
+        password     VARCHAR(255) NOT NULL,
+        role         VARCHAR(20) DEFAULT 'rider',
+        created_at   TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
+    await pool.query(`
+      INSERT INTO users (name, phone, password, role)
+      VALUES ('Ravi Kumar', '971501234567', 'test123', 'rider')
+      ON CONFLICT (phone) DO NOTHING
+    `);
+
     console.log("✅ Tables ready");
   })
   .catch(err => console.error("❌ DB connection error:", err));
