@@ -264,6 +264,52 @@ app.post("/api/rider/location", authMiddleware, async (req, res) => {
   }
 });
 
+/* ── ROUTES API PROXY ───────────────────────────────────────── */
+app.get("/api/route", async (req, res) => {
+  try {
+    const { olat, olng, dlat, dlng } = req.query;
+
+    if (!olat || !olng || !dlat || !dlng) {
+      return res.status(400).json({ error: "Missing coordinates" });
+    }
+
+    const response = await fetch(
+      "https://routes.googleapis.com/directions/v2:computeRoutes",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-Api-Key": process.env.GOOGLE_MAPS_API_KEY,
+          "X-Goog-FieldMask":
+            "routes.duration,routes.staticDuration,routes.distanceMeters,routes.legs.steps.polyline.encodedPolyline"
+        },
+        body: JSON.stringify({
+          origin: {
+            location: {
+              latLng: { latitude: parseFloat(olat), longitude: parseFloat(olng) }
+            }
+          },
+          destination: {
+            location: {
+              latLng: { latitude: parseFloat(dlat), longitude: parseFloat(dlng) }
+            }
+          },
+          travelMode: "DRIVE",
+          routingPreference: "TRAFFIC_AWARE",
+          departureTime: new Date().toISOString()
+        })
+      }
+    );
+
+    const data = await response.json();
+    res.json(data);
+
+  } catch (err) {
+    console.error("Route API error:", err);
+    res.status(500).json({ error: "Route fetch failed" });
+  }
+});
+
 /* ── WEATHER PROXY ───────────────────────────────────────────── */
 app.get("/api/weather", (req, res) => {
   const lat = parseFloat(req.query.lat) || RESTAURANT_LAT;

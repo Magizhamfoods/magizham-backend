@@ -207,7 +207,7 @@
   <div class="top-badge">
     <span id="statusBadge" class="pulse">Connecting...</span>
     <div class="gps-badge" title="Rider GPS Signal Confidence">
-      <div id="gpsDot" class="gps-dot gps-low"></div>
+      <div id="gpsDot" class="gps-dot gps-med"></div>
       <span id="gpsText">GPS</span>
     </div>
   </div>
@@ -314,7 +314,7 @@
     }
   }
 </script>
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8&loading=async&libraries=maps,marker,geometry&v=weekly&callback=initMapCallback" async></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8&loading=async&libraries=maps,marker&v=weekly&callback=initMapCallback" async></script>
 <script>
 /* ═══════════════════════════════════════════════════════════════
    MAGIZHAM TRACKING — PRODUCTION v3.1 (NATIVE TIER UPGRADE)
@@ -337,9 +337,9 @@
   const RESTAURANT_POS   = { lat: 25.2426266, lng: 55.3026453 };
   const DEFAULT_CUSTOMER_POS = { lat: 25.2320,    lng: 55.3120    };
 
-  let map, riderMarker, etaMarker, customerMarker, restaurantMarker, routesLib;
+  let map, riderMarker, etaMarker, customerMarker, restaurantMarker;
   let accuracyCircle = null, trafficPolylines = [], socketInstance = null;
-  let lastStatus = "", popupShown = false, mapFitted = false;
+  let lastStatus = "", lastSpokenStatus = "", popupShown = false, mapFitted = false;
   let lastRoutePos = null, lastRouteTime = 0;
   let countdownSecs = 0, countdownTimer = null;
   let selectedRating = 0, riderName = "Your rider";
@@ -401,7 +401,7 @@
         const banner = document.getElementById("offlineBanner");
         
         // Show low power / idle warnings
-        if (idleTime > 12000) {
+        if (idleTime > 20000) {
           if (badge.style.display !== "block") badge.style.display = "block";
           if (!socketInstance || !socketInstance.connected) {
             if (banner.style.display !== "block") banner.style.display = "block";
@@ -614,8 +614,6 @@
     try {
       const { Map } = await google.maps.importLibrary("maps");
       const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
-      routesLib = await google.maps.importLibrary("routes");
-      
       try {
         map = new Map(document.getElementById("map"), { 
             zoom:15, 
@@ -680,13 +678,14 @@
           zIndex: 1
       });
       
-      map.addListener("dragstart", () => {
+      const _setInteracting = () => {
         userInteracting = true;
         clearTimeout(userInteractTimer);
-      });
-      map.addListener("dragend", () => {
         userInteractTimer = setTimeout(() => { userInteracting = false; }, 5000);
-      });
+      };
+      map.addListener("dragstart", _setInteracting);
+      map.addListener("dragend",   _setInteracting);
+      map.addListener("zoom_changed", _setInteracting);
 
       updateAccuracyCircle(riderPos);
       drawTrafficRoute(riderPos, custPos);
@@ -706,6 +705,7 @@
     isTrackingLive = true;
     lastRenderTime = Date.now();
     requestAnimationFrame(unifiedRenderLoop);
+    startEtaEngine();
   }
 
   function unifiedRenderLoop() {
@@ -759,25 +759,26 @@
       }
     }
 
-    // Smart ETA Engine (Bonus Feature) - run every ~1 sec implicitly
-    if (countdownTimer && isTrackingLive && (now % 1000 < 20)) {
-        const distToCustomer = getDistanceMeters(currentPos, customerPos);
-        
-        if (currentSpeedKmh < 2 && distToCustomer > 500) {
-            dynamicDelaySecs += 1;
-        }
-
-        if (distToCustomer < 100 && currentSpeedKmh > 1) {
-            currentSpeedKmh *= 0.8;
-        }
-
-        // 🔥 BONUS A: Waiting at Door logic
-        if (distToCustomer < 50 && currentSpeedKmh < 2 && lastStatus !== "delivered") {
-            setStatusHero("waiting");
-        }
-    }
-
     requestAnimationFrame(unifiedRenderLoop);
+  }
+
+  let _etaEngineTimer = null;
+  function startEtaEngine() {
+    if (_etaEngineTimer) return;
+    _etaEngineTimer = setInterval(() => {
+      if (!currentPos || !customerPos) return;
+      const distToCustomer = getDistanceMeters(currentPos, customerPos);
+
+      if (currentSpeedKmh < 2 && distToCustomer > 500) {
+        dynamicDelaySecs = Math.min(dynamicDelaySecs + 1, 120);
+      }
+      if (distToCustomer < 100 && currentSpeedKmh > 1) {
+        currentSpeedKmh *= 0.8;
+      }
+      if (distToCustomer < 50 && currentSpeedKmh < 2 && lastStatus !== "delivered") {
+        setStatusHero("waiting");
+      }
+    }, 1000);
   }
 
   // Helper for rendering ETA based on google maps response
@@ -788,52 +789,75 @@
     return Math.round(smoothedETA);
   }
 
-  function drawTrafficRoute(origin, destination) {
+  async function drawTrafficRoute(origin, destination) {
     if (!map) return;
     trafficPolylines.forEach(p => p.setMap(null)); trafficPolylines = [];
 
-    const svc = new google.maps.DirectionsService();
-    svc.route({
-      origin, destination,
-      travelMode: google.maps.TravelMode.DRIVING,
-      drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel.BEST_GUESS }
-    }, (result, status) => {
-      if (status !== "OK" || !result.routes.length) { console.warn("Directions:", status); return; }
-      const leg = result.routes[0].legs[0];
+    const API_KEY = "AIzaSyDW9rqQgox2eYyKmI8Vw637RCPsO1Gr9E8";
+    const FIELD_MASK = [
+      "routes.duration",
+      "routes.staticDuration",
+      "routes.distanceMeters",
+      "routes.legs.steps.distanceMeters",
+      "routes.legs.steps.staticDuration",
+      "routes.legs.steps.polyline.encodedPolyline"
+    ].join(",");
+
+    try {
+      const res = await fetch(`/api/route?olat=${origin.lat}&olng=${origin.lng}&dlat=${destination.lat}&dlng=${destination.lng}`);
+
+      if (!res.ok) { console.warn("Routes API error:", res.status); return; }
+      const data = await res.json();
+      if (!data.routes?.length) { console.warn("Routes API: no routes returned"); return; }
+
+      const route = data.routes[0];
+      const parseSecs = s => { const m = String(s || "").match(/(\d+)/); return m ? parseInt(m[1], 10) : 0; };
+
+      const totalSecs  = parseSecs(route.duration);
+      const staticSecs = parseSecs(route.staticDuration);
+      // Use traffic-aware totalSecs directly; dynamicDelaySecs handles stall penalty on top
       trafficDelaySecs = 0;
-      leg.steps.forEach(step => {
-        const kmh = (step.distance.value / Math.max(step.duration.value, 1)) * 3.6;
-        const color = kmh < 15 ? "#ef4444" : kmh < 35 ? "#f97316" : "#22c55e";
-        trafficPolylines.push(new google.maps.Polyline({
-          path: step.path, strokeColor: color, strokeWeight: 6, strokeOpacity: .9, map, zIndex: 10
-        }));
-        if (kmh < 15) trafficDelaySecs += 2;
-        else if (kmh < 30) trafficDelaySecs += 1;
+
+      (route.legs?.[0]?.steps || []).forEach(step => {
+        const stepSecs = parseSecs(step.staticDuration);
+        const distM    = step.distanceMeters || 0;
+        const kmh      = stepSecs > 0 ? (distM / stepSecs) * 3.6 : 50;
+        const color    = kmh < 15 ? "#ef4444" : kmh < 35 ? "#f97316" : "#22c55e";
+        if (step.polyline?.encodedPolyline) {
+          trafficPolylines.push(new google.maps.Polyline({
+            path: decodePoly(step.polyline.encodedPolyline),
+            strokeColor: color, strokeWeight: 6, strokeOpacity: 0.9, map, zIndex: 10
+          }));
+        }
       });
+
       document.getElementById("trafficLegend").style.display = "block";
-      document.getElementById("distance").innerText = (leg.distance.value / 1000).toFixed(2) + " km";
+      document.getElementById("distance").innerText = ((route.distanceMeters || 0) / 1000).toFixed(2) + " km";
       document.getElementById("pillDistance").classList.add("live");
-      if (leg.duration?.value) {
+
+      if (totalSecs) {
         document.getElementById("pillEta").classList.add("live");
-        setArrivalInfo(getSmoothedETA(leg.duration.value));
+        setArrivalInfo(getSmoothedETA(totalSecs));
       }
+
       if (!mapFitted) {
         const b = new google.maps.LatLngBounds();
         b.extend(origin); b.extend(destination);
         map.fitBounds(b, { bottom: 360, top: 80, left: 20, right: 20 });
         mapFitted = true;
       }
-      const dist = leg.distance.value;
-      let newStatus = dist < 200 ? "delivered" : dist < 500 ? "arriving" : "onTheWay";
-      if (newStatus === "delivered") { updateStatusBadge("delivered","delivered"); setStatusHero("delivered"); updateTimeline("delivered"); }
-      else if (newStatus === "arriving") { updateStatusBadge("arriving","arrived"); setStatusHero("arriving"); updateTimeline("on_the_way"); triggerArrivingState(); triggerProximityAlert(); }
+
+      const dist = route.distanceMeters || 0;
+      let newStatus = dist < 500 ? "arriving" : "onTheWay";
+      if (newStatus === "arriving") { updateStatusBadge("arriving","arrived"); setStatusHero("arriving"); updateTimeline("on_the_way"); triggerArrivingState(); triggerProximityAlert(); }
       else { updateStatusBadge("onTheWay","connected"); clearArrivingState(); }
       if (newStatus !== lastStatus) {
-        if (newStatus === "arriving") speak("speechArriving");
-        if (newStatus === "delivered" && !popupShown) { popupShown = true; clearArrivingState(); speak("speechDelivered"); triggerDelivery(); }
+        if (newStatus === "arriving" && newStatus !== lastSpokenStatus) { speak("speechArriving"); lastSpokenStatus = newStatus; }
         lastStatus = newStatus;
       }
-    });
+    } catch (e) {
+      console.warn("Routes API failed:", e);
+    }
   }
 
   function triggerDelivery() {
@@ -964,12 +988,12 @@
     if (s === "delivered") {
       updateStatusBadge("delivered", "delivered");
       setStatusHero("delivered");
-      speak("speechDelivered");
+      if (lastSpokenStatus !== "delivered") { speak("speechDelivered"); lastSpokenStatus = "delivered"; }
       if (!popupShown) { popupShown = true; triggerDelivery(); }
     } else if (s === "on_the_way") {
       updateStatusBadge("onTheWay", "connected");
       setStatusHero("on_the_way", riderName + " picked up your order!");
-      speak("speechOnTheWay");
+      if (lastSpokenStatus !== "on_the_way") { speak("speechOnTheWay"); lastSpokenStatus = "on_the_way"; }
       showToast("🛵 " + riderName + " is on the way!");
     } else if (s === "confirmed") {
       updateStatusBadge("confirmed", "");
