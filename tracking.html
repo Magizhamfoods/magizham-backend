@@ -539,7 +539,15 @@
     if (etaMarker && etaMarker.content) etaMarker.content.innerText = minsLeft<=1 ? "ETA: NOW" : "ETA: "+minsLeft+" MINS";
   }
 
-  function setArrivalInfo(secs) { if (secs && secs > 0) startCountdown(secs); }
+  function setArrivalInfo(secs) {
+    if (secs && secs > 0) startCountdown(secs);
+    // Dubai rush hours: 7-9 AM and 5-8 PM
+    const h = new Date().getHours();
+    if ((h >= 7 && h <= 9) || (h >= 17 && h <= 20)) {
+      showToast("🚗 Rush hour — ETA may vary", 3000);
+      dynamicDelaySecs += 60;
+    }
+  }
 
   function updateAccuracyCircle(pos, accuracy) {
     accuracy = accuracy || 40;
@@ -624,7 +632,7 @@
             streetViewControl:false, 
             zoomControl:false, 
             colorScheme:"DARK",
-            tilt: 45 // 3D Perspective angle
+            tilt: 0
         });
       } catch(e) {
         map = new Map(document.getElementById("map"), { zoom:15, center:riderPos, mapTypeControl:false, fullscreenControl:false, streetViewControl:false, zoomControl:false });
@@ -943,10 +951,10 @@
     let newLng = parseFloat(data.lng);
     if (isNaN(newLat) || isNaN(newLng)) return;
 
-    // 🔥 FIX 2: SMOOTHING GPS JITTER (0.8 / 0.2 EMA filter)
+    // 🔥 FIX 2: SMOOTHING GPS JITTER (0.5 / 0.5 EMA filter)
     if (targetPos) {
-      newLat = targetPos.lat * 0.8 + newLat * 0.2;
-      newLng = targetPos.lng * 0.8 + newLng * 0.2;
+      newLat = targetPos.lat * 0.5 + newLat * 0.5;
+      newLng = targetPos.lng * 0.5 + newLng * 0.5;
     }
 
     const newTarget = { lat: newLat, lng: newLng };
@@ -959,7 +967,7 @@
       if (targetPos) {
         const bearing = getBearing(targetPos, newTarget);
         if (getDistanceMeters(targetPos, newTarget) > 3.0) {
-          currentGeographicHeading = currentGeographicHeading * 0.8 + bearing * 0.2; // EMA heading smoothing
+          currentGeographicHeading = currentGeographicHeading * 0.6 + bearing * 0.4; // EMA heading smoothing
           updateBikeHeading(bearing);         // Run UI spin easing
         }
       }
@@ -982,9 +990,12 @@
     if (currentSpeedKmh < 1) {
         activityStatus = "Stopped";
         speedEl.style.color = "#ef4444";
-    } else if (currentSpeedKmh < 10) {
+    } else if (currentSpeedKmh < 20) {
         activityStatus = "Slow traffic";
         speedEl.style.color = "#f97316";
+    } else if (currentSpeedKmh < 40) {
+        activityStatus = "Moving";
+        speedEl.style.color = "#eab308";
     } else {
         activityStatus = "Moving fast";
         speedEl.style.color = "#22c55e";
@@ -1060,7 +1071,11 @@
       
       const riderPos=(data.lat&&data.lng)?{lat:parseFloat(data.lat),lng:parseFloat(data.lng)}:{...RESTAURANT_POS};
       customerPos=(data.delivery_lat&&data.delivery_lng)?{lat:parseFloat(data.delivery_lat),lng:parseFloat(data.delivery_lng)}:{...DEFAULT_CUSTOMER_POS};
-      
+      pastPositions = [];
+      smoothedETA = null;
+      lastRoutePos = null;
+      mapFitted = false;
+
       await initMap(riderPos,customerPos);
       
       // Seed first location to initiate animation engine safely
