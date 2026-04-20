@@ -313,7 +313,7 @@ app.get("/api/route", async (req, res) => {
           },
           travelMode: "DRIVE",
           routingPreference: "TRAFFIC_AWARE",
-          departureTime: new Date().toISOString()
+          departureTime: new Date(Date.now() + 5 * 60 * 1000).toISOString()
         })
       }
     );
